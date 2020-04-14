@@ -1,4 +1,17 @@
 
+# Usage
+
+```
+# Build using CMake, which creates a new build directory
+./build.sh
+
+# Run example program
+./build/example
+
+# Run unit tests
+./build/test_alex
+```
+
 # Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
