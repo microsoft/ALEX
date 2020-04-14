@@ -12,7 +12,7 @@
 
 int main(int argc, char* argv[]) {
     // Create some synthetic data: keys are dense integers between 0 and 99, and payloads are random values
-    int num_keys = 100;
+    const int num_keys = 100;
     KEY_TYPE keys[num_keys];
     PAYLOAD_TYPE payloads[num_keys];
     for (int i = 0; i < num_keys; i++) {

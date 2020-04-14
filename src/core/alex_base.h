@@ -268,6 +268,7 @@ public:
 
 	double get_stat() override {
 		assert(false);  // this should not be used
+		return 0.0;
 	}
 
 	double get_expected_num_search_iterations() {

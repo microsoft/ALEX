@@ -501,7 +501,7 @@ namespace test
 
     TEST(DataNode, TestBuildIndexWithSample)
     {
-        int num_keys = 20000;
+        const int num_keys = 20000;
         int keys[num_keys];
         int payload[num_keys];
         for (int i = 0; i < num_keys; i++) {
@@ -524,7 +524,7 @@ namespace test
 
     TEST(DataNode, TestComputeCostWithSample)
     {
-        int num_keys = 20000;
+        const int num_keys = 20000;
         int keys[num_keys];
         int payload[num_keys];
         for (int i = 0; i < num_keys; i++) {
