@@ -1,3 +1,14 @@
+#if defined(_WIN32) || defined(__WIN32__) || defined(WIN32) || defined(_WIN64)
+# define WINDOWS
+
+#elif defined(__linux) || defined(__linux__) || defined(linux)
+# define LINUX
+ 
+#elif defined(__APPLE__)
+# define MACOS
+
+#endif
+
 cmake_minimum_required(VERSION 3.12)
 
 project(googletest-download NONE)

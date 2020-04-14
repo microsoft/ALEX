@@ -3,7 +3,9 @@ project(alex)
 
 set(CMAKE_CXX_STANDARD 14)
 
-set(CMAKE_CXX_FLAGS "-O3 -march=native")
+if(LINUX)
+    set(CMAKE_CXX_FLAGS "-O3 -march=native")
+endif()
 
 add_executable(example src/examples/main.cpp)
 
