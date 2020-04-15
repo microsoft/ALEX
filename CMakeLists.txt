@@ -3,7 +3,12 @@ project(alex)
 
 set(CMAKE_CXX_STANDARD 14)
 
-if(LINUX)
+if(MSVC)
+    set(CMAKE_CXX_FLAGS "/O2 /arch:AVX2")
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+    set(CMAKE_CXX_FLAGS "-O3 -xHost")
+else()
+    # clang and gcc
     set(CMAKE_CXX_FLAGS "-O3 -march=native")
 endif()
 
