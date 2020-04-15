@@ -405,9 +405,9 @@ private:
     }
 
     // Updates the key domain based on the min/max keys and retrains the model.
-    // Should only be called when the root node is a data node.
+    // Should only be called immediately after bulk loading or when the root node is a data node.
     void update_superroot_key_domain() {
-	    assert(root_node_->is_leaf_);
+        assert(stats_.num_inserts == 0 || root_node_->is_leaf_);
         istats_.key_domain_min_ = get_min_key();
         istats_.key_domain_max_ = get_max_key();
         istats_.num_keys_at_last_right_domain_resize = stats_.num_keys;
