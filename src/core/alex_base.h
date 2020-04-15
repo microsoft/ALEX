@@ -137,14 +137,14 @@ inline uint64_t remove_rightmost_one(uint64_t value) {
 
 // Count the number of 1s in the binary representation.
 // e.g. count_ones(010100100) = 3
-inline uint64_t count_ones(uint64_t value) {
-    return _mm_popcnt_u64(value);
+inline int count_ones(uint64_t value) {
+    return static_cast<int>(_mm_popcnt_u64(value));
 }
 
 // Get the offset of a bit in a bitmap.
 // word_id is the word id of the bit in a bitmap
 // bit is the word that contains the bit
-inline size_t get_offset(size_t word_id, uint64_t bit) {
+inline int get_offset(int word_id, uint64_t bit) {
     assert(count_ones(bit) == 1);
     return (word_id << 6) + count_ones(bit - 1);
 }

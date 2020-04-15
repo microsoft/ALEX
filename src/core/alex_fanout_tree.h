@@ -386,7 +386,7 @@ int find_best_fanout_existing_node(
     }
 
     // Merge nodes to improve cost
-    best_cost = merge_nodes_upwards<T,P>(best_level, best_cost, num_keys, total_keys, fanout_tree);
+    merge_nodes_upwards<T,P>(best_level, best_cost, num_keys, total_keys, fanout_tree);
 
     collect_used_nodes(fanout_tree, best_level, used_fanout_tree_nodes);
     return best_level;

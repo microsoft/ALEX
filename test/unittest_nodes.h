@@ -503,10 +503,8 @@ namespace test
     {
         const int num_keys = 20000;
         int keys[num_keys];
-        int payload[num_keys];
         for (int i = 0; i < num_keys; i++) {
             keys[i] = rand() % 50000;
-            payload[i] = i;
         }
         std::sort(keys, keys + num_keys);
 
@@ -526,10 +524,8 @@ namespace test
     {
         const int num_keys = 20000;
         int keys[num_keys];
-        int payload[num_keys];
         for (int i = 0; i < num_keys; i++) {
             keys[i] = rand() % 50000;
-            payload[i] = i;
         }
         std::sort(keys, keys + num_keys);
 

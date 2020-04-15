@@ -183,9 +183,9 @@ public:
 
 	explicit Alex(const Alex<T,P>& other) :
 	    params_(other.params_), derived_params_(other.derived_params_),
-	    experimental_params_(other.experimental_params_),
-	    istats_(other.istats_), stats_(other.stats_)
-	{
+	    stats_(other.stats_), experimental_params_(other.experimental_params_),
+	    istats_(other.istats_)
+    {
         root_node_ = copy_tree_recursive(other.root_node_);
         create_superroot();
     }
@@ -806,7 +806,7 @@ private:
         double cumulative_cost = 0;
         double best_cost = std::numeric_limits<double>::max();
         int best_path_level = -1;
-        for (int i = traversal_costs.size() - 1; i >= 0; i--) {
+        for (int i = static_cast<int>(traversal_costs.size()) - 1; i >= 0; i--) {
             SplitDecisionCosts& c = traversal_costs[i];
             if (c.stop_cost != std::numeric_limits<double>::max() && cumulative_cost + c.stop_cost < best_cost) {
                 best_cost = cumulative_cost + c.stop_cost;
@@ -1008,7 +1008,6 @@ private:
             bucketID *= expansion_factor;
         }
         int start_bucketID = bucketID - (bucketID % repeats);  // first bucket with same child
-        int end_bucketID = start_bucketID + repeats;  // first bucket with next child
 
         if (used_fanout_tree_nodes.empty()) {
             assert(fanout_tree_depth == 1);
@@ -1192,7 +1191,7 @@ private:
         // Splitting an internal node involves dividing the child pointers into two halves, and doubling the relevant half.
         AlexNode<T,P>* prev_left_split = left_leaf;
         AlexNode<T,P>* prev_right_split = right_leaf;
-        for (int level = traversal_path.size() - 1; level > best_path_level; level--) {
+        for (int level = static_cast<int>(traversal_path.size()) - 1; level > best_path_level; level--) {
             // Decide which half to double
             TraversalNode& path_node = traversal_path[level];
             AlexModelNode<T,P>* cur_node = path_node.node;
@@ -1272,7 +1271,7 @@ private:
             } else {
                 // double right half
                 assert(right_split != nullptr);
-                if (level == traversal_path.size() - 1) {
+                if (level == static_cast<int>(traversal_path.size()) - 1) {
                     *new_parent = right_split;
                 }
                 if (pull_up_left_child) {
@@ -1346,7 +1345,7 @@ private:
         // Insert into the top node
         TraversalNode& top_path_node = traversal_path[best_path_level];
         AlexModelNode<T,P>* top_node = top_path_node.node;
-        if (best_path_level == traversal_path.size() - 1) {
+        if (best_path_level == static_cast<int>(traversal_path.size()) - 1) {
             *new_parent = top_node;
         }
         int top_bucketID = top_path_node.bucketID;
@@ -1646,7 +1645,7 @@ public:
         Alex<T,P>& index_;
         AlexDataNode<T,P>* cur_leaf_ = nullptr;  // current data node
 		int cur_idx_;  // current position in key/data_slots of data node
-		size_t cur_bitmap_idx_;  // current position in bitmap
+		int cur_bitmap_idx_;  // current position in bitmap
 		uint64_t cur_bitmap_data_;  // caches the relevant data in the current bitmap position
 
 		explicit Iterator (Alex<T,P>& index) : index_(index) {}
@@ -1679,7 +1678,7 @@ public:
 			cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
 
 			// Zero out extra bits
-			size_t bit_pos = cur_idx_ - (cur_bitmap_idx_ << 6);
+			int bit_pos = cur_idx_ - (cur_bitmap_idx_ << 6);
 			cur_bitmap_data_ &= ~((1L << bit_pos) - 1);
 
 			(*this)++;

@@ -51,7 +51,7 @@ public:
 
 	AlexNode() = default;
     explicit AlexNode(short level) : level_(level) {}
-	AlexNode(short level, bool is_leaf) : level_(level), is_leaf_(is_leaf) {}
+	AlexNode(short level, bool is_leaf) : is_leaf_(is_leaf), level_(level) {}
     virtual ~AlexNode() = default;
 
     // The size in bytes of all member variables in this class
@@ -273,7 +273,7 @@ public:
     // Bitmap: each uint64_t represents 64 positions in reverse order
     // (i.e., each uint64_t is "read" from the right-most bit to the left-most bit)
     uint64_t* bitmap_ = nullptr;
-    size_t bitmap_size_ = 0;  // number of int64_t in bitmap
+    int bitmap_size_ = 0;  // number of int64_t in bitmap
 
     // Variables related to resizing (expansions and contractions)
 	static constexpr double kMaxDensity_ = 0.8;  // density after contracting, also determines the expansion threshold
@@ -326,8 +326,8 @@ public:
     }
 
     AlexDataNode(const AlexDataNode& other) :
-        AlexNode<T,P>(other), next_leaf_(other.next_leaf_), prev_leaf_(other.prev_leaf_), num_keys_(other.num_keys_),
-        data_capacity_(other.data_capacity_), bitmap_size_(other.bitmap_size_),
+        AlexNode<T,P>(other), next_leaf_(other.next_leaf_), prev_leaf_(other.prev_leaf_), data_capacity_(other.data_capacity_),
+        num_keys_(other.num_keys_), bitmap_size_(other.bitmap_size_),
         expansion_threshold_(other.expansion_threshold_), contraction_threshold_(other.contraction_threshold_),
         max_slots_(other.max_slots_), num_shifts_(other.num_shifts_),
         num_exp_search_iterations_(other.num_exp_search_iterations_), num_lookups_(other.num_lookups_),
@@ -892,7 +892,7 @@ public:
 	void initialize(int num_keys, double density) {
         num_keys_ = num_keys;
         data_capacity_ = std::max(static_cast<int>(num_keys / density), num_keys + 1);
-        bitmap_size_ = static_cast<size_t>(std::ceil(data_capacity_ / 64.));
+        bitmap_size_ = static_cast<int>(std::ceil(data_capacity_ / 64.));
         bitmap_ = new uint64_t[bitmap_size_]();  // initialize to all false
 #if ALEX_DATA_NODE_SEP_ARRAYS
         key_slots_ = new T[data_capacity_];
@@ -1242,22 +1242,22 @@ public:
             }
         }
 
-        size_t curBitmapIdx = pos >> 6;
-        uint64_t curBitmapData = bitmap_[curBitmapIdx];
+        int cur_bitmap_idx = pos >> 6;
+        uint64_t cur_bitmap_data = bitmap_[cur_bitmap_idx];
 
         // Zero out extra bits
-        size_t bit_pos = pos - (curBitmapIdx << 6);
-        curBitmapData &= ~((1L << (bit_pos)) - 1);
+        int bit_pos = pos - (cur_bitmap_idx << 6);
+        cur_bitmap_data &= ~((1L << (bit_pos)) - 1);
 
-        while (curBitmapData == 0) {
-            curBitmapIdx++;
-            if (curBitmapIdx >= bitmap_size_) {
+        while (cur_bitmap_data == 0) {
+            cur_bitmap_idx++;
+            if (cur_bitmap_idx >= bitmap_size_) {
                 return data_capacity_;
             }
-            curBitmapData = bitmap_[curBitmapIdx];
+            cur_bitmap_data = bitmap_[cur_bitmap_idx];
         }
-        uint64_t bit = extract_rightmost_one(curBitmapData);
-        return get_offset(curBitmapIdx, bit);
+        uint64_t bit = extract_rightmost_one(cur_bitmap_data);
+        return get_offset(cur_bitmap_idx, bit);
     }
 
     // Searches for the first position greater than key
@@ -1448,7 +1448,7 @@ public:
 	    }
 
         int new_data_capacity = std::max(static_cast<int>(num_keys_ / target_density), num_keys_ + 1);
-        auto new_bitmap_size = static_cast<size_t>(std::ceil(new_data_capacity / 64.));
+        auto new_bitmap_size = static_cast<int>(std::ceil(new_data_capacity / 64.));
         auto new_bitmap = new uint64_t[new_bitmap_size]();  // initialize to all false
 #if ALEX_DATA_NODE_SEP_ARRAYS
         T* new_key_slots = new T[new_data_capacity];
@@ -1634,7 +1634,7 @@ public:
         pos = std::min(pos, data_capacity_ - 1);
         int bitmap_pos = pos >> 6;
         int bit_pos = pos - (bitmap_pos << 6);
-        if (bitmap_[bitmap_pos] == -1 || (
+        if (bitmap_[bitmap_pos] == static_cast<uint64_t>(-1) || (
                 bitmap_pos == bitmap_size_ - 1 &&
                 _mm_popcnt_u64(bitmap_[bitmap_pos]) == data_capacity_ - ((bitmap_size_ - 1) << 6)
         )) {
@@ -1648,7 +1648,7 @@ public:
             while (bitmap_distance <= max_bidirectional_bitmap_offset) {
                 uint64_t left_bitmap_data = bitmap_[bitmap_pos - bitmap_distance];
                 uint64_t right_bitmap_data = bitmap_[bitmap_pos + bitmap_distance];
-                if (left_bitmap_data != -1 && right_bitmap_data != -1) {
+                if (left_bitmap_data != static_cast<uint64_t>(-1) && right_bitmap_data != static_cast<uint64_t>(-1)) {
                     int left_gap_pos = ((bitmap_pos - bitmap_distance + 1) << 6) - static_cast<int>(_lzcnt_u64(~left_bitmap_data)) - 1;
                     int right_gap_pos = ((bitmap_pos + bitmap_distance) << 6) + static_cast<int>(_tzcnt_u64(~right_bitmap_data));
                     if (pos - left_gap_pos <= right_gap_pos - pos || right_gap_pos >= data_capacity_) {
@@ -1656,11 +1656,11 @@ public:
                     } else {
                         return right_gap_pos;
                     }
-                } else if (left_bitmap_data != -1) {
+                } else if (left_bitmap_data != static_cast<uint64_t>(-1)) {
                     int left_gap_pos = ((bitmap_pos - bitmap_distance + 1) << 6) - static_cast<int>(_lzcnt_u64(~left_bitmap_data)) - 1;
                     // also need to check next block to the right
                     if (bit_pos > 32 && bitmap_pos + bitmap_distance + 1 < bitmap_size_ &&
-                        bitmap_[bitmap_pos + bitmap_distance + 1] != -1) {
+                        bitmap_[bitmap_pos + bitmap_distance + 1] != static_cast<uint64_t>(-1)) {
                         int right_gap_pos = ((bitmap_pos + bitmap_distance + 1) << 6) +
                                             static_cast<int>(_tzcnt_u64(~bitmap_[bitmap_pos + bitmap_distance + 1]));
                         if (pos - left_gap_pos <= right_gap_pos - pos || right_gap_pos >= data_capacity_) {
@@ -1671,12 +1671,12 @@ public:
                     } else {
                         return left_gap_pos;
                     }
-                } else if (right_bitmap_data != -1) {
+                } else if (right_bitmap_data != static_cast<uint64_t>(-1)) {
                     int right_gap_pos = ((bitmap_pos + bitmap_distance) << 6) + static_cast<int>(_tzcnt_u64(~right_bitmap_data));
                     if (right_gap_pos < data_capacity_) {
                         // also need to check next block to the left
                         if (bit_pos < 32 && bitmap_pos - bitmap_distance > 0 &&
-                            bitmap_[bitmap_pos - bitmap_distance - 1] != -1) {
+                            bitmap_[bitmap_pos - bitmap_distance - 1] != static_cast<uint64_t>(-1)) {
                             int left_gap_pos = ((bitmap_pos - bitmap_distance) << 6) -
                                                static_cast<int>(_lzcnt_u64(~bitmap_[bitmap_pos - bitmap_distance - 1])) - 1;
                             if (pos - left_gap_pos <= right_gap_pos - pos || right_gap_pos >= data_capacity_) {
@@ -1693,14 +1693,14 @@ public:
             }
             if (max_left_bitmap_offset > max_right_bitmap_offset) {
                 for (int i = bitmap_pos - bitmap_distance; i >= left_bitmap_pos; i--) {
-                    if (bitmap_[i] != -1) {
+                    if (bitmap_[i] != static_cast<uint64_t>(-1)) {
                         return ((i + 1) << 6) - static_cast<int>(_lzcnt_u64(~bitmap_[i])) - 1;
                     }
                 }
             }
             else {
                 for (int i = bitmap_pos + bitmap_distance; i <= right_bitmap_pos; i++) {
-                    if (bitmap_[i] != -1) {
+                    if (bitmap_[i] != static_cast<uint64_t>(-1)) {
                         int right_gap_pos = (i << 6) + static_cast<int>(_tzcnt_u64(~bitmap_[i]));
                         if (right_gap_pos >= data_capacity_) {
                             return -1;
