@@ -1573,9 +1573,8 @@ public:
         return static_cast<double>(num_left_out_of_bounds_inserts_) / num_inserts_ > kAppendMostlyThreshold;
     }
 
-    // Insert key into pos, which must be a gap
+    // Insert key into pos. The caller must guarantee that pos is a gap.
     void insert_element_at(T key, P payload, int pos) {
-        assert(!check_exists(pos));
 #if ALEX_DATA_NODE_SEP_ARRAYS
         key_slots_[pos] = key;
         payload_slots_[pos] = payload;
