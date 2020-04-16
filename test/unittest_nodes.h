@@ -132,7 +132,7 @@ namespace test
         node.data_capacity_ = 8;
         node.bitmap_ = new uint64_t[1]();
         for (int i : { 1, 2, 3, 4, 5, 7 }) {
-            node.bitmap_[0] |= (1L << i);
+            node.bitmap_[0] |= (1ULL << i);
         }
 
         EXPECT_EQ(0, node.closest_gap(1));
@@ -172,7 +172,7 @@ namespace test
         for (int i = 50; i < 300; i++) {
             size_t bitmap_pos = i >> 6;
             size_t bit_pos = i - (bitmap_pos << 6);
-            node.bitmap_[bitmap_pos] |= (1L << bit_pos);
+            node.bitmap_[bitmap_pos] |= (1ULL << bit_pos);
         }
 
         EXPECT_EQ(49, node.closest_gap(75));  // pos in second block
@@ -194,7 +194,7 @@ namespace test
         node.data_capacity_ = 8;
         node.bitmap_ = new uint64_t[1]();
         for (int i : { 1, 2, 3, 4, 5, 7 }) {
-            node.bitmap_[0] |= (1L << i);
+            node.bitmap_[0] |= (1ULL << i);
         }
 
         node.insert_using_shifts(4, rand(), 4, 0, 8);
@@ -219,7 +219,7 @@ namespace test
         bool exists[] = { false, true, true, true, true, true, false, true };
         for (int i = 0; i < 8; i++) {
             if (exists[i]) {
-                node.bitmap_[0] |= (1L << i);
+                node.bitmap_[0] |= (1ULL << i);
             }
         }
 

@@ -1679,7 +1679,7 @@ public:
 
 			// Zero out extra bits
 			int bit_pos = cur_idx_ - (cur_bitmap_idx_ << 6);
-			cur_bitmap_data_ &= ~((1L << bit_pos) - 1);
+			cur_bitmap_data_ &= ~((1ULL << bit_pos) - 1);
 
 			(*this)++;
 		}

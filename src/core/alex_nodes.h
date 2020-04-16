@@ -365,7 +365,7 @@ public:
         assert(pos >= 0 && pos < data_capacity_);
         int bitmap_pos = pos >> 6;
         int bit_pos = pos - (bitmap_pos << 6);
-        return (bool)(bitmap_[bitmap_pos] & (1L << bit_pos));
+        return static_cast<bool>(bitmap_[bitmap_pos] & (1ULL << bit_pos));
     }
 
     // Mark the entry for position in the bitmap
@@ -373,14 +373,14 @@ public:
         assert(pos >= 0 && pos < data_capacity_);
         int bitmap_pos = pos >> 6;
         int bit_pos = pos - (bitmap_pos << 6);
-        bitmap_[bitmap_pos] |= (1L << bit_pos);
+        bitmap_[bitmap_pos] |= (1ULL << bit_pos);
     }
 
     // Mark the entry for position in the bitmap
     inline void set_bit(uint64_t bitmap[], int pos) {
         int bitmap_pos = pos >> 6;
         int bit_pos = pos - (bitmap_pos << 6);
-        bitmap[bitmap_pos] |= (1L << bit_pos);
+        bitmap[bitmap_pos] |= (1ULL << bit_pos);
     }
 
     // Unmark the entry for position in the bitmap
@@ -388,7 +388,7 @@ public:
         assert(pos >= 0 && pos < data_capacity_);
         int bitmap_pos = pos >> 6;
         int bit_pos = pos - (bitmap_pos << 6);
-        bitmap_[bitmap_pos] &= ~(1L << bit_pos);
+        bitmap_[bitmap_pos] &= ~(1ULL << bit_pos);
     }
 
     // Value of first (i.e., min) key
@@ -447,7 +447,7 @@ public:
 
             // Zero out extra bits
             int bit_pos = cur_idx_ - (cur_bitmap_idx_ << 6);
-            cur_bitmap_data_ &= ~((1L << bit_pos) - 1);
+            cur_bitmap_data_ &= ~((1ULL << bit_pos) - 1);
 
             (*this)++;
         }
@@ -1247,7 +1247,7 @@ public:
 
         // Zero out extra bits
         int bit_pos = pos - (cur_bitmap_idx << 6);
-        cur_bitmap_data &= ~((1L << (bit_pos)) - 1);
+        cur_bitmap_data &= ~((1ULL << (bit_pos)) - 1);
 
         while (cur_bitmap_data == 0) {
             cur_bitmap_idx++;
@@ -1718,7 +1718,7 @@ public:
             // Logically gaps to the right of pos, in the bitmap these are gaps to the left of pos's bit
             // This covers the case where pos is a gap
             // For example, if pos is 3, then bitmap '10101101' -> bitmap_right_gaps '01010000'
-            uint64_t bitmap_right_gaps = ~(bitmap_data | ((1L << bit_pos) - 1));
+            uint64_t bitmap_right_gaps = ~(bitmap_data | ((1ULL << bit_pos) - 1));
             if (bitmap_right_gaps != 0) {
                 closest_right_gap_distance = static_cast<int>(_tzcnt_u64(bitmap_right_gaps)) - bit_pos;
             } else if (bitmap_pos + 1 < bitmap_size_) {
@@ -1727,7 +1727,7 @@ public:
             }
             // Logically gaps to the left of pos, in the bitmap these are gaps to the right of pos's bit
             // For example, if pos is 3, then bitmap '10101101' -> bitmap_left_gaps '00000010'
-            uint64_t bitmap_left_gaps = (~bitmap_data) & ((1L << bit_pos) - 1);
+            uint64_t bitmap_left_gaps = (~bitmap_data) & ((1ULL << bit_pos) - 1);
             if (bitmap_left_gaps != 0) {
                 closest_left_gap_distance = bit_pos - (63 - static_cast<int>(_lzcnt_u64(bitmap_left_gaps)));
             } else if (bitmap_pos > 0) {
@@ -1746,7 +1746,7 @@ public:
 #else
     // A slower version of closest_gap that does not use lzcnt and tzcnt
     // Does not return pos if pos is a gap
-    int closest_gap_simple(int pos) const {
+    int closest_gap(int pos) const {
         int max_left_offset = pos;
         int max_right_offset = data_capacity_ - pos - 1;
         int max_bidirectional_offset = std::min<int>(max_left_offset, max_right_offset);
