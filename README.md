@@ -12,6 +12,40 @@
 ./build/test_alex
 ```
 
+# Simple benchmark
+We provide a simple benchmark that measures the throughput of running point lookups and inserts on ALEX.
+To run on a synthetic dataset with 1000 normally-distributed keys:
+```
+./build/benchmark \
+--keys_file=resources/sample_keys.bin \
+--keys_file_type=binary \
+--init_num_keys=500 \
+--total_num_keys=1000 \
+--batch_size=1000 \
+--insert_frac=0.5
+```
+
+However, to observe the true performance of ALEX, we must run on a much larger dataset.
+You can download a 200M-key (1.6GB) dataset from [Google Drive](https://drive.google.com/file/d/1zc90sD6Pze8UM_XYDmNjzPLqmKly8jKl/view?usp=sharing).
+To run one example workload on this dataset:
+```
+./build/benchmark \
+--keys_file=[download location] \
+--keys_file_type=binary \
+--init_num_keys=10000000 \
+--total_num_keys=20000000 \
+--batch_size=1000000 \
+--insert_frac=0.5 \
+--lookup_distribution=zipf \
+--print_batch_stats
+```
+
+You can also run this benchmark on your own dataset.
+Your keys will need to be in either binary format or text format (one key per line).
+If the data type of your keys is not `double`, you will need to modify `#define KEY_TYPE double` to
+`#define KEY_TYPE [your data type]` in [src/benchmark/main.cpp](src/benchmark/main.cpp).
+
+
 # Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
