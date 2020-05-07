@@ -19,19 +19,13 @@
  * - Alex<T,P>::Iterator upper_bound(T key)
  *
  * User-facing API of Alex<T,P>::Iterator:
- * - void operator ++ (int)  // post increment
+ * - void operator ++ ()  // post increment
  * - V operator * ()  // does not return reference to V by default
  * - const T& key ()
  * - P& payload ()
  * - bool is_end()
  * - bool operator == (const Iterator & rhs)
  * - bool operator != (const Iterator & rhs)
- *
- * User-facing API of Alex<T,P>::NodeIterator:
- * - typename Alex<T,P>::NodeIterator(Alex<T,P>* index)
- * - AlexNode<T,P>* current()
- * - AlexNode<T,P>* next()
- * - bool is_end()
  */
 
 #pragma once
@@ -39,20 +33,31 @@
 #include <fstream>
 #include <iostream>
 #include <stack>
+#include <type_traits>
+
 #include "alex_base.h"
 #include "alex_nodes.h"
 #include "alex_fanout_tree.h"
 
+// Whether we account for floating-point precision issues when traversing down ALEX.
+// These issues rarely occur in practice but can cause incorrect behavior.
+// Turning this on will cause slight performance overhead due to extra
+// computation and possibly accessing two data nodes to perform a lookup.
+#define ALEX_SAFE_LOOKUP 1
+
 namespace alex {
 
-template <class T, class P, class V=std::pair<T, P>>
+template <class T, class P>
 class Alex
 {
+    static_assert(std::is_arithmetic<T>::value, "ALEX key type must be numeric.");
 public:
+    typedef std::pair<T,P> V;  // Value type, returned by dereferencing an iterator
+
     class Iterator;  // Iterates through keys
     class NodeIterator;  // Iterates through all nodes with pre-order traversal
 
-	AlexNode<T,P>* root_node_ = nullptr;
+    AlexNode<T,P>* root_node_ = nullptr;
     AlexModelNode<T,P>* superroot_ = nullptr;  // phantom node that is the root's parent
 
     /* User-changeable parameters */
@@ -71,16 +76,16 @@ public:
     };
     Params params_;
 
-	/* Setting max node size automatically changes these parameters */
-	struct DerivedParams {
-	    // The defaults here assume the default max node size of 16MB
+    /* Setting max node size automatically changes these parameters */
+    struct DerivedParams {
+        // The defaults here assume the default max node size of 16MB
         int max_fanout = 1 << 21;  // assumes 8-byte pointers
         int max_data_node_slots = (1 << 24) / sizeof(V);
     };
-	DerivedParams derived_params_;
+    DerivedParams derived_params_;
 
-	/* Counters, useful for benchmarking and profiling */
-	struct Stats {
+    /* Counters, useful for benchmarking and profiling */
+    struct Stats {
         int num_keys = 0;
         int num_model_nodes = 0;  // num model nodes
         int num_data_nodes = 0;  // num data nodes
@@ -100,7 +105,7 @@ public:
         double splitting_time = 0;
         double cost_computation_time = 0;
     };
-	Stats stats_;
+    Stats stats_;
 
     /* These are for research purposes, a user should not change these */
     struct ExperimentalParams {
@@ -117,7 +122,7 @@ public:
     };
     ExperimentalParams experimental_params_;
 
-	/* Structs used internally */
+    /* Structs used internally */
 
 private:
     /* Statistics related to the key domain.
@@ -163,7 +168,7 @@ private:
     // factor.
     static const int kOutOfDomainToleranceFactor = 2;
 
-	/*** Constructors and setters ***/
+    /*** Constructors and setters ***/
 
 public:
     Alex() {
@@ -174,20 +179,20 @@ public:
         create_superroot();
     }
 
-	~Alex() {
+    ~Alex() {
         for (NodeIterator node_it = NodeIterator(this); !node_it.is_end(); node_it.next()) {
             delete node_it.current();
         }
         delete superroot_;
-	}
+    }
 
-	explicit Alex(const Alex<T,P>& other) :
-	    params_(other.params_), derived_params_(other.derived_params_),
-	    stats_(other.stats_), experimental_params_(other.experimental_params_),
-	    istats_(other.istats_)
+    explicit Alex(const Alex<T,P>& other) :
+            params_(other.params_), derived_params_(other.derived_params_),
+            stats_(other.stats_), experimental_params_(other.experimental_params_),
+            istats_(other.istats_)
     {
-        root_node_ = copy_tree_recursive(other.root_node_);
-        create_superroot();
+        superroot_ = static_cast<AlexModelNode<T,P>*>(copy_tree_recursive(other.superroot_));
+        root_node_ = superroot_->children_[0];
     }
 
     Alex& operator = (const Alex<T,P>& other) {
@@ -195,25 +200,26 @@ public:
             for (NodeIterator node_it = NodeIterator(this); !node_it.is_end(); node_it.next()) {
                 delete node_it.current();
             }
+            delete superroot_;
             params_ = other.params_;
             derived_params_ = other.derived_params_;
             experimental_params_ = other.experimental_params_;
             istats_ = other.istats_;
             stats_ = other.stats_;
-            root_node_ = copy_tree_recursive(other.root_node_);
-            create_superroot();
+            superroot_ = static_cast<AlexModelNode<T,P>*>(copy_tree_recursive(other.superroot_));
+            root_node_ = superroot_->children_[0];
         }
         return *this;
     }
 
 private:
     // Deep copy of tree starting at given node
-    AlexNode<T,P>* copy_tree_recursive(AlexNode<T,P>* node) {
+    AlexNode<T,P>* copy_tree_recursive(const AlexNode<T,P>* node) {
         if (!node) return nullptr;
         if (node->is_leaf_) {
-            return new AlexDataNode<T,P>(*static_cast<AlexDataNode<T,P>*>(node));
+            return new AlexDataNode<T,P>(*static_cast<const AlexDataNode<T,P>*>(node));
         } else {
-            auto node_copy = new AlexModelNode<T,P>(*static_cast<AlexModelNode<T,P>*>(node));
+            auto node_copy = new AlexModelNode<T,P>(*static_cast<const AlexModelNode<T,P>*>(node));
             int cur = 0;
             while (cur < node_copy->num_children_) {
                 AlexNode<T,P>* child_node = node_copy->children_[cur];
@@ -234,18 +240,18 @@ public:
     // i.e., 0 means we expect a read-only workload, 1 means write-only
     // This is only useful if you set it before bulk loading
     void set_expected_insert_frac(double expected_insert_frac) {
-	    assert(expected_insert_frac >= 0 && expected_insert_frac <= 1);
-	    params_.expected_insert_frac = expected_insert_frac;
-	}
+        assert(expected_insert_frac >= 0 && expected_insert_frac <= 1);
+        params_.expected_insert_frac = expected_insert_frac;
+    }
 
     // Maximum node size, in bytes.
     // Higher values result in better average throughput, but worse tail/max insert latency.
-	void set_max_node_size(int max_node_size) {
+    void set_max_node_size(int max_node_size) {
         assert(max_node_size >= sizeof(V));
-	    params_.max_node_size = max_node_size;
+        params_.max_node_size = max_node_size;
         derived_params_.max_fanout = params_.max_node_size / sizeof(void*);
         derived_params_.max_data_node_slots = params_.max_node_size / sizeof(V);
-	}
+    }
 
     // Bulk load faster by using sampling to train models.
     // This is only useful if you set it before bulk loading.
@@ -261,34 +267,140 @@ public:
 
     /*** General helpers ***/
 
-private:
-    // Return the data node that contains the key (if it exists)
-    AlexDataNode<T,P>* get_leaf(T key) {
+public:
+    // Return the data node that contains the key (if it exists).
+    // Also optionally return the traversal path to the data node.
+    // traversal_path should be empty when calling this function.
+    // The returned traversal path begins with superroot and ends with the data node's parent.
+#if ALEX_SAFE_LOOKUP
+    forceinline AlexDataNode<T,P>* get_leaf(T key, std::vector<TraversalNode>* traversal_path = nullptr) {
+        if (traversal_path) {
+            traversal_path->push_back({superroot_, 0});
+        }
         AlexNode<T,P>* cur = root_node_;
+        if (cur->is_leaf_) {
+            return static_cast<AlexDataNode<T,P>*>(cur);
+        }
 
-        while (!cur->is_leaf_) {
+        while (true) {
             auto node = static_cast<AlexModelNode<T,P>*>(cur);
-            cur = node->get_child_node(key);
+            double bucketID_prediction = node->model_.predict_double(key);
+            int bucketID = static_cast<int>(bucketID_prediction);
+            bucketID = std::min<int>(std::max<int>(bucketID, 0), node->num_children_ - 1);
+            if (traversal_path) {
+                traversal_path->push_back({node, bucketID});
+            }
+            cur = node->children_[bucketID];
+            if (cur->is_leaf_) {
+                stats_.num_node_lookups += cur->level_;
+                auto leaf = static_cast<AlexDataNode<T,P>*>(cur);
+                // Doesn't really matter if rounding is incorrect, we just want it to be fast.
+                // So we don't need to use std::round or std::lround.
+                int bucketID_prediction_rounded = static_cast<int>(bucketID_prediction + 0.5);
+                double tolerance = 10 * std::numeric_limits<double>::epsilon() * bucketID_prediction;
+                // https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
+                if (std::abs(bucketID_prediction - bucketID_prediction_rounded) <= tolerance) {
+                    if (bucketID_prediction_rounded <= bucketID_prediction) {
+                        if (leaf->prev_leaf_ && leaf->prev_leaf_->last_key() >= key) {
+                            if (traversal_path) {
+                                // Correct the traversal path
+                                int repeats = 1 << leaf->duplication_factor_;
+                                TraversalNode &tn = traversal_path->back();
+                                AlexModelNode<T, P> *parent = tn.node;
+                                // First bucket whose pointer is to leaf
+                                int start_bucketID = tn.bucketID - (tn.bucketID % repeats);
+                                if (start_bucketID == 0) {
+                                    // Traverse back up the traversal path to make correction
+                                    while (start_bucketID == 0) {
+                                        traversal_path->pop_back();
+                                        repeats = 1 << parent->duplication_factor_;
+                                        tn = traversal_path->back();
+                                        parent = tn.node;
+                                        start_bucketID = tn.bucketID - (tn.bucketID % repeats);
+                                    }
+                                    int correct_bucketID = start_bucketID - 1;
+                                    tn.bucketID = correct_bucketID;
+                                    cur = parent->children_[correct_bucketID];
+                                    while (!cur->is_leaf_) {
+                                        node = static_cast<AlexModelNode<T, P> *>(cur);
+                                        traversal_path->push_back({
+                                                                          node, node->num_children_ - 1
+                                                                  });
+                                        cur = node->children_[node->num_children_ - 1];
+                                    }
+                                    assert(cur == leaf->prev_leaf_);
+                                } else {
+                                    tn.bucketID = start_bucketID - 1;
+                                }
+                            }
+                            return leaf->prev_leaf_;
+                        }
+                    } else {
+                        if (leaf->next_leaf_ && leaf->next_leaf_->first_key() <= key) {
+                            if (traversal_path) {
+                                // Correct the traversal path
+                                int repeats = 1 << leaf->duplication_factor_;
+                                TraversalNode &tn = traversal_path->back();
+                                AlexModelNode<T, P> *parent = tn.node;
+                                // First bucket whose pointer is not to leaf
+                                int end_bucketID = tn.bucketID - (tn.bucketID % repeats) + repeats;
+                                if (end_bucketID == parent->num_children_) {
+                                    // Traverse back up the traversal path to make correction
+                                    while (end_bucketID == parent->num_children_) {
+                                        traversal_path->pop_back();
+                                        repeats = 1 << parent->duplication_factor_;
+                                        tn = traversal_path->back();
+                                        parent = tn.node;
+                                        end_bucketID = tn.bucketID - (tn.bucketID % repeats) + repeats;
+                                    }
+                                    int correct_bucketID = end_bucketID;
+                                    tn.bucketID = correct_bucketID;
+                                    cur = parent->children_[correct_bucketID];
+                                    while (!cur->is_leaf_) {
+                                        node = static_cast<AlexModelNode<T, P> *>(cur);
+                                        traversal_path->push_back({
+                                                                          node, 0
+                                                                  });
+                                        cur = node->children_[0];
+                                    }
+                                    assert(cur == leaf->next_leaf_);
+                                } else {
+                                    tn.bucketID = end_bucketID;
+                                }
+                            }
+                            return leaf->next_leaf_;
+                        }
+                    }
+                }
+                return leaf;
+            }
         }
+    }
+#else
+    AlexDataNode<T,P>* get_leaf(T key, std::vector<TraversalNode>* traversal_path = nullptr) {
+    if (traversal_path) {
+        traversal_path->push_back({ superroot_, 0 });
+    }
+    AlexNode<T,P>* cur = root_node_;
 
-        stats_.num_node_lookups += cur->level_;
-        return static_cast<AlexDataNode<T,P>*>(cur);
+    while (!cur->is_leaf_) {
+        auto node = static_cast<AlexModelNode<T,P>*>(cur);
+        int bucketID = node->model_.predict(key);
+        bucketID = std::min<int>(std::max<int>(bucketID, 0), node->num_children_ - 1);
+        if (traversal_path) {
+            traversal_path->push_back({
+                node, bucketID
+            });
+        }
+        cur = node->children_[bucketID];
     }
 
-    // Return the data node that contains the key (if it exists) and the data node's parent
-    AlexDataNode<T,P>* get_leaf_and_parent(T key, AlexModelNode<T,P>** parent) {
-        *parent = superroot_;
-        AlexNode<T,P>* cur = root_node_;
+    stats_.num_node_lookups += cur->level_;
+    return static_cast<AlexDataNode<T,P>*>(cur);
+}
+#endif
 
-        while (!cur->is_leaf_) {
-            *parent = static_cast<AlexModelNode<T,P>*>(cur);
-            cur = (*parent)->get_child_node(key);
-        }
-
-        stats_.num_node_lookups += cur->level_;
-        return static_cast<AlexDataNode<T,P>*>(cur);
-    }
-
+private:
     // Return left-most data node
     AlexDataNode<T,P>* first_data_node() const {
         AlexNode<T,P>* cur = root_node_;
@@ -337,7 +449,7 @@ private:
     }
 
     // Link the new data nodes together when old data node is replaced by two new data nodes.
-    void link_data_nodes(AlexDataNode<T,P>* old_leaf, AlexDataNode<T,P>* left_leaf, AlexDataNode<T,P>* right_leaf) {
+    void link_data_nodes(const AlexDataNode<T,P>* old_leaf, AlexDataNode<T,P>* left_leaf, AlexDataNode<T,P>* right_leaf) {
         if (old_leaf->prev_leaf_ != nullptr) {
             old_leaf->prev_leaf_->next_leaf_ = left_leaf;
         }
@@ -353,20 +465,20 @@ private:
     /*** Bulk loading ***/
 
 public:
-	// keys should be the sorted array of all keys to be bulk loaded.
-	// keys and payloads should have an equal number of elements.
-	// The number of elements should be num_keys.
-	// The index must be empty when calling this method.
-	void bulk_load(T keys[], P payloads[], int num_keys) {
-	    if (stats_.num_keys > 0 || num_keys <= 0) {
-	        return;
-	    }
-	    delete root_node_;  // delete the empty root node from constructor
+    // keys should be the sorted array of all keys to be bulk loaded.
+    // keys and payloads should have an equal number of elements.
+    // The number of elements should be num_keys.
+    // The index must be empty when calling this method.
+    void bulk_load(const T keys[], const P payloads[], int num_keys) {
+        if (stats_.num_keys > 0 || num_keys <= 0) {
+            return;
+        }
+        delete root_node_;  // delete the empty root node from constructor
 
-		stats_.num_keys = num_keys;
+        stats_.num_keys = num_keys;
 
-		// Build temporary root model, which outputs a CDF in the range [0, 1]
-		root_node_ = new TemporaryNode<T,P>(0);
+        // Build temporary root model, which outputs a CDF in the range [0, 1]
+        root_node_ = new TemporaryNode<T,P>(0);
         T min_key = keys[0];
         T max_key = keys[num_keys-1];
         root_node_->model_.a_ = 1.0 / (max_key - min_key);
@@ -391,11 +503,11 @@ public:
         update_superroot_key_domain();
         update_superroot_pointer();
         link_all_data_nodes();
-	}
+    }
 
 private:
-	// Only call this after creating a root node
-	void create_superroot() {
+    // Only call this after creating a root node
+    void create_superroot() {
         if (!root_node_) return;
         delete superroot_;
         superroot_ = new AlexModelNode<T,P>(static_cast<short>(root_node_->level_ - 1));
@@ -421,15 +533,15 @@ private:
     void update_superroot_pointer() {
         superroot_->children_[0] = root_node_;
         superroot_->level_ = static_cast<short>(root_node_->level_ - 1);
-	}
+    }
 
     // Recursively bulk load a single node.
     // Assumes node has already been trained to output [0, 1), has cost.
     // Figures out the optimal partitioning of children.
     // node is trained as if it's a model node.
     // data_node_model is what the node's model would be if it were a data node of dense keys.
-    void bulk_load_node(T keys[], P payloads[], int num_keys, AlexNode<T,P>*& node, int total_keys,
-            LinearModel<T>* data_node_model=nullptr) {
+    void bulk_load_node(const T keys[], const P payloads[], int num_keys, AlexNode<T,P>*& node, int total_keys,
+                        const LinearModel<T>* data_node_model=nullptr) {
         // Automatically convert to data node when it is impossible to be better than current cost
         if (num_keys <= derived_params_.max_data_node_slots * AlexDataNode<T,P>::kMinDensity_
             && (node->cost_ < kNodeLookupsWeight || node->model_.a_ == 0)) {
@@ -528,24 +640,34 @@ private:
     }
 
     // Caller needs to set the level, duplication factor, and neighbor pointers of the returned data node
-    AlexDataNode<T,P>* bulk_load_leaf_node_from_existing(AlexDataNode<T,P>* existing_node, int left, int right,
-            bool compute_cost=true, fanout_tree::FTNode* tree_node=nullptr, bool keep_left=false, bool keep_right=false) {
+    AlexDataNode<T,P>* bulk_load_leaf_node_from_existing(const AlexDataNode<T,P>* existing_node, int left, int right,
+                                                         bool compute_cost=true, const fanout_tree::FTNode* tree_node=nullptr, bool reuse_model=false,
+                                                         bool keep_left=false, bool keep_right=false) {
         auto node = new AlexDataNode<T,P>();
         stats_.num_data_nodes++;
         if (tree_node) {
-            // use the model and num_keys saved in the tree node so we don't have to recompute it
+            // Use the model and num_keys saved in the tree node so we don't have to recompute it
             LinearModel<T> precomputed_model(tree_node->a, tree_node->b);
             node->bulk_load_from_existing(existing_node, left, right, keep_left, keep_right,
-                    &precomputed_model, tree_node->num_keys);
+                                          &precomputed_model, tree_node->num_keys);
+        } else if (reuse_model) {
+            // Use the model from the existing node
+            // Assumes the model is accurate
+            int num_actual_keys = existing_node->num_keys_in_range(left, right);
+            LinearModel<T> precomputed_model(existing_node->model_);
+            precomputed_model.b_ -= left;
+            precomputed_model.expand(static_cast<double>(num_actual_keys) / (right - left));
+            node->bulk_load_from_existing(existing_node, left, right, keep_left, keep_right,
+                                          &precomputed_model, num_actual_keys);
         } else {
             node->bulk_load_from_existing(existing_node, left, right, keep_left, keep_right);
         }
-		node->max_slots_ = derived_params_.max_data_node_slots;
-		if (compute_cost) {
+        node->max_slots_ = derived_params_.max_data_node_slots;
+        if (compute_cost) {
             node->cost_ = node->compute_expected_cost(existing_node->frac_inserts());
         }
-		return node;
-	}
+        return node;
+    }
 
     /*** Lookup ***/
 
@@ -561,7 +683,7 @@ public:
         if (idx < 0) {
             return end();
         } else {
-            return Iterator(*this, leaf, idx);
+            return Iterator(leaf, idx);
         }
     }
 
@@ -570,7 +692,7 @@ public:
         stats_.num_lookups++;
         AlexDataNode<T,P>* leaf = get_leaf(key);
         int idx = leaf->find_lower(key);
-        return Iterator(*this, leaf, idx);  // automatically handles the case where idx == leaf->data_capacity
+        return Iterator(leaf, idx);  // automatically handles the case where idx == leaf->data_capacity
     }
 
     // Returns an iterator to the first key greater than the input value
@@ -578,7 +700,7 @@ public:
         stats_.num_lookups++;
         AlexDataNode<T,P>* leaf = get_leaf(key);
         int idx = leaf->find_upper(key);
-        return Iterator(*this, leaf, idx);  // automatically handles the case where idx == leaf->data_capacity
+        return Iterator(leaf, idx);  // automatically handles the case where idx == leaf->data_capacity
     }
 
     // Directly returns a pointer to the payload found through find(key)
@@ -606,12 +728,12 @@ public:
                 // Edge case: need to check previous data node
                 AlexDataNode<T,P>* prev_leaf = leaf->prev_leaf_;
                 int last_pos = prev_leaf->last_pos();
-                return Iterator(*this, prev_leaf, last_pos);
+                return Iterator(prev_leaf, last_pos);
             } else {
-                return Iterator(*this, leaf, 0);
+                return Iterator(leaf, 0);
             }
         } else {
-            return Iterator(*this, leaf, idx);
+            return Iterator(leaf, idx);
         }
     }
 
@@ -641,11 +763,11 @@ public:
         while (!cur->is_leaf_) {
             cur = static_cast<AlexModelNode<T,P>*>(cur)->children_[0];
         }
-        return Iterator(*this, static_cast<AlexDataNode<T,P>*>(cur), 0);
+        return Iterator(static_cast<AlexDataNode<T,P>*>(cur), 0);
     }
 
     typename Alex<T,P>::Iterator end() {
-        Iterator it = Iterator(*this);
+        Iterator it = Iterator();
         it.cur_leaf_ = nullptr;
         it.cur_idx_ = 0;
         return it;
@@ -656,7 +778,7 @@ public:
 public:
     // This will NOT do an update of an existing key.
     // To perform an update or read-modify-write, do a lookup and modify the payload's value.
-	void insert(T key, P payload) {
+    void insert(T key, P payload) {
         stats_.num_inserts++;
 
         // If enough keys fall outside the key domain, expand the root to expand the key domain
@@ -672,156 +794,159 @@ public:
             }
         }
 
-        AlexModelNode<T,P>* parent;
-		AlexDataNode<T,P>* leaf = get_leaf_and_parent(key, &parent);
+        AlexDataNode<T,P>* leaf = get_leaf(key);
 
-		// Fail means that the insert did not happen
-		// fail is 1 if no insert because node is at max capacity, or there is significant cost deviation
+        // Fail means that the insert did not happen
+        // fail is 1 if no insert because node is at max capacity, or there is significant cost deviation
         // fail is 2 if no insert because of "catastrophic" cost
         int fail = leaf->insert(key, payload);
 
         // If no insert, figure out what to do with the data node to decrease the cost
-        while (fail) {
-            auto start_time = std::chrono::high_resolution_clock::now();
-            stats_.num_expand_and_scales += leaf->num_resizes_;
+        if (fail) {
+            std::vector<TraversalNode> traversal_path;
+            get_leaf(key, &traversal_path);
+            AlexModelNode<T, P> *parent = traversal_path.back().node;
 
-            if (parent == superroot_) {
-                update_superroot_key_domain();
-            }
-            int bucketID = parent->model_.predict(key);
-            bucketID = std::min<int>(std::max<int>(bucketID, 0), parent->num_children_ - 1);
-            std::vector<fanout_tree::FTNode> used_fanout_tree_nodes;
+            while (fail) {
+                auto start_time = std::chrono::high_resolution_clock::now();
+                stats_.num_expand_and_scales += leaf->num_resizes_;
 
-            int fanout_tree_depth = 1;
-            if (experimental_params_.splitting_policy_method == 0 || fail == 2) {
-                // always split in 2. No extra work required here
-            } else if (experimental_params_.splitting_policy_method == 1) {
-                // decide between no split (i.e., expand and retrain) or splitting in 2
-                fanout_tree_depth = fanout_tree::find_best_fanout_existing_node<T, P>(
-                        parent, bucketID, stats_.num_keys, used_fanout_tree_nodes, 2);
-            } else if (experimental_params_.splitting_policy_method == 2) {
-                // use full fanout tree to decide fanout
-                fanout_tree_depth = fanout_tree::find_best_fanout_existing_node<T, P>(
-                        parent, bucketID, stats_.num_keys, used_fanout_tree_nodes, derived_params_.max_fanout);
-            }
-            int best_fanout = 1 << fanout_tree_depth;
-            stats_.cost_computation_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::high_resolution_clock::now() - start_time).count();
-
-            if (fanout_tree_depth == 0) {
-                // expand existing data node and retrain model
-                leaf->resize(AlexDataNode<T,P>::kMinDensity_, true,
-                             leaf->is_append_mostly_right(), leaf->is_append_mostly_left());
-                fanout_tree::FTNode& tree_node = used_fanout_tree_nodes[0];
-                leaf->cost_ = tree_node.cost;
-                leaf->expected_avg_exp_search_iterations_ = tree_node.expected_avg_search_iterations;
-                leaf->expected_avg_shifts_ = tree_node.expected_avg_shifts;
-                leaf->reset_stats();
-                stats_.num_expand_and_retrains++;
-            } else {
-                // split data node: always try to split sideways/upwards, only split downwards if necessary
-                if (experimental_params_.allow_splitting_upwards) {
-                    // allow splitting upwards
-                    assert(experimental_params_.splitting_policy_method != 2);
-                    std::vector<TraversalNode> traversal_path;
-                    int stop_propagation_level = best_split_propagation(key, traversal_path);
-                    if (stop_propagation_level == -1) {
-                        parent = split_downwards(parent, bucketID, fanout_tree_depth, used_fanout_tree_nodes);
-                    } else {
-                        split_upwards(key, stop_propagation_level, traversal_path, &parent);
-                    }
-                } else {
-                    // either split sideways or downwards
-                    bool should_split_downwards = (
-                            parent->num_children_ * best_fanout / (1 << leaf->duplication_factor_) >
-                            derived_params_.max_fanout ||
-                            parent->level_ == superroot_->level_
-                    );
-                    if (should_split_downwards) {
-                        parent = split_downwards(parent, bucketID, fanout_tree_depth, used_fanout_tree_nodes);
-                    } else {
-                        split_sideways(parent, bucketID, fanout_tree_depth, used_fanout_tree_nodes);
-                    }
+                if (parent == superroot_) {
+                    update_superroot_key_domain();
                 }
-                leaf = static_cast<AlexDataNode<T,P>*>(parent->get_child_node(key));
+                int bucketID = parent->model_.predict(key);
+                bucketID = std::min<int>(std::max<int>(bucketID, 0), parent->num_children_ - 1);
+                std::vector<fanout_tree::FTNode> used_fanout_tree_nodes;
+
+                int fanout_tree_depth = 1;
+                if (experimental_params_.splitting_policy_method == 0 || fail >= 2) {
+                    // always split in 2. No extra work required here
+                } else if (experimental_params_.splitting_policy_method == 1) {
+                    // decide between no split (i.e., expand and retrain) or splitting in 2
+                    fanout_tree_depth = fanout_tree::find_best_fanout_existing_node<T, P>(
+                            parent, bucketID, stats_.num_keys, used_fanout_tree_nodes, 2);
+                } else if (experimental_params_.splitting_policy_method == 2) {
+                    // use full fanout tree to decide fanout
+                    fanout_tree_depth = fanout_tree::find_best_fanout_existing_node<T, P>(
+                            parent, bucketID, stats_.num_keys, used_fanout_tree_nodes, derived_params_.max_fanout);
+                }
+                int best_fanout = 1 << fanout_tree_depth;
+                stats_.cost_computation_time += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::high_resolution_clock::now() - start_time).count();
+
+                if (fanout_tree_depth == 0) {
+                    // expand existing data node and retrain model
+                    leaf->resize(AlexDataNode<T, P>::kMinDensity_, true,
+                                 leaf->is_append_mostly_right(), leaf->is_append_mostly_left());
+                    fanout_tree::FTNode &tree_node = used_fanout_tree_nodes[0];
+                    leaf->cost_ = tree_node.cost;
+                    leaf->expected_avg_exp_search_iterations_ = tree_node.expected_avg_search_iterations;
+                    leaf->expected_avg_shifts_ = tree_node.expected_avg_shifts;
+                    leaf->reset_stats();
+                    stats_.num_expand_and_retrains++;
+                } else {
+                    // split data node: always try to split sideways/upwards, only split downwards if necessary
+                    bool reuse_model = (fail == 3);
+                    if (experimental_params_.allow_splitting_upwards) {
+                        // allow splitting upwards
+                        assert(experimental_params_.splitting_policy_method != 2);
+                        int stop_propagation_level = best_split_propagation(traversal_path);
+                        if (stop_propagation_level <= superroot_->level_) {
+                            parent = split_downwards(parent, bucketID, fanout_tree_depth, used_fanout_tree_nodes, reuse_model);
+                        } else {
+                            split_upwards(key, stop_propagation_level, traversal_path, reuse_model, &parent);
+                        }
+                    } else {
+                        // either split sideways or downwards
+                        bool should_split_downwards = (
+                                parent->num_children_ * best_fanout / (1 << leaf->duplication_factor_) >
+                                derived_params_.max_fanout ||
+                                parent->level_ == superroot_->level_
+                        );
+                        if (should_split_downwards) {
+                            parent = split_downwards(parent, bucketID, fanout_tree_depth, used_fanout_tree_nodes, reuse_model);
+                        } else {
+                            split_sideways(parent, bucketID, fanout_tree_depth, used_fanout_tree_nodes, reuse_model);
+                        }
+                    }
+                    leaf = static_cast<AlexDataNode<T, P> *>(parent->get_child_node(key));
+                }
+                auto end_time = std::chrono::high_resolution_clock::now();
+                auto duration = end_time - start_time;
+                stats_.splitting_time += std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
+
+                // Try again to insert the key
+                fail = leaf->insert(key, payload);
             }
-            auto end_time = std::chrono::high_resolution_clock::now();
-            auto duration = end_time - start_time;
-            stats_.splitting_time += std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
-
-            // Try again to insert the key
-            fail = leaf->insert(key, payload);
-		}
+        }
         stats_.num_keys++;
-	}
-
-private:
-    bool should_expand_right() const {
-        return (!root_node_->is_leaf_ && ((istats_.num_inserts_above_key_domain >= kMinOutOfDomainKeys &&
-            istats_.num_inserts_above_key_domain >= kOutOfDomainToleranceFactor * (stats_.num_keys / istats_.num_keys_at_last_right_domain_resize - 1)) ||
-            istats_.num_inserts_above_key_domain >= kMaxOutOfDomainKeys));
     }
 
+private:
+    // Our criteria for when to expand the root, thereby expanding the key domain.
+    // We want to strike a balance between expanding too aggressively and too slowly.
+    // Specifically, the number of inserted keys falling to the right of the key
+    // domain must have one of two properties: (1) above some maximum threshold, or
+    // (2) above some minimum threshold and the number is much more than we would
+    // expect from randomness alone.
+    bool should_expand_right() const {
+        return (!root_node_->is_leaf_ && ((istats_.num_inserts_above_key_domain >= kMinOutOfDomainKeys &&
+                                           istats_.num_inserts_above_key_domain >= kOutOfDomainToleranceFactor * (stats_.num_keys / istats_.num_keys_at_last_right_domain_resize - 1)) ||
+                                          istats_.num_inserts_above_key_domain >= kMaxOutOfDomainKeys));
+    }
+
+    // Similar to should_expand_right, but for insertions to the left of the key domain.
     bool should_expand_left() const {
         return (!root_node_->is_leaf_ && ((istats_.num_inserts_below_key_domain >= kMinOutOfDomainKeys &&
-                 istats_.num_inserts_below_key_domain >= kOutOfDomainToleranceFactor * (stats_.num_keys / istats_.num_keys_at_last_left_domain_resize - 1)) ||
-                istats_.num_inserts_below_key_domain >= kMaxOutOfDomainKeys));
+                                           istats_.num_inserts_below_key_domain >= kOutOfDomainToleranceFactor * (stats_.num_keys / istats_.num_keys_at_last_left_domain_resize - 1)) ||
+                                          istats_.num_inserts_below_key_domain >= kMaxOutOfDomainKeys));
     }
 
     // When splitting upwards, find best internal node to propagate upwards to.
-    // Returns the level of that node. Returns -1 if splitting sideways not possible.
-    int best_split_propagation(T key, std::vector<TraversalNode>& traversal_path, bool verbose = false) const {
+    // Returns the level of that node. Returns superroot's level if splitting sideways not possible.
+    int best_split_propagation(const std::vector<TraversalNode>& traversal_path, bool verbose = false) const {
         if (root_node_->is_leaf_) {
-            return -1;
+            return superroot_->level_;
         }
 
-        // first save the complete path down to data node
+        // Find costs on the path down to data node
         std::vector<SplitDecisionCosts> traversal_costs;
-        AlexNode<T,P>* cur = root_node_;
-
-        while (!cur->is_leaf_) {
-            auto node = static_cast<AlexModelNode<T,P>*>(cur);
-            int bucketID = node->model_.predict(key);
-            bucketID = std::min<int>(std::max<int>(bucketID, 0), node->num_children_ - 1);
-            AlexNode<T,P>* next = node->children_[bucketID];
+        for (const TraversalNode& tn : traversal_path) {
             double stop_cost;
+            AlexNode<T,P>* next = tn.node->children_[tn.bucketID];
             if (next->duplication_factor_ > 0) {
                 stop_cost = 0;
             } else {
-                stop_cost = node->num_children_ >= derived_params_.max_fanout ?
-                        std::numeric_limits<double>::max() : node->num_children_ + SplitDecisionCosts::base_cost;
+                stop_cost = tn.node->num_children_ >= derived_params_.max_fanout ?
+                            std::numeric_limits<double>::max() : tn.node->num_children_ + SplitDecisionCosts::base_cost;
             }
-            traversal_path.push_back({
-                                             node,
-                                             bucketID
-                                     });
             traversal_costs.push_back({
                                               stop_cost,
-                                              node->num_children_ <= 2 ? 0 : node->num_children_ / 2 + SplitDecisionCosts::base_cost
+                                              tn.node->num_children_ <= 2 ? 0 : tn.node->num_children_ / 2 + SplitDecisionCosts::base_cost
                                       });
-            cur = next;
         }
 
-        // compute back upwards to find the optimal node to stop propagation
+        // Compute back upwards to find the optimal node to stop propagation.
+        // Ignore the superroot (the first node in the traversal path).
         double cumulative_cost = 0;
         double best_cost = std::numeric_limits<double>::max();
-        int best_path_level = -1;
-        for (int i = static_cast<int>(traversal_costs.size()) - 1; i >= 0; i--) {
+        int best_path_level = superroot_->level_;
+        for (int i = traversal_costs.size() - 1; i >= 0; i--) {
             SplitDecisionCosts& c = traversal_costs[i];
             if (c.stop_cost != std::numeric_limits<double>::max() && cumulative_cost + c.stop_cost < best_cost) {
                 best_cost = cumulative_cost + c.stop_cost;
-                best_path_level = i;
+                best_path_level = traversal_path[i].node->level_;
             }
             cumulative_cost += c.split_cost;
         }
 
         if (verbose) {
             std::cout << "[Best split propagation] best level: " << best_path_level
-                << ", node level: " << cur->level_
-                << ", best cost: " << best_cost
-                << ", traversal path (addr/n_children): ";
-            for (const TraversalNode& path_node : traversal_path) {
-                std::cout << path_node.node << "/" << path_node.node->num_children_ << " ";
+                      << ", parent level: " << traversal_path.back().node->level_
+                      << ", best cost: " << best_cost
+                      << ", traversal path (level/addr/n_children): ";
+            for (const TraversalNode& tn : traversal_path) {
+                std::cout << tn.node->level_ << "/" << tn.node << "/" << tn.node->num_children_ << " ";
             }
             std::cout << std::endl;
         }
@@ -946,7 +1071,8 @@ private:
 
     // Splits downwards in the manner determined by the fanout tree and updates the pointers of the parent.
     // If no fanout tree is provided, then splits downward in two. Returns the newly created model node.
-    AlexModelNode<T,P>* split_downwards(AlexModelNode<T,P>* parent, int bucketID, int fanout_tree_depth, std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes) {
+    AlexModelNode<T,P>* split_downwards(AlexModelNode<T,P>* parent, int bucketID, int fanout_tree_depth,
+                                        const std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes, bool reuse_model) {
         auto leaf = static_cast<AlexDataNode<T,P>*>(parent->children_[bucketID]);
         stats_.num_downward_splits++;
         stats_.num_downward_split_keys += leaf->num_keys_;
@@ -971,7 +1097,7 @@ private:
         // Create new data nodes
         if (used_fanout_tree_nodes.empty()) {
             assert(fanout_tree_depth == 1);
-            create_two_new_data_nodes(leaf, new_node, fanout_tree_depth);
+            create_two_new_data_nodes(leaf, new_node, fanout_tree_depth, reuse_model);
         } else {
             create_new_data_nodes(leaf, new_node, fanout_tree_depth, used_fanout_tree_nodes);
         }
@@ -992,7 +1118,8 @@ private:
 
     // Splits data node sideways in the manner determined by the fanout tree.
     // If no fanout tree is provided, then splits sideways in two.
-    void split_sideways(AlexModelNode<T,P>* parent, int bucketID, int fanout_tree_depth, std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes) {
+    void split_sideways(AlexModelNode<T,P>* parent, int bucketID, int fanout_tree_depth,
+                        const std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes, bool reuse_model) {
         auto leaf = static_cast<AlexDataNode<T,P>*>(parent->children_[bucketID]);
         stats_.num_sideways_splits++;
         stats_.num_sideways_split_keys += leaf->num_keys_;
@@ -1011,7 +1138,8 @@ private:
 
         if (used_fanout_tree_nodes.empty()) {
             assert(fanout_tree_depth == 1);
-            create_two_new_data_nodes(leaf, parent, std::max(fanout_tree_depth, static_cast<int>(leaf->duplication_factor_)), start_bucketID);
+            create_two_new_data_nodes(leaf, parent, std::max(fanout_tree_depth, static_cast<int>(leaf->duplication_factor_)),
+                                      reuse_model, start_bucketID);
         } else {
             // Extra duplication factor is required when there are more redundant pointers than necessary
             int extra_duplication_factor = std::max(0, leaf->duplication_factor_ - fanout_tree_depth);
@@ -1027,7 +1155,7 @@ private:
     // nodes as children of the parent model node starting from a given position, and link the new data nodes together.
     // duplication_factor denotes how many child pointer slots were assigned to the old data node.
     void create_two_new_data_nodes(AlexDataNode<T,P>* old_node, AlexModelNode<T,P>* parent, int duplication_factor,
-                                   int start_bucketID = 0) {
+                                   bool reuse_model, int start_bucketID = 0) {
         assert(duplication_factor >= 1);
         int num_buckets = 1 << duplication_factor;
         int end_bucketID = start_bucketID + num_buckets;
@@ -1042,11 +1170,11 @@ private:
 
         int right_boundary = old_node->lower_bound((mid_bucketID - parent->model_.b_) / parent->model_.a_);
         AlexDataNode<T,P>* left_leaf = bulk_load_leaf_node_from_existing(old_node, 0, right_boundary,
-                                                                         true, nullptr,
+                                                                         true, nullptr, reuse_model,
                                                                          append_mostly_right && start_bucketID <= appending_right_bucketID && appending_right_bucketID < mid_bucketID,
                                                                          append_mostly_left && start_bucketID <= appending_left_bucketID && appending_left_bucketID < mid_bucketID);
         AlexDataNode<T,P>* right_leaf = bulk_load_leaf_node_from_existing(old_node, right_boundary, old_node->data_capacity_,
-                                                                          true, nullptr,
+                                                                          true, nullptr, reuse_model,
                                                                           append_mostly_right && mid_bucketID <= appending_right_bucketID && appending_right_bucketID < end_bucketID,
                                                                           append_mostly_left && mid_bucketID <= appending_left_bucketID && appending_left_bucketID < end_bucketID);
         left_leaf->level_ = static_cast<short>(parent->level_ + 1);
@@ -1066,8 +1194,8 @@ private:
     // Create new data nodes from the keys in the old data node according to the fanout tree, insert the new
     // nodes as children of the parent model node starting from a given position, and link the new data nodes together.
     // Helper for splitting when using a fanout tree.
-    void create_new_data_nodes(AlexDataNode<T,P>* old_node, AlexModelNode<T,P>* parent, int fanout_tree_depth,
-                               std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes, int start_bucketID = 0,
+    void create_new_data_nodes(const AlexDataNode<T,P>* old_node, AlexModelNode<T,P>* parent, int fanout_tree_depth,
+                               const std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes, int start_bucketID = 0,
                                int extra_duplication_factor = 0) {
         bool append_mostly_right = old_node->is_append_mostly_right();
         int appending_right_bucketID = std::min<int>(std::max<int>(parent->model_.predict(old_node->max_key_), 0),
@@ -1079,13 +1207,13 @@ private:
         // Create the new data nodes
         int cur = start_bucketID;  // first bucket with same child
         AlexDataNode<T,P>* prev_leaf = old_node->prev_leaf_;  // used for linking the new data nodes
-        for (fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {
+        for (const fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {
             auto duplication_factor = static_cast<uint8_t>(fanout_tree_depth - tree_node.level + extra_duplication_factor);
             int child_node_repeats = 1 << duplication_factor;
             bool keep_left = append_mostly_right && cur <= appending_right_bucketID && appending_right_bucketID < cur + child_node_repeats;
             bool keep_right = append_mostly_left && cur <= appending_left_bucketID && appending_left_bucketID < cur + child_node_repeats;
             AlexDataNode<T,P>* child_node = bulk_load_leaf_node_from_existing(
-                    old_node, tree_node.left_boundary, tree_node.right_boundary, false, &tree_node,
+                    old_node, tree_node.left_boundary, tree_node.right_boundary, false, &tree_node, false,
                     keep_left, keep_right);
             child_node->level_ = static_cast<short>(parent->level_ + 1);
             child_node->cost_ = tree_node.cost;
@@ -1111,13 +1239,13 @@ private:
     // Splits the data node in two and propagates the split upwards along the traversal path.
     // Of the two newly created data nodes, returns the one that key falls into.
     // Returns the parent model node of the new data nodes through new_parent.
-    AlexDataNode<T,P>* split_upwards(T key, int best_path_level, std::vector<TraversalNode>& traversal_path,
-                                     AlexModelNode<T,P>** new_parent, bool verbose = false) {
-        assert(best_path_level >= 0);
+    AlexDataNode<T,P>* split_upwards(T key, int stop_propagation_level, const std::vector<TraversalNode>& traversal_path,
+                                     bool reuse_model, AlexModelNode<T,P>** new_parent, bool verbose = false) {
+        assert(stop_propagation_level >= root_node_->level_);
         std::vector<AlexNode<T,P>*> to_delete;  // nodes that need to be deleted
 
         // Split the data node into two new data nodes
-        TraversalNode& parent_path_node = traversal_path.back();
+        const TraversalNode& parent_path_node = traversal_path.back();
         AlexModelNode<T,P>* parent = parent_path_node.node;
         auto leaf = static_cast<AlexDataNode<T,P>*>(parent->children_[parent_path_node.bucketID]);
         int leaf_repeats = 1 << (leaf->duplication_factor_);
@@ -1151,11 +1279,11 @@ private:
 
         int mid_boundary = leaf->lower_bound((leaf_mid_bucketID - parent->model_.b_) / parent->model_.a_);
         AlexDataNode<T,P>* left_leaf = bulk_load_leaf_node_from_existing(leaf, 0, mid_boundary,
-                                                                         true, nullptr,
+                                                                         true, nullptr, reuse_model,
                                                                          append_mostly_right && left_half_appending_right,
                                                                          append_mostly_left && left_half_appending_left);
         AlexDataNode<T,P>* right_leaf = bulk_load_leaf_node_from_existing(leaf, mid_boundary, leaf->data_capacity_,
-                                                                          true, nullptr,
+                                                                          true, nullptr, reuse_model,
                                                                           append_mostly_right && right_half_appending_right,
                                                                           append_mostly_left && right_half_appending_left);
         // This is the expected duplication factor; it will be correct once we split/expand the parent
@@ -1191,9 +1319,10 @@ private:
         // Splitting an internal node involves dividing the child pointers into two halves, and doubling the relevant half.
         AlexNode<T,P>* prev_left_split = left_leaf;
         AlexNode<T,P>* prev_right_split = right_leaf;
-        for (int level = static_cast<int>(traversal_path.size()) - 1; level > best_path_level; level--) {
+        int path_idx = static_cast<int>(traversal_path.size()) - 1;
+        while (traversal_path[path_idx].node->level_ > stop_propagation_level) {
             // Decide which half to double
-            TraversalNode& path_node = traversal_path[level];
+            const TraversalNode& path_node = traversal_path[path_idx];
             AlexModelNode<T,P>* cur_node = path_node.node;
             stats_.num_model_node_splits++;
             stats_.num_model_node_split_pointers += cur_node->num_children_;
@@ -1208,14 +1337,14 @@ private:
             if (double_left_half && (1 << right_half_first_child->duplication_factor_) == cur_node->num_children_ / 2) {
                 // pull up right child if all children in the right half are the same
                 pull_up_right_child = true;
-                left_split = new AlexModelNode<T,P>(static_cast<short>(level));
+                left_split = new AlexModelNode<T,P>(static_cast<short>(cur_node->level_));
             } else if (!double_left_half && (1 << left_half_first_child->duplication_factor_) == cur_node->num_children_ / 2) {
                 // pull up left child if all children in the left half are the same
                 pull_up_left_child = true;
-                right_split = new AlexModelNode<T,P>(static_cast<short>(level));
+                right_split = new AlexModelNode<T,P>(static_cast<short>(cur_node->level_));
             } else {
-                left_split = new AlexModelNode<T,P>(static_cast<short>(level));
-                right_split = new AlexModelNode<T,P>(static_cast<short>(level));
+                left_split = new AlexModelNode<T,P>(static_cast<short>(cur_node->level_));
+                right_split = new AlexModelNode<T,P>(static_cast<short>(cur_node->level_));
             }
 
             // Do the split
@@ -1224,6 +1353,9 @@ private:
             if (double_left_half) {
                 // double left half
                 assert(left_split != nullptr);
+                if (path_idx == static_cast<int>(traversal_path.size()) - 1) {
+                    *new_parent = left_split;
+                }
                 left_split->num_children_ = cur_node->num_children_;
                 left_split->children_ = new AlexNode<T,P>*[left_split->num_children_];
                 left_split->model_.a_ = cur_node->model_.a_ * 2;
@@ -1271,7 +1403,7 @@ private:
             } else {
                 // double right half
                 assert(right_split != nullptr);
-                if (level == static_cast<int>(traversal_path.size()) - 1) {
+                if (path_idx == static_cast<int>(traversal_path.size()) - 1) {
                     *new_parent = right_split;
                 }
                 if (pull_up_left_child) {
@@ -1322,7 +1454,7 @@ private:
             }
             assert(next_left_split != nullptr && next_right_split != nullptr);
             if (verbose) {
-                std::cout << "[Splitting upwards through-node] level " << level
+                std::cout << "[Splitting upwards through-node] level " << cur_node->level_
                           << ", node addr: " << path_node.node
                           << ", node children: " << path_node.node->num_children_
                           << ", child index: " << path_node.bucketID
@@ -1340,18 +1472,20 @@ private:
             next_right_split->duplication_factor_ = cur_node->duplication_factor_;
             prev_left_split = next_left_split;
             prev_right_split = next_right_split;
+            path_idx--;
         }
 
         // Insert into the top node
-        TraversalNode& top_path_node = traversal_path[best_path_level];
+        const TraversalNode& top_path_node = traversal_path[path_idx];
         AlexModelNode<T,P>* top_node = top_path_node.node;
-        if (best_path_level == static_cast<int>(traversal_path.size()) - 1) {
+        assert(top_node->level_ == stop_propagation_level);
+        if (path_idx == static_cast<int>(traversal_path.size()) - 1) {
             *new_parent = top_node;
         }
         int top_bucketID = top_path_node.bucketID;
         int repeats = 1 << prev_left_split->duplication_factor_;  // this was the duplication factor of the child that was deleted
         if (verbose) {
-            std::cout << "[Splitting upwards top node] level " << best_path_level
+            std::cout << "[Splitting upwards top node] level " << stop_propagation_level
                       << ", node addr: " << top_node
                       << ", node children: " << top_node->num_children_
                       << ", child index: " << top_bucketID
@@ -1404,7 +1538,7 @@ public:
     }
 
     // Erases all keys with a certain key value
-	int erase(T key) {
+    int erase(T key) {
         AlexDataNode<T,P>* leaf = get_leaf(key);
         int num_erased = leaf->erase(key);
         stats_.num_keys -= num_erased;
@@ -1412,26 +1546,16 @@ public:
             merge(leaf, key);
         }
         return num_erased;
-	}
+    }
 
 private:
-	// Try to merge empty leaf, which can be traversed to by looking up key
-	// This may cause the parent node to merge up into its own parent
-	void merge(AlexDataNode<T,P>* leaf, T key) {
+    // Try to merge empty leaf, which can be traversed to by looking up key
+    // This may cause the parent node to merge up into its own parent
+    void merge(AlexDataNode<T,P>* leaf, T key) {
         // first save the complete path down to data node
         std::vector<TraversalNode> traversal_path;
-        AlexNode<T,P>* cur = root_node_;
-
-        while (!cur->is_leaf_) {
-            auto node = static_cast<AlexModelNode<T,P>*>(cur);
-            int bucketID = node->model_.predict(key);
-            bucketID = std::min<int>(std::max<int>(bucketID, 0), node->num_children_ - 1);
-            AlexNode<T,P>* next = node->children_[bucketID];
-            traversal_path.push_back({ node, bucketID });
-            cur = next;
-        }
-        assert(cur == leaf);
-        if (traversal_path.size() == 0) {
+        get_leaf(key, &traversal_path);
+        if (traversal_path.size() == 1) {
             return;
         }
         int path_pos = static_cast<int>(traversal_path.size()) - 1;
@@ -1476,9 +1600,10 @@ private:
             if (repeats == parent->num_children_) {
                 leaf->duplication_factor_ = parent->duplication_factor_;
                 repeats = 1 << leaf->duplication_factor_;
+                bool is_root_node = (parent == root_node_);
                 delete parent;
 
-                if (path_pos == 0) {
+                if (is_root_node) {
                     root_node_ = leaf;
                     update_superroot_pointer();
                     break;
@@ -1497,9 +1622,9 @@ private:
                 break;  // unable to merge up
             }
         }
-	}
+    }
 
-	/*** Stats ***/
+    /*** Stats ***/
 
 public:
     // Size in bytes of all the keys, payloads, and bitmaps stored in this index
@@ -1511,27 +1636,27 @@ public:
                 size += static_cast<AlexDataNode<T,P>*>(cur)->data_size();
             }
         }
-		return size;
-	}
+        return size;
+    }
 
-	// Size in bytes of all the model nodes (including pointers) and metadata in data nodes
-	long long model_size() {
+    // Size in bytes of all the model nodes (including pointers) and metadata in data nodes
+    long long model_size() {
         long long size = 0;
         for (NodeIterator node_it = NodeIterator(this); !node_it.is_end(); node_it.next()) {
             size += node_it.current()->node_size();
         }
-		return size;
-	}
+        return size;
+    }
 
-	// Total number of nodes in the RMI
-	int num_nodes() const {
-		return stats_.num_data_nodes + stats_.num_model_nodes;
-	};
+    // Total number of nodes in the RMI
+    int num_nodes() const {
+        return stats_.num_data_nodes + stats_.num_model_nodes;
+    };
 
-	// Number of data nodes in the RMI
-	int num_leaves() const {
-		return stats_.num_data_nodes;
-	};
+    // Number of data nodes in the RMI
+    int num_leaves() const {
+        return stats_.num_data_nodes;
+    };
 
     // Return a const reference to the current statistics
     const struct Stats& get_stats() const
@@ -1539,10 +1664,10 @@ public:
         return stats_;
     }
 
-	/*** Debugging ***/
+    /*** Debugging ***/
 
 public:
-	// If short_circuit is true, then we stop validating after detecting the first invalid property
+    // If short_circuit is true, then we stop validating after detecting the first invalid property
     bool validate_structure(bool validate_data_nodes=false, bool short_circuit=false) const {
         bool is_valid = true;
         std::stack<AlexNode<T,P>*> node_stack;
@@ -1640,67 +1765,65 @@ public:
     /*** Iterators ***/
 
 public:
-	class Iterator {
-	public:
-        Alex<T,P>& index_;
+    class Iterator {
+    public:
         AlexDataNode<T,P>* cur_leaf_ = nullptr;  // current data node
-		int cur_idx_;  // current position in key/data_slots of data node
-		int cur_bitmap_idx_;  // current position in bitmap
-		uint64_t cur_bitmap_data_;  // caches the relevant data in the current bitmap position
+        int cur_idx_;  // current position in key/data_slots of data node
+        int cur_bitmap_idx_;  // current position in bitmap
+        uint64_t cur_bitmap_data_;  // caches the relevant data in the current bitmap position
 
-		explicit Iterator (Alex<T,P>& index) : index_(index) {}
+        Iterator () {}
 
-		Iterator (Alex<T,P>& index, AlexDataNode<T,P>* leaf, int idx) : index_(index), cur_leaf_(leaf), cur_idx_(idx) {
-			initialize();
-		}
+        Iterator (AlexDataNode<T,P>* leaf, int idx) : cur_leaf_(leaf), cur_idx_(idx) {
+            initialize();
+        }
 
         Iterator& operator = (const Iterator& other) {
             if (this != &other) {
                 cur_idx_ = other.cur_idx_;
                 cur_leaf_ = other.cur_leaf_;
-                index_ = other.index_;
                 cur_bitmap_idx_ = other.cur_bitmap_idx_;
                 cur_bitmap_data_ = other.cur_bitmap_data_;
             }
             return *this;
         }
 
-		void initialize() {
-		    if (!cur_leaf_) return;
-		    assert(cur_idx_ >= 0);
-		    if (cur_idx_ >= cur_leaf_->data_capacity_) {
-		        cur_leaf_ = cur_leaf_->next_leaf_;
-		        cur_idx_ = 0;
-		        if (!cur_leaf_) return;
-		    }
+        void initialize() {
+            if (!cur_leaf_) return;
+            assert(cur_idx_ >= 0);
+            if (cur_idx_ >= cur_leaf_->data_capacity_) {
+                cur_leaf_ = cur_leaf_->next_leaf_;
+                cur_idx_ = 0;
+                if (!cur_leaf_) return;
+            }
 
-			cur_bitmap_idx_ = cur_idx_ >> 6;
-			cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
+            cur_bitmap_idx_ = cur_idx_ >> 6;
+            cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
 
-			// Zero out extra bits
-			int bit_pos = cur_idx_ - (cur_bitmap_idx_ << 6);
-			cur_bitmap_data_ &= ~((1ULL << bit_pos) - 1);
+            // Zero out extra bits
+            int bit_pos = cur_idx_ - (cur_bitmap_idx_ << 6);
+            cur_bitmap_data_ &= ~((1ULL << bit_pos) - 1);
 
-			(*this)++;
-		}
+            (*this)++;
+        }
 
-		void operator ++ (int) {
-			while (cur_bitmap_data_ == 0) {
-				cur_bitmap_idx_++;
-				if (cur_bitmap_idx_ >= cur_leaf_->bitmap_size_) {
-					cur_leaf_ = cur_leaf_->next_leaf_;
-					cur_idx_ = 0;
-					if (cur_leaf_ == nullptr) {
-						return;
-					}
-					cur_bitmap_idx_ = 0;
-				}
-				cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
-			}
-			uint64_t bit = extract_rightmost_one(cur_bitmap_data_);
-			cur_idx_ = get_offset(cur_bitmap_idx_, bit);
-			cur_bitmap_data_ = remove_rightmost_one(cur_bitmap_data_);
-		}
+        void operator ++ (int) {
+            while (cur_bitmap_data_ == 0) {
+                cur_bitmap_idx_++;
+                if (cur_bitmap_idx_ >= cur_leaf_->bitmap_size_) {
+                    cur_leaf_ = cur_leaf_->next_leaf_;
+                    cur_idx_ = 0;
+                    if (cur_leaf_ == nullptr) {
+                        return;
+                    }
+                    cur_bitmap_idx_ = 0;
+                }
+                cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
+            }
+            uint64_t bit = extract_rightmost_one(cur_bitmap_data_);
+            cur_idx_ = get_offset(cur_bitmap_idx_, bit);
+            cur_bitmap_data_ = remove_rightmost_one(cur_bitmap_data_);
+        }
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
         V operator * () const {
@@ -1708,41 +1831,41 @@ public:
         }
 #else
         // If data node stores key-payload pairs contiguously, return reference to V
-        V& operator * () const {
-            return cur_leaf_->data_slots_[cur_idx_];
-        }
+    V& operator * () const {
+        return cur_leaf_->data_slots_[cur_idx_];
+    }
 #endif
 
-		const T& key () const {
+        const T& key () const {
             return cur_leaf_->get_key(cur_idx_);
-		}
+        }
 
-		P& payload () const {
+        P& payload () const {
             return cur_leaf_->get_payload(cur_idx_);
         }
 
-		bool is_end() const {
-			return cur_leaf_ == nullptr;
-		}
+        bool is_end() const {
+            return cur_leaf_ == nullptr;
+        }
 
-		bool operator == (const Iterator & rhs) const {
-			return cur_idx_ == rhs.cur_idx_ && cur_leaf_ == rhs.cur_leaf_;
-		}
+        bool operator == (const Iterator & rhs) const {
+            return cur_idx_ == rhs.cur_idx_ && cur_leaf_ == rhs.cur_leaf_;
+        }
 
-		bool operator != (const Iterator & rhs) const {
-			return !(*this == rhs);
-		};
-	};
+        bool operator != (const Iterator & rhs) const {
+            return !(*this == rhs);
+        };
+    };
 
     // Iterates through all nodes with pre-order traversal
-	class NodeIterator {
-	public:
-		Alex<T,P>* index_;
-		AlexNode<T,P>* cur_node_;
-		std::stack<AlexNode<T,P>*> node_stack_;  // helps with traversal
+    class NodeIterator {
+    public:
+        const Alex<T,P>* index_;
+        AlexNode<T,P>* cur_node_;
+        std::stack<AlexNode<T,P>*> node_stack_;  // helps with traversal
 
-		// Start with root as cur and all children of root in stack
-		explicit NodeIterator(Alex<T,P>* index) : index_(index), cur_node_(index->root_node_) {
+        // Start with root as cur and all children of root in stack
+        explicit NodeIterator(const Alex<T,P>* index) : index_(index), cur_node_(index->root_node_) {
             if (cur_node_ && !cur_node_->is_leaf_) {
                 auto node = static_cast<AlexModelNode<T,P>*>(cur_node_);
                 node_stack_.push(node->children_[node->num_children_ - 1]);
@@ -1752,38 +1875,38 @@ public:
                     }
                 }
             }
-		}
+        }
 
-		AlexNode<T,P>* current() const {
-			return cur_node_;
-		}
+        AlexNode<T,P>* current() const {
+            return cur_node_;
+        }
 
-		AlexNode<T,P>* next() {
-			if (node_stack_.empty()) {
-			    cur_node_ = nullptr;
+        AlexNode<T,P>* next() {
+            if (node_stack_.empty()) {
+                cur_node_ = nullptr;
                 return nullptr;
-			}
+            }
 
-			cur_node_ = node_stack_.top();
-			node_stack_.pop();
+            cur_node_ = node_stack_.top();
+            node_stack_.pop();
 
-			if (!cur_node_->is_leaf_) {
-			    auto node = static_cast<AlexModelNode<T,P>*>(cur_node_);
-				node_stack_.push(node->children_[node->num_children_ - 1]);
-				for (int i = node->num_children_ - 2; i >= 0; i--) {
-					if (node->children_[i] != node->children_[i+1]) {
-						node_stack_.push(node->children_[i]);
-					}
-				}
-			}
+            if (!cur_node_->is_leaf_) {
+                auto node = static_cast<AlexModelNode<T,P>*>(cur_node_);
+                node_stack_.push(node->children_[node->num_children_ - 1]);
+                for (int i = node->num_children_ - 2; i >= 0; i--) {
+                    if (node->children_[i] != node->children_[i+1]) {
+                        node_stack_.push(node->children_[i]);
+                    }
+                }
+            }
 
-			return cur_node_;
-		}
+            return cur_node_;
+        }
 
-		bool is_end() const {
-		    return cur_node_ == nullptr;
-		}
-	};
+        bool is_end() const {
+            return cur_node_ == nullptr;
+        }
+    };
 };
 
 }

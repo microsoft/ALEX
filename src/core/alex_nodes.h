@@ -30,7 +30,7 @@
 namespace alex {
 
 // A parent class for both types of ALEX nodes
-template <class T, class P, class V=std::pair<T, P>>
+template <class T, class P>
 class AlexNode {
 public:
     // Whether this node is a leaf (data) node
@@ -49,9 +49,9 @@ public:
     // Could be either the expected or empirical cost, depending on how this field is used
     double cost_ = 0.0;
 
-	AlexNode() = default;
+    AlexNode() = default;
     explicit AlexNode(short level) : level_(level) {}
-	AlexNode(short level, bool is_leaf) : is_leaf_(is_leaf), level_(level) {}
+    AlexNode(short level, bool is_leaf) : is_leaf_(is_leaf), level_(level) {}
     virtual ~AlexNode() = default;
 
     // The size in bytes of all member variables in this class
@@ -60,7 +60,7 @@ public:
 
 // Used to help with logic for adaptive RMI.
 // Model should assume this node is a model node, and should always output in range [0, 1).
-template <class T, class P, class V=std::pair<T, P>>
+template <class T, class P>
 class TemporaryNode : public AlexNode<T,P> {
 public:
     TemporaryNode() = default;
@@ -68,7 +68,7 @@ public:
     long long node_size() const override { return 0; }
 };
 
-template <class T, class P, class V=std::pair<T, P>>
+template <class T, class P>
 class AlexModelNode : public AlexNode<T,P> {
 public:
     // Number of logical children. Must be a power of 2
@@ -98,6 +98,7 @@ public:
     // Input is the base 2 log of the expansion factor, in order to guarantee expanding by a power of 2.
     // Returns the expansion factor.
     int expand(int log2_expansion_factor) {
+        assert(log2_expansion_factor >= 0);
         int expansion_factor = 1 << log2_expansion_factor;
         auto new_children = new AlexNode<T,P>*[num_children_ * expansion_factor];
         int cur = 0;
@@ -241,22 +242,29 @@ public:
 };
 
 /*
- * Functions are organized into different sections:
- * - Constructors and destructors
- * - General helper functions
- * - Iterator
- * - Cost model
- * - Bulk loading and model building (e.g., bulk_load, bulk_load_from_existing)
- * - Lookups (e.g., find_key, find_lower, find_upper, lower_bound, upper_bound)
- * - Inserts and resizes (e.g, insert)
- * - Deletes (e.g., erase, erase_one)
- * - Stats
- * - Debugging
- */
-template <class T, class P, class V=std::pair<T, P>>
+* Functions are organized into different sections:
+* - Constructors and destructors
+* - General helper functions
+* - Iterator
+* - Cost model
+* - Bulk loading and model building (e.g., bulk_load, bulk_load_from_existing)
+* - Lookups (e.g., find_key, find_lower, find_upper, lower_bound, upper_bound)
+* - Inserts and resizes (e.g, insert)
+* - Deletes (e.g., erase, erase_one)
+* - Stats
+* - Debugging
+*/
+template <class T, class P>
 class AlexDataNode : public AlexNode<T,P>
 {
 public:
+    typedef std::pair<T, P> V;
+
+    // Forward declaration
+    template <typename node_type=AlexDataNode<T,P>, typename payload_return_type=P, typename value_return_type=V> class Iterator;
+    typedef Iterator<> iterator_type;
+    typedef Iterator<const AlexDataNode<T,P>, const P, const V> const_iterator_type;
+
     AlexDataNode* next_leaf_ = nullptr;
     AlexDataNode* prev_leaf_ = nullptr;
 
@@ -276,15 +284,15 @@ public:
     int bitmap_size_ = 0;  // number of int64_t in bitmap
 
     // Variables related to resizing (expansions and contractions)
-	static constexpr double kMaxDensity_ = 0.8;  // density after contracting, also determines the expansion threshold
+    static constexpr double kMaxDensity_ = 0.8;  // density after contracting, also determines the expansion threshold
     static constexpr double kInitDensity_ = 0.7;  // density of data nodes after bulk loading
     static constexpr double kMinDensity_ = 0.6;  // density after expanding, also determines the contraction threshold
-	double expansion_threshold_ = 1;  // expand after m_num_keys is >= this number
-	double contraction_threshold_ = 0;  // contract after m_num_keys is < this number
+    double expansion_threshold_ = 1;  // expand after m_num_keys is >= this number
+    double contraction_threshold_ = 0;  // contract after m_num_keys is < this number
     static constexpr int kDefaultMaxDataNodeBytes_ = 1 << 24;  // by default, maximum data node size is 16MB
-	int max_slots_ = kDefaultMaxDataNodeBytes_ / sizeof(V);  // cannot expand beyond this number of key/data slots
+    int max_slots_ = kDefaultMaxDataNodeBytes_ / sizeof(V);  // cannot expand beyond this number of key/data slots
 
-	// Counters used in cost models
+    // Counters used in cost models
     long long num_shifts_ = 0;  // does not reset after resizing
     long long num_exp_search_iterations_ = 0;  // does not reset after resizing
     int num_lookups_ = 0;  // does not reset after resizing
@@ -311,7 +319,7 @@ public:
 
     AlexDataNode() : AlexNode<T,P>(0, true) {}
 
-	explicit AlexDataNode(short level) : AlexNode<T,P>(level, true) {}
+    explicit AlexDataNode(short level) : AlexNode<T,P>(level, true) {}
 
     AlexDataNode(short level, int max_data_node_slots) : AlexNode<T,P>(level, true), max_slots_(max_data_node_slots) {}
 
@@ -326,16 +334,16 @@ public:
     }
 
     AlexDataNode(const AlexDataNode& other) :
-        AlexNode<T,P>(other), next_leaf_(other.next_leaf_), prev_leaf_(other.prev_leaf_), data_capacity_(other.data_capacity_),
-        num_keys_(other.num_keys_), bitmap_size_(other.bitmap_size_),
-        expansion_threshold_(other.expansion_threshold_), contraction_threshold_(other.contraction_threshold_),
-        max_slots_(other.max_slots_), num_shifts_(other.num_shifts_),
-        num_exp_search_iterations_(other.num_exp_search_iterations_), num_lookups_(other.num_lookups_),
-        num_inserts_(other.num_inserts_), num_resizes_(other.num_resizes_), max_key_(other.max_key_), min_key_(other.min_key_),
-        num_right_out_of_bounds_inserts_(other.num_right_out_of_bounds_inserts_),
-        num_left_out_of_bounds_inserts_(other.num_left_out_of_bounds_inserts_),
-        expected_avg_exp_search_iterations_(other.expected_avg_exp_search_iterations_),
-        expected_avg_shifts_(other.expected_avg_shifts_)
+            AlexNode<T,P>(other), next_leaf_(other.next_leaf_), prev_leaf_(other.prev_leaf_), data_capacity_(other.data_capacity_),
+            num_keys_(other.num_keys_), bitmap_size_(other.bitmap_size_),
+            expansion_threshold_(other.expansion_threshold_), contraction_threshold_(other.contraction_threshold_),
+            max_slots_(other.max_slots_), num_shifts_(other.num_shifts_),
+            num_exp_search_iterations_(other.num_exp_search_iterations_), num_lookups_(other.num_lookups_),
+            num_inserts_(other.num_inserts_), num_resizes_(other.num_resizes_), max_key_(other.max_key_), min_key_(other.min_key_),
+            num_right_out_of_bounds_inserts_(other.num_right_out_of_bounds_inserts_),
+            num_left_out_of_bounds_inserts_(other.num_left_out_of_bounds_inserts_),
+            expected_avg_exp_search_iterations_(other.expected_avg_exp_search_iterations_),
+            expected_avg_shifts_(other.expected_avg_shifts_)
     {
 #if ALEX_DATA_NODE_SEP_ARRAYS
         key_slots_ = new T[other.data_capacity_];
@@ -344,7 +352,7 @@ public:
         std::copy(other.payload_slots_, other.payload_slots_ + other.data_capacity_, payload_slots_);
 #else
         data_slots_ = new V[other.data_capacity_];
-        std::copy(other.data_slots_, other.data_slots_ + other.data_capacity_, data_slots_);
+    std::copy(other.data_slots_, other.data_slots_ + other.data_capacity_, data_slots_);
 #endif
         bitmap_ = new uint64_t[other.bitmap_size_];
         std::copy(other.bitmap_, other.bitmap_ + other.bitmap_size_, bitmap_);
@@ -425,19 +433,53 @@ public:
         return 0;
     }
 
+    // Number of keys between positions left and right (exclusive) in key/data_slots
+    int num_keys_in_range(int left, int right) const {
+        assert(left >= 0 && left < right && right <= data_capacity_);
+        int num_keys = 0;
+        int left_bitmap_idx = left >> 6;
+        int right_bitmap_idx = right >> 6;
+        if (left_bitmap_idx == right_bitmap_idx) {
+            uint64_t bitmap_data = bitmap_[left_bitmap_idx];
+            int left_bit_pos = left - (left_bitmap_idx << 6);
+            bitmap_data &= ~((1ULL << left_bit_pos) - 1);
+            int right_bit_pos = right - (right_bitmap_idx << 6);
+            bitmap_data &= ((1ULL << right_bit_pos) - 1);
+            num_keys += _mm_popcnt_u64(bitmap_data);
+        } else {
+            uint64_t left_bitmap_data = bitmap_[left_bitmap_idx];
+            int bit_pos = left - (left_bitmap_idx << 6);
+            left_bitmap_data &= ~((1ULL << bit_pos) - 1);
+            num_keys += _mm_popcnt_u64(left_bitmap_data);
+            for (int i = left_bitmap_idx + 1; i < right_bitmap_idx; i++) {
+                num_keys += _mm_popcnt_u64(bitmap_[i]);
+            }
+            if (right_bitmap_idx != bitmap_size_) {
+                uint64_t right_bitmap_data = bitmap_[right_bitmap_idx];
+                bit_pos = right - (right_bitmap_idx << 6);
+                right_bitmap_data &= ((1ULL << bit_pos) - 1);
+                num_keys += _mm_popcnt_u64(right_bitmap_data);
+            }
+        }
+        return num_keys;
+    }
+
     /*** Iterator ***/
 
-    // Forward iterator meant for iterating over a single data node
+    // Forward iterator meant for iterating over a single data node.
+    // By default, it is a "normal" non-const iterator.
+    // Can be templated to be a const iterator.
+    template <typename node_type, typename payload_return_type, typename value_return_type>
     class Iterator {
     public:
-        AlexDataNode<T,P>* node_;
+        node_type* node_;
         int cur_idx_ = 0;  // current position in key/data_slots, -1 if at end
         int cur_bitmap_idx_ = 0;  // current position in bitmap
         uint64_t cur_bitmap_data_ = 0;  // caches the relevant data in the current bitmap position
 
-        explicit Iterator(AlexDataNode<T,P>* node) : node_(node) {}
+        explicit Iterator(node_type* node) : node_(node) {}
 
-        Iterator(AlexDataNode<T,P>* node, int idx) : node_(node), cur_idx_(idx) {
+        Iterator(node_type* node, int idx) : node_(node), cur_idx_(idx) {
             initialize();
         }
 
@@ -471,9 +513,9 @@ public:
             return std::make_pair(node_->key_slots_[cur_idx_], node_->payload_slots_[cur_idx_]);
         }
 #else
-        V& operator * () const {
-            return node_->data_slots_[cur_idx_];
-        }
+        value_return_type& operator * () const {
+        return node_->data_slots_[cur_idx_];
+    }
 #endif
 
         const T& key() const {
@@ -484,7 +526,7 @@ public:
 #endif
         }
 
-        P& payload() const {
+        payload_return_type& payload() const {
 #if ALEX_DATA_NODE_SEP_ARRAYS
             return node_->payload_slots_[cur_idx_];
 #else
@@ -505,8 +547,8 @@ public:
         };
     };
 
-    Iterator begin() {
-        return Iterator(this, 0);
+    iterator_type begin() {
+        return iterator_type(this, 0);
     }
 
     /*** Cost model ***/
@@ -561,7 +603,7 @@ public:
 
         ExpectedSearchIterationsAccumulator search_iters_accumulator;
         ExpectedShiftsAccumulator shifts_accumulator(data_capacity_);
-        Iterator it(this, 0);
+        const_iterator_type it(this, 0);
         for (; !it.is_end(); it++)
         {
             int predicted_position = std::max(0, std::min(data_capacity_ - 1, this->model_.predict(it.key())));
@@ -577,9 +619,9 @@ public:
 
     // Computes the expected cost of a data node constructed using the input dense array of keys
     // Assumes existing_model is trained on the dense array of keys
-    static double compute_expected_cost(T* keys, int num_keys, double density, double expected_insert_frac,
-                                      LinearModel<T>* existing_model = nullptr, bool use_sampling = false,
-                                      DataNodeStats* stats = nullptr) {
+    static double compute_expected_cost(const T* keys, int num_keys, double density, double expected_insert_frac,
+                                        const LinearModel<T>* existing_model = nullptr, bool use_sampling = false,
+                                        DataNodeStats* stats = nullptr) {
         if (use_sampling) {
             return compute_expected_cost_sampling(
                     keys, num_keys, density, expected_insert_frac, existing_model, stats);
@@ -628,8 +670,8 @@ public:
 
     // Helper function for compute_expected_cost
     // Implicitly build the data node in order to collect the stats
-    static void build_node_implicit(T* keys, int num_keys, int data_capacity, StatAccumulator* acc,
-                                      LinearModel<T>* model) {
+    static void build_node_implicit(const T* keys, int num_keys, int data_capacity, StatAccumulator* acc,
+                                    const LinearModel<T>* model) {
         int last_position = -1;
         int keys_remaining = num_keys;
         for (int i = 0; i < num_keys; i++)
@@ -655,9 +697,9 @@ public:
     // Using sampling, approximates the expected cost of a data node constructed using the input dense array of keys
     // Assumes existing_model is trained on the dense array of keys
     // Uses progressive sampling: keep increasing the sample size until the computed stats stop changing drastically
-    static double compute_expected_cost_sampling(T* keys, int num_keys, double density, double expected_insert_frac,
-                                               LinearModel<T>* existing_model = nullptr,
-                                               DataNodeStats* stats = nullptr) {
+    static double compute_expected_cost_sampling(const T* keys, int num_keys, double density, double expected_insert_frac,
+                                                 const LinearModel<T>* existing_model = nullptr,
+                                                 DataNodeStats* stats = nullptr) {
         const static int min_sample_size = 25;
 
         // Stop increasing sample size if relative diff of stats between samples is less than this
@@ -726,10 +768,10 @@ public:
                 build_node_implicit_sampling(keys, num_keys, sample_num_keys, sample_data_capacity, step_size, &acc,
                                              &sample_model);
                 sample_stats.push_back({
-                    std::log2(sample_num_keys),
-                    acc.get_expected_num_search_iterations(),
-                    std::log2(acc.get_expected_num_shifts())
-                });
+                                               std::log2(sample_num_keys),
+                                               acc.get_expected_num_search_iterations(),
+                                               std::log2(acc.get_expected_num_shifts())
+                                       });
             }
 
             if (sample_stats.size() >= 3) {
@@ -777,9 +819,9 @@ public:
     // keys is the full un-sampled array of keys
     // sample_num_keys and sample_data_capacity refer to a data node that is created only over the sample
     // sample_model is trained for the sampled data node
-    static void build_node_implicit_sampling(T* keys, int num_keys, int sample_num_keys,
+    static void build_node_implicit_sampling(const T* keys, int num_keys, int sample_num_keys,
                                              int sample_data_capacity,
-                                             int step_size, StatAccumulator* ent, LinearModel<T>* sample_model) {
+                                             int step_size, StatAccumulator* ent, const LinearModel<T>* sample_model) {
         int last_position = -1;
         int sample_keys_remaining = sample_num_keys;
         for (int i = 0; i < num_keys; i += step_size)
@@ -805,16 +847,16 @@ public:
     // Computes the expected cost of a data node constructed using the keys between left and right in the
     // key/data_slots of an existing node
     // Assumes existing_model is trained on the dense array of keys
-    static double compute_expected_cost_from_existing(AlexDataNode<T,P>* node, int left, int right, double density,
-                                                    double expected_insert_frac,
-                                                    LinearModel<T> *existing_model = nullptr,
-                                                    DataNodeStats *stats = nullptr) {
+    static double compute_expected_cost_from_existing(const AlexDataNode<T,P>* node, int left, int right, double density,
+                                                      double expected_insert_frac,
+                                                      const LinearModel<T> *existing_model = nullptr,
+                                                      DataNodeStats *stats = nullptr) {
         assert(left >= 0 && right <= node->data_capacity_);
 
         LinearModel<T> model;
         int num_actual_keys = 0;
-        Iterator it(node, left);
         if (existing_model == nullptr) {
+            const_iterator_type it(node, left);
             auto builder = model.builder();
             for (int i = 0; it.cur_idx_ < right && !it.is_end(); it++, i++) {
                 builder->add(it.key(), i);
@@ -822,9 +864,7 @@ public:
             }
             builder->build();
         } else {
-            for (int i = 0; it.cur_idx_ < right && !it.is_end(); it++, i++) {
-                num_actual_keys++;
-            }
+            num_actual_keys = node->num_keys_in_range(left, right);
             model.a_ = existing_model->a_;
             model.b_ = existing_model->b_;
         }
@@ -862,11 +902,11 @@ public:
 
     // Helper function for compute_expected_cost
     // Implicitly build the data node in order to collect the stats
-    static void build_node_implicit_from_existing(AlexDataNode<T,P>* node, int left, int right, int num_actual_keys,
-            int data_capacity, StatAccumulator* acc, LinearModel<T>* model) {
+    static void build_node_implicit_from_existing(const AlexDataNode<T,P>* node, int left, int right, int num_actual_keys,
+                                                  int data_capacity, StatAccumulator* acc, const LinearModel<T>* model) {
         int last_position = -1;
         int keys_remaining = num_actual_keys;
-        auto it = Iterator(node, left);
+        const_iterator_type it(node, left);
         for (; it.cur_idx_ < right && !it.is_end(); it++)
         {
             int predicted_position = std::max(0, std::min(data_capacity - 1, model->predict(it.key())));
@@ -889,10 +929,10 @@ public:
     /*** Bulk loading and model building ***/
 
     // Initalize key/payload/bitmap arrays and relevant metadata
-	void initialize(int num_keys, double density) {
+    void initialize(int num_keys, double density) {
         num_keys_ = num_keys;
         data_capacity_ = std::max(static_cast<int>(num_keys / density), num_keys + 1);
-        bitmap_size_ = static_cast<int>(std::ceil(data_capacity_ / 64.));
+        bitmap_size_ = static_cast<size_t>(std::ceil(data_capacity_ / 64.));
         bitmap_ = new uint64_t[bitmap_size_]();  // initialize to all false
 #if ALEX_DATA_NODE_SEP_ARRAYS
         key_slots_ = new T[data_capacity_];
@@ -900,97 +940,97 @@ public:
 #else
         data_slots_ = new V[data_capacity];
 #endif
-	}
+    }
 
-	// Assumes pretrained_model is trained on dense array of keys
-	void bulk_load(T keys[], P payloads[], int num_keys, LinearModel<T>* pretrained_model=nullptr,
-	        bool train_with_sample=false) {
-		initialize(num_keys, kInitDensity_);
+    // Assumes pretrained_model is trained on dense array of keys
+    void bulk_load(const T keys[], const P payloads[], int num_keys, const LinearModel<T>* pretrained_model=nullptr,
+                   bool train_with_sample=false) {
+        initialize(num_keys, kInitDensity_);
 
-		if (num_keys == 0) {
-			expansion_threshold_ = data_capacity_;
-			contraction_threshold_ = 0;
-			for (int i = 0; i < data_capacity_; i++) {
+        if (num_keys == 0) {
+            expansion_threshold_ = data_capacity_;
+            contraction_threshold_ = 0;
+            for (int i = 0; i < data_capacity_; i++) {
                 ALEX_DATA_NODE_KEY_AT(i) = kEndSentinel_;
-			}
-			return;
-		}
+            }
+            return;
+        }
 
-		// Build model
-		if (pretrained_model != nullptr) {
-		    this->model_.a_ = pretrained_model->a_;
+        // Build model
+        if (pretrained_model != nullptr) {
+            this->model_.a_ = pretrained_model->a_;
             this->model_.b_ = pretrained_model->b_;
-		} else {
+        } else {
             build_model(keys, num_keys, &(this->model_), train_with_sample);
         }
-		this->model_.expand(static_cast<double>(data_capacity_) / num_keys);
+        this->model_.expand(static_cast<double>(data_capacity_) / num_keys);
 
-		// Model-based inserts
-		int last_position = -1;
-		int keys_remaining = num_keys;
-		for (int i = 0; i < num_keys; i++)
-		{
-			int position = this->model_.predict(keys[i]);
-			position = std::max<int>(position, last_position + 1);
+        // Model-based inserts
+        int last_position = -1;
+        int keys_remaining = num_keys;
+        for (int i = 0; i < num_keys; i++)
+        {
+            int position = this->model_.predict(keys[i]);
+            position = std::max<int>(position, last_position + 1);
 
-			int positions_remaining = data_capacity_ - position;
-			if (positions_remaining < keys_remaining) {
-				// fill the rest of the store contiguously
-				int pos = data_capacity_ - keys_remaining;
-				for (int j = last_position + 1; j < pos; j++) {
+            int positions_remaining = data_capacity_ - position;
+            if (positions_remaining < keys_remaining) {
+                // fill the rest of the store contiguously
+                int pos = data_capacity_ - keys_remaining;
+                for (int j = last_position + 1; j < pos; j++) {
                     ALEX_DATA_NODE_KEY_AT(j) = keys[i];
-				}
-				for (int j = i; j < num_keys; j++) {
+                }
+                for (int j = i; j < num_keys; j++) {
 #if ALEX_DATA_NODE_SEP_ARRAYS
-						key_slots_[pos] = keys[j];
-						payload_slots_[pos] = payloads[j];
+                    key_slots_[pos] = keys[j];
+                    payload_slots_[pos] = payloads[j];
 #else
-						data_slots_[pos] = std::make_pair(keys[j], payloads[j]);
+                    data_slots_[pos] = std::make_pair(keys[j], payloads[j]);
 #endif
-						set_bit(pos);
-						pos++;
-				}
-				last_position = pos - 1;
-				break;
-			}
+                    set_bit(pos);
+                    pos++;
+                }
+                last_position = pos - 1;
+                break;
+            }
 
-			for (int j = last_position + 1; j < position; j++) {
+            for (int j = last_position + 1; j < position; j++) {
                 ALEX_DATA_NODE_KEY_AT(j) = keys[i];
-			}
+            }
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
-			key_slots_[position] = keys[i];
-			payload_slots_[position] = payloads[i];
+            key_slots_[position] = keys[i];
+            payload_slots_[position] = payloads[i];
 #else
-			data_slots_[position] = std::make_pair(keys[i], payloads[i]);
+            data_slots_[position] = std::make_pair(keys[i], payloads[i]);
 #endif
-			set_bit(position);
+            set_bit(position);
 
-			last_position = position;
+            last_position = position;
 
-			keys_remaining--;
-		}
+            keys_remaining--;
+        }
 
-		for (int i = last_position + 1; i < data_capacity_; i++) {
+        for (int i = last_position + 1; i < data_capacity_; i++) {
             ALEX_DATA_NODE_KEY_AT(i) = kEndSentinel_;
-		}
+        }
 
         expansion_threshold_ = std::min(std::max(data_capacity_ * kMaxDensity_, static_cast<double>(num_keys + 1)), static_cast<double>(data_capacity_));
         contraction_threshold_ = data_capacity_ * kMinDensity_;
         max_key_ = keys[num_keys - 1];
-	}
+    }
 
     // Bulk load using the keys between the left and right positions in key/data_slots of an existing data node
     // keep_left and keep_right are set if the existing node was append-mostly
     // If the linear model and num_actual_keys have been precomputed, we can avoid redundant work
-	void bulk_load_from_existing(AlexDataNode<T,P>* node, int left, int right, bool keep_left=false,
-	        bool keep_right=false, LinearModel<T>* precomputed_model=nullptr, int precomputed_num_actual_keys = -1) {
-	    assert(left >= 0 && right <= node->data_capacity_);
+    void bulk_load_from_existing(const AlexDataNode<T,P>* node, int left, int right, bool keep_left=false,
+                                 bool keep_right=false, const LinearModel<T>* precomputed_model=nullptr, int precomputed_num_actual_keys = -1) {
+        assert(left >= 0 && right <= node->data_capacity_);
 
-	    // Build model
+        // Build model
         int num_actual_keys = 0;
         if (precomputed_model == nullptr || precomputed_num_actual_keys == -1) {
-            Iterator it(node, left);
+            const_iterator_type it(node, left);
             auto builder = this->model_.builder();
             for (int i = 0; it.cur_idx_ < right && !it.is_end(); it++, i++) {
                 builder->add(it.key(), i);
@@ -1003,7 +1043,7 @@ public:
             this->model_.b_ = precomputed_model->b_;
         }
 
-		initialize(num_actual_keys, kMinDensity_);
+        initialize(num_actual_keys, kMinDensity_);
         if (num_actual_keys == 0) {
             expansion_threshold_ = data_capacity_;
             contraction_threshold_ = 0;
@@ -1026,7 +1066,7 @@ public:
         // Model-based inserts
         int last_position = -1;
         int keys_remaining = num_keys_;
-        Iterator it = Iterator(node, left);
+        const_iterator_type it(node, left);
         for (; it.cur_idx_ < right && !it.is_end(); it++)
         {
             int position = this->model_.predict(it.key());
@@ -1057,8 +1097,8 @@ public:
             }
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
-			key_slots_[position] = it.key();
-			payload_slots_[position] = it.payload();
+            key_slots_[position] = it.key();
+            payload_slots_[position] = it.payload();
 #else
             data_slots_[position] = *it;
 #endif
@@ -1077,13 +1117,13 @@ public:
 
         expansion_threshold_ = std::min(std::max(data_capacity_ * kMaxDensity_, static_cast<double>(num_keys_ + 1)), static_cast<double>(data_capacity_));
         contraction_threshold_ = data_capacity_ * kMinDensity_;
-	}
+    }
 
-    static void build_model(T* keys, int num_keys, LinearModel<T> *model, bool use_sampling = false) {
-	    if (use_sampling) {
-	        build_model_sampling(keys, num_keys, model);
-	        return;
-	    }
+    static void build_model(const T* keys, int num_keys, LinearModel<T> *model, bool use_sampling = false) {
+        if (use_sampling) {
+            build_model_sampling(keys, num_keys, model);
+            return;
+        }
 
         auto builder = model->builder();
 
@@ -1096,7 +1136,7 @@ public:
 
     // Uses progressive non-random uniform sampling to build the model
     // Progressively increases sample size until model parameters are relatively stable
-    static void build_model_sampling(T* keys, int num_keys, LinearModel<T>* model, bool verbose = false) {
+    static void build_model_sampling(const T* keys, int num_keys, LinearModel<T>* model, bool verbose = false) {
         const static int sample_size_lower_bound = 10;
         // If slope and intercept change by less than this much between samples, return
         const static double rel_change_threshold = 0.01;
@@ -1162,7 +1202,7 @@ public:
 
     // Unused function: builds a spline model by connecting the smallest and largest points instead of using
     // a linear regression
-    static void build_spline(T* keys, int num_keys, LinearModel<T>* model) {
+    static void build_spline(const T* keys, int num_keys, const LinearModel<T>* model) {
         int y_max = num_keys - 1;
         int y_min = 0;
         model->a_ = static_cast<double>(y_max - y_min) / (keys[y_max] - keys[y_min]);
@@ -1180,7 +1220,7 @@ public:
 
     // Searches for the last non-gap position equal to key
     // If no positions equal to key, returns -1
-    inline int find_key(T key) {
+    int find_key(T key) {
         num_lookups_++;
         int predicted_pos = predict_position(key);
 
@@ -1196,7 +1236,7 @@ public:
     // Searches for the first non-gap position no less than key
     // Returns position in range [0, data_capacity]
     // Compare with lower_bound()
-    inline int find_lower(T key) {
+    int find_lower(T key) {
         num_lookups_++;
         int predicted_pos = predict_position(key);
 
@@ -1207,7 +1247,7 @@ public:
     // Searches for the first non-gap position greater than key
     // Returns position in range [0, data_capacity]
     // Compare with upper_bound()
-    inline int find_upper(T key) {
+    int find_upper(T key) {
         num_lookups_++;
         int predicted_pos = predict_position(key);
 
@@ -1217,7 +1257,7 @@ public:
 
     // Finds position to insert a key
     // If there are duplicate keys, the insert position will be to the right of all existing keys of the same value
-    inline int find_insert_position(T key) {
+    int find_insert_position(T key) {
         int predicted_pos = predict_position(key);  // first use model to get prediction
 
         // insert to the right of duplicate keys
@@ -1242,22 +1282,22 @@ public:
             }
         }
 
-        int cur_bitmap_idx = pos >> 6;
-        uint64_t cur_bitmap_data = bitmap_[cur_bitmap_idx];
+        int curBitmapIdx = pos >> 6;
+        uint64_t curBitmapData = bitmap_[curBitmapIdx];
 
         // Zero out extra bits
-        int bit_pos = pos - (cur_bitmap_idx << 6);
-        cur_bitmap_data &= ~((1ULL << (bit_pos)) - 1);
+        int bit_pos = pos - (curBitmapIdx << 6);
+        curBitmapData &= ~((1ULL << (bit_pos)) - 1);
 
-        while (cur_bitmap_data == 0) {
-            cur_bitmap_idx++;
-            if (cur_bitmap_idx >= bitmap_size_) {
+        while (curBitmapData == 0) {
+            curBitmapIdx++;
+            if (curBitmapIdx >= bitmap_size_) {
                 return data_capacity_;
             }
-            cur_bitmap_data = bitmap_[cur_bitmap_idx];
+            curBitmapData = bitmap_[curBitmapIdx];
         }
-        uint64_t bit = extract_rightmost_one(cur_bitmap_data);
-        return get_offset(cur_bitmap_idx, bit);
+        uint64_t bit = extract_rightmost_one(curBitmapData);
+        return get_offset(curBitmapIdx, bit);
     }
 
     // Searches for the first position greater than key
@@ -1286,7 +1326,6 @@ public:
             }
             l = m - std::min<int>(bound, size);
             r = m - bound / 2;
-            return binary_search_upper_bound(l, r, key);
         }
         else {
             int size = data_capacity_ - m;
@@ -1296,28 +1335,24 @@ public:
             }
             l = m + bound / 2;
             r = m + std::min<int>(bound, size);
-            return binary_search_upper_bound(l, r, key);
         }
+        return binary_search_upper_bound(l, r, key);
     }
 
     // Searches for the first position greater than key in range [l, r)
-    // Taken from https://en.cppreference.com/w/cpp/algorithm/upper_bound
+    // https://stackoverflow.com/questions/6443569/implementation-of-c-lower-bound
     // Returns position in range [l, r]
     template <class K>
     inline int binary_search_upper_bound(int l, int r, K key) const {
-        int count = r - l;
-        int pos = l;
-        int step;
-        while (count > 0) {
-            step = count / 2;
-            if (ALEX_DATA_NODE_KEY_AT(pos + step) <= key) {
-                pos += step + 1;
-                count -= step + 1;
+        while (l < r) {
+            int mid =  l + (r - l) / 2;
+            if (key >= ALEX_DATA_NODE_KEY_AT(mid)) {
+                l = mid + 1;
             } else {
-                count = step;
+                r = mid;
             }
         }
-        return pos;
+        return l;
     }
 
     // Searches for the first position no less than key
@@ -1346,7 +1381,6 @@ public:
             }
             l = m - std::min<int>(bound, size);
             r = m - bound / 2;
-            return binary_search_lower_bound(l, r, key);
         }
         else {
             int size = data_capacity_ - m;
@@ -1356,28 +1390,24 @@ public:
             }
             l = m + bound / 2;
             r = m + std::min<int>(bound, size);
-            return binary_search_lower_bound(l, r, key);
         }
+        return binary_search_lower_bound(l, r, key);
     }
 
     // Searches for the first position no less than key in range [l, r)
-    // Taken from https://en.cppreference.com/w/cpp/algorithm/lower_bound
+    // https://stackoverflow.com/questions/6443569/implementation-of-c-lower-bound
     // Returns position in range [l, r]
     template <class K>
     inline int binary_search_lower_bound(int l, int r, K key) const {
-        int count = r - l;
-        int pos = l;
-        int step;
-        while (count > 0) {
-            step = count / 2;
-            if (ALEX_DATA_NODE_KEY_AT(pos + step) < key) {
-                pos += step + 1;
-                count -= step + 1;
+        while (l < r) {
+            int mid =  l + (r - l) / 2;
+            if (key <= ALEX_DATA_NODE_KEY_AT(mid)) {
+                r = mid;
             } else {
-                count = step;
+                l = mid + 1;
             }
         }
-        return pos;
+        return l;
     }
 
     /*** Inserts and resizes ***/
@@ -1396,8 +1426,9 @@ public:
     }
 
     // Returns 0 if successful insert (possibly with automatic expansion)
-    // Returns 1 if no insert because node is at max capacity, or there is significant cost deviation
+    // Returns 1 if no insert because of significant cost deviation
     // Returns 2 if no insert because of "catastrophic" cost
+    // Returns 3 if no insert because node is at max capacity
     int insert(T key, P payload) {
         // Periodically check for catastrophe
         if (num_inserts_ % 64 == 0 && catastrophic_cost()) {
@@ -1406,11 +1437,14 @@ public:
 
         // Check if node is full (based on expansion_threshold)
         if (num_keys_ >= expansion_threshold_) {
+            if (significant_cost_deviation()) {
+                return 1;
+            }
             if (catastrophic_cost()) {
                 return 2;
             }
-            if (num_keys_ > max_slots_ * kMinDensity_ || significant_cost_deviation()) {
-                return 1;
+            if (num_keys_ > max_slots_ * kMinDensity_) {
+                return 3;
             }
             // Expand
             bool keep_left = is_append_mostly_right();
@@ -1424,7 +1458,7 @@ public:
         if (insertion_position < data_capacity_ && !check_exists(insertion_position)) {
             insert_element_at(key, payload, insertion_position);
         } else {
-            insert_using_shifts(key, payload, insertion_position, 0, data_capacity_);
+            insert_using_shifts(key, payload, insertion_position);
         }
 
         // Update stats
@@ -1443,12 +1477,12 @@ public:
 
     // Resize the data node to the target density
     void resize(double target_density, bool force_retrain = false, bool keep_left = false, bool keep_right = false) {
-	    if (num_keys_ == 0) {
-	        return;
-	    }
+        if (num_keys_ == 0) {
+            return;
+        }
 
         int new_data_capacity = std::max(static_cast<int>(num_keys_ / target_density), num_keys_ + 1);
-        auto new_bitmap_size = static_cast<int>(std::ceil(new_data_capacity / 64.));
+        auto new_bitmap_size = static_cast<size_t>(std::ceil(new_data_capacity / 64.));
         auto new_bitmap = new uint64_t[new_bitmap_size]();  // initialize to all false
 #if ALEX_DATA_NODE_SEP_ARRAYS
         T* new_key_slots = new T[new_data_capacity];
@@ -1460,7 +1494,7 @@ public:
         // Retrain model if necessary
         // Do not retrain if the number of keys is sufficiently small (under 50)
         if (num_keys_ < 50 || force_retrain) {
-            Iterator it(this, 0);
+            const_iterator_type it(this, 0);
             auto builder = this->model_.builder();
             for (int i = 0; it.cur_idx_ < data_capacity_ && !it.is_end(); it++, i++) {
                 builder->add(it.key(), i);
@@ -1484,7 +1518,7 @@ public:
 
         int last_position = -1;
         int keys_remaining = num_keys_;
-        Iterator it = Iterator(this, 0);
+        const_iterator_type it(this, 0);
         for (; it.cur_idx_ < data_capacity_ && !it.is_end(); it++)
         {
             int position = this->model_.predict(it.key());
@@ -1496,7 +1530,7 @@ public:
                 int pos = new_data_capacity - keys_remaining;
                 for (int j = last_position + 1; j < pos; j++) {
 #if ALEX_DATA_NODE_SEP_ARRAYS
-					new_key_slots[j] = it.key();
+                    new_key_slots[j] = it.key();
 #else
                     new_data_slots[j].first = it.key();
 #endif
@@ -1516,15 +1550,15 @@ public:
 
             for (int j = last_position + 1; j < position; j++) {
 #if ALEX_DATA_NODE_SEP_ARRAYS
-				new_key_slots[j] = it.key();
+                new_key_slots[j] = it.key();
 #else
                 new_data_slots[j].first = it.key();
 #endif
             }
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
-			new_key_slots[position] = it.key();
-			new_payload_slots[position] = it.payload();
+            new_key_slots[position] = it.key();
+            new_payload_slots[position] = it.payload();
 #else
             new_data_slots[position] = *it;
 #endif
@@ -1537,7 +1571,7 @@ public:
 
         for (int i = last_position + 1; i < new_data_capacity; i++) {
 #if ALEX_DATA_NODE_SEP_ARRAYS
-			new_key_slots[i] = kEndSentinel_;
+            new_key_slots[i] = kEndSentinel_;
 #else
             new_data_slots[i].first = kEndSentinel;
 #endif
@@ -1566,8 +1600,8 @@ public:
     }
 
     inline bool is_append_mostly_right() const {
-	    return static_cast<double>(num_right_out_of_bounds_inserts_) / num_inserts_ > kAppendMostlyThreshold;
-	}
+        return static_cast<double>(num_right_out_of_bounds_inserts_) / num_inserts_ > kAppendMostlyThreshold;
+    }
 
     inline bool is_append_mostly_left() const {
         return static_cast<double>(num_left_out_of_bounds_inserts_) / num_inserts_ > kAppendMostlyThreshold;
@@ -1593,7 +1627,7 @@ public:
 
     // Insert key into pos, shifting as necessary in the range [left, right)
     // Returns the actual position of insertion
-    int insert_using_shifts(T key, P payload, int pos, int left, int right) {
+    int insert_using_shifts(T key, P payload, int pos) {
         // Find the closest gap
         int gap_pos = closest_gap(pos);
         set_bit(gap_pos);
@@ -1745,35 +1779,35 @@ public:
     }
 #else
     // A slower version of closest_gap that does not use lzcnt and tzcnt
-    // Does not return pos if pos is a gap
-    int closest_gap(int pos) const {
-        int max_left_offset = pos;
-        int max_right_offset = data_capacity_ - pos - 1;
-        int max_bidirectional_offset = std::min<int>(max_left_offset, max_right_offset);
-        int distance = 1;
-        while (distance <= max_bidirectional_offset) {
-            if (!check_exists(pos - distance)) {
-                return pos - distance;
-            }
-            if (!check_exists(pos + distance)) {
-                return pos + distance;
-            }
-            distance++;
+// Does not return pos if pos is a gap
+int closest_gap(int pos) const {
+    int max_left_offset = pos;
+    int max_right_offset = data_capacity_ - pos - 1;
+    int max_bidirectional_offset = std::min<int>(max_left_offset, max_right_offset);
+    int distance = 1;
+    while (distance <= max_bidirectional_offset) {
+        if (!check_exists(pos - distance)) {
+            return pos - distance;
         }
-        if (max_left_offset > max_right_offset) {
-            for (int i = pos - distance; i >= 0; i--) {
-                if (!check_exists(i))
-                    return i;
-            }
+        if (!check_exists(pos + distance)) {
+            return pos + distance;
         }
-        else {
-            for (int i = pos + distance; i < data_capacity_; i++) {
-                if (!check_exists(i))
-                    return i;
-            }
-        }
-        return -1;
+        distance++;
     }
+    if (max_left_offset > max_right_offset) {
+        for (int i = pos - distance; i >= 0; i--) {
+            if (!check_exists(i))
+                return i;
+        }
+    }
+    else {
+        for (int i = pos + distance; i < data_capacity_; i++) {
+            if (!check_exists(i))
+                return i;
+        }
+    }
+    return -1;
+}
 #endif
 
     /*** Deletes ***/
@@ -1812,13 +1846,13 @@ public:
         return 1;
     }
 
-	// Erase all keys with the input value
-	// Returns the number of keys erased (there may be multiple keys with the same value)
-	int erase(T key) {
-		int pos = upper_bound(key);
+    // Erase all keys with the input value
+    // Returns the number of keys erased (there may be multiple keys with the same value)
+    int erase(T key) {
+        int pos = upper_bound(key);
 
-		if (pos == 0 || ALEX_DATA_NODE_KEY_AT(pos-1) != key)
-			return 0;
+        if (pos == 0 || ALEX_DATA_NODE_KEY_AT(pos-1) != key)
+            return 0;
 
         // Erase preceding positions until we reach a key with smaller value
         int num_erased = 0;
@@ -1836,71 +1870,71 @@ public:
             pos--;
         }
 
-		num_keys_ -= num_erased;
+        num_keys_ -= num_erased;
 
-		if (num_keys_ < contraction_threshold_) {
+        if (num_keys_ < contraction_threshold_) {
             resize(kMaxDensity_);  // contract
-			num_resizes_++;
-		}
-		return num_erased;
-	}
+            num_resizes_++;
+        }
+        return num_erased;
+    }
 
-        // Erase keys with value between start key (inclusive) and end key.
-        // Returns the number of keys erased.
-        int erase_range(T start_key, T end_key, bool end_key_inclusive = false) {
-            int pos;
-            if (end_key_inclusive) {
-                pos = upper_bound(end_key);
-            } else {
-                pos = lower_bound(end_key);
-            }
-
-            if (pos == 0)
-                return 0;
-
-            // Erase preceding positions until key value is below the start key
-            int num_erased = 0;
-            T next_key;
-            if (pos == data_capacity_) {
-                next_key = kEndSentinel_;
-            } else {
-                next_key = ALEX_DATA_NODE_KEY_AT(pos);
-            }
-            pos--;
-            while (pos >= 0 && ALEX_DATA_NODE_KEY_AT(pos) >= start_key) {
-                ALEX_DATA_NODE_KEY_AT(pos) = next_key;
-                num_erased += check_exists(pos);
-                unset_bit(pos);
-                pos--;
-            }
-
-            num_keys_ -= num_erased;
-
-            if (num_keys_ < contraction_threshold_) {
-                resize(kMaxDensity_);  // contract
-                num_resizes_++;
-            }
-            return num_erased;
+    // Erase keys with value between start key (inclusive) and end key.
+    // Returns the number of keys erased.
+    int erase_range(T start_key, T end_key, bool end_key_inclusive = false) {
+        int pos;
+        if (end_key_inclusive) {
+            pos = upper_bound(end_key);
+        } else {
+            pos = lower_bound(end_key);
         }
 
-	/*** Stats ***/
+        if (pos == 0)
+            return 0;
 
-	// Total size of node metadata
+        // Erase preceding positions until key value is below the start key
+        int num_erased = 0;
+        T next_key;
+        if (pos == data_capacity_) {
+            next_key = kEndSentinel_;
+        } else {
+            next_key = ALEX_DATA_NODE_KEY_AT(pos);
+        }
+        pos--;
+        while (pos >= 0 && ALEX_DATA_NODE_KEY_AT(pos) >= start_key) {
+            ALEX_DATA_NODE_KEY_AT(pos) = next_key;
+            num_erased += check_exists(pos);
+            unset_bit(pos);
+            pos--;
+        }
+
+        num_keys_ -= num_erased;
+
+        if (num_keys_ < contraction_threshold_) {
+            resize(kMaxDensity_);  // contract
+            num_resizes_++;
+        }
+        return num_erased;
+    }
+
+    /*** Stats ***/
+
+    // Total size of node metadata
     long long node_size() const override {
         return sizeof(AlexDataNode<T,P>);
     }
 
-	// Total size in bytes of key/payload/data_slots and bitmap
-	long long data_size() const {
-		long long data_size = data_capacity_ * sizeof(T);
-		data_size += data_capacity_ * sizeof(P);
-		data_size += bitmap_size_ * sizeof(uint64_t);
-		return data_size;
-	}
+    // Total size in bytes of key/payload/data_slots and bitmap
+    long long data_size() const {
+        long long data_size = data_capacity_ * sizeof(T);
+        data_size += data_capacity_ * sizeof(P);
+        data_size += bitmap_size_ * sizeof(uint64_t);
+        return data_size;
+    }
 
-	// Number of contiguous blocks of keys without gaps
-	int num_packed_regions() const {
-	    int num_packed = 0;
+    // Number of contiguous blocks of keys without gaps
+    int num_packed_regions() const {
+        int num_packed = 0;
         bool is_packed = check_exists(0);
         for (int i = 1; i < data_capacity_; i++) {
             if (check_exists(i) != is_packed) {
@@ -1914,7 +1948,7 @@ public:
             num_packed++;
         }
         return num_packed;
-	}
+    }
 
     /*** Debugging ***/
 

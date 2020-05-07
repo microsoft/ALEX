@@ -10,7 +10,7 @@
 #define KEY_TYPE int
 #define PAYLOAD_TYPE int
 
-int main(int argc, char* argv[]) {
+int main(int, char**) {
     // Create some synthetic data: keys are dense integers between 0 and 99, and payloads are random values
     const int num_keys = 100;
     KEY_TYPE keys[num_keys];

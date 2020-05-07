@@ -28,6 +28,20 @@
 #include <cassert>
 #include <bitset>
 
+#ifdef _MSC_VER
+#define forceinline __forceinline
+#elif defined(__GNUC__)
+#define forceinline inline __attribute__((__always_inline__))
+#elif defined(__CLANG__)
+#if __has_attribute(__always_inline__)
+        #define forceinline inline __attribute__((__always_inline__))
+    #else
+        #define forceinline inline
+    #endif
+#else
+    #define forceinline inline
+#endif
+
 namespace alex {
 
 /*** Linear model and model builder ***/
@@ -40,85 +54,86 @@ template <class T>
 class LinearModel
 {
 public:
-	double a_ = 0;  // slope
-	double b_ = 0;  // intercept
+    double a_ = 0;  // slope
+    double b_ = 0;  // intercept
 
-	LinearModel() = default;
-	LinearModel(double a, double b) : a_(a), b_(b) {}
+    LinearModel() = default;
+    LinearModel(double a, double b) : a_(a), b_(b) {}
+    explicit LinearModel(const LinearModel& other) : a_(other.a_), b_(other.b_) {}
 
-	void expand(double expansion_factor) {
-		a_ *= expansion_factor;
-		b_ *= expansion_factor;
-	}
+    void expand(double expansion_factor) {
+        a_ *= expansion_factor;
+        b_ *= expansion_factor;
+    }
 
-	inline int predict(T key) const {
-		return int(a_ * static_cast<double>(key) + b_);
-	}
+    inline int predict(T key) const {
+        return static_cast<int>(a_ * static_cast<double>(key) + b_);
+    }
 
-	inline double predict_double(T key) const {
-		return a_ * static_cast<double>(key) + b_;
-	}
+    inline double predict_double(T key) const {
+        return a_ * static_cast<double>(key) + b_;
+    }
 
-	std::unique_ptr<LinearModelBuilder<T>> builder() {
-		return std::unique_ptr<LinearModelBuilder<T>>(new LinearModelBuilder<T>(this));
-	}
+    std::unique_ptr<LinearModelBuilder<T>> builder() {
+        return std::unique_ptr<LinearModelBuilder<T>>(new LinearModelBuilder<T>(this));
+    }
 };
 
 template <class T>
 class LinearModelBuilder {
 public:
-	LinearModel<T>* model_;
+    LinearModel<T>* model_;
 
-	explicit LinearModelBuilder<T>(LinearModel<T>* model) : model_(model) {}
+    explicit LinearModelBuilder<T>(LinearModel<T>* model) : model_(model) {}
 
-	inline void add(T x, int y) {
-		count_++;
-		x_sum_ += (long double)x;
-		y_sum_ += (long double)y;
-		xx_sum_ += (long double)x * x;
-		xy_sum_ += (long double)x * y;
-		x_min_ = std::min<T>(x, x_min_);
-		x_max_ = std::max<T>(x, x_max_);
-		y_min_ = std::min<double>(y, y_min_);
-		y_max_ = std::max<double>(y, y_max_);
-	}
+    inline void add(T x, int y) {
+        count_++;
+        x_sum_ += static_cast<long double>(x);
+        y_sum_ += static_cast<long double>(y);
+        xx_sum_ += static_cast<long double>(x) * x;
+        xy_sum_ += static_cast<long double>(x) * y;
+        x_min_ = std::min<T>(x, x_min_);
+        x_max_ = std::max<T>(x, x_max_);
+        y_min_ = std::min<double>(y, y_min_);
+        y_max_ = std::max<double>(y, y_max_);
+    }
 
-	void build() {
-		if (count_ <= 1) {
-			model_->a_ = 0;
-			model_->b_ = static_cast<double>(y_sum_);
-			return;
-		}
+    void build() {
+        if (count_ <= 1) {
+            model_->a_ = 0;
+            model_->b_ = static_cast<double>(y_sum_);
+            return;
+        }
 
-		if ((long double)count_ * xx_sum_ - x_sum_ * x_sum_ == 0) {
-			// all values in a bucket have the same key.
-			model_->a_ = 0;
-			model_->b_ = static_cast<double>(y_sum_) / count_;
-			return;
-		}
+        if (static_cast<long double>(count_) * xx_sum_ - x_sum_ * x_sum_ == 0) {
+            // all values in a bucket have the same key.
+            model_->a_ = 0;
+            model_->b_ = static_cast<double>(y_sum_) / count_;
+            return;
+        }
 
-		auto slope = static_cast<double>((static_cast<long double>(count_) * xy_sum_ - x_sum_ * y_sum_) / (static_cast<long double>(count_) * xx_sum_ - x_sum_ * x_sum_));
-		auto intercept = static_cast<double>((y_sum_ - static_cast<long double>(slope) * x_sum_) / count_);
-		model_->a_ = slope;
-		model_->b_ = intercept;
+        auto slope = static_cast<double>((static_cast<long double>(count_) * xy_sum_ - x_sum_ * y_sum_) / (static_cast<long double>(count_) * xx_sum_ - x_sum_ * x_sum_));
+        auto intercept = static_cast<double>((y_sum_ - static_cast<long double>(slope) * x_sum_) / count_);
+        model_->a_ = slope;
+        model_->b_ = intercept;
 
-		// If floating point precision errors, fit spline
-		if (model_->a_ <= 0) {
-			model_->a_ = (y_max_ - y_min_) / (x_max_ - x_min_);
-			model_->b_ = -x_min_ * model_->a_;
-		}
-	}
+        // If floating point precision errors, fit spline
+        if (model_->a_ <= 0) {
+            model_->a_ = (y_max_ - y_min_) / (x_max_ - x_min_);
+            model_->b_ = -static_cast<double>(x_min_) * model_->a_;
+        }
+    }
 
 private:
-	int count_ = 0;
-	long double x_sum_ = 0;
-	long double y_sum_ = 0;
-	long double xx_sum_ = 0;
-	long double xy_sum_ = 0;
-	T x_min_ = std::numeric_limits<T>::max();
-	T x_max_ = std::numeric_limits<T>::lowest();
-	double y_min_ = std::numeric_limits<double>::max();
-	double y_max_ = std::numeric_limits<double>::lowest();
+    int count_ = 0;
+    long double x_sum_ = 0;
+    long double y_sum_ = 0;
+    long double xx_sum_ = 0;
+    long double xy_sum_ = 0;
+    T x_min_ = std::numeric_limits<T>::max();
+    T x_max_ = std::numeric_limits<T>::lowest();
+    double y_min_ = std::numeric_limits<double>::max();
+    double y_max_ = std::numeric_limits<double>::lowest();
 };
 
 /*** Helper methods for bitmap ***/
@@ -177,111 +192,111 @@ struct SampleDataNodeStats {
 class StatAccumulator {
 public:
     virtual ~StatAccumulator() = default;
-	virtual void accumulate(int actual_position, int predicted_position) = 0;
-	virtual double get_stat() = 0;
+    virtual void accumulate(int actual_position, int predicted_position) = 0;
+    virtual double get_stat() = 0;
     virtual void reset() = 0;
 };
 
 // Mean log error represents the expected number of exponential search iterations when doing a lookup
 class ExpectedSearchIterationsAccumulator : public StatAccumulator {
 public:
-	void accumulate(int actual_position, int predicted_position) override {
-		cumulative_log_error_ += std::log2(std::abs(predicted_position - actual_position) + 1);
-		count_++;
-	}
+    void accumulate(int actual_position, int predicted_position) override {
+        cumulative_log_error_ += std::log2(std::abs(predicted_position - actual_position) + 1);
+        count_++;
+    }
 
-	double get_stat() override {
-	    if (count_ == 0) return 0;
-		return cumulative_log_error_ / count_;
-	}
+    double get_stat() override {
+        if (count_ == 0) return 0;
+        return cumulative_log_error_ / count_;
+    }
 
-	void reset() override {
-	    cumulative_log_error_ = 0;
-	    count_ = 0;
-	}
+    void reset() override {
+        cumulative_log_error_ = 0;
+        count_ = 0;
+    }
 
 public:
-	double cumulative_log_error_ = 0;
-	int count_ = 0;
+    double cumulative_log_error_ = 0;
+    int count_ = 0;
 };
 
 // Mean shifts represents the expected number of shifts when doing an insert
 class ExpectedShiftsAccumulator : public StatAccumulator {
 public:
-	explicit ExpectedShiftsAccumulator(int data_capacity) : data_capacity_(data_capacity) {}
+    explicit ExpectedShiftsAccumulator(int data_capacity) : data_capacity_(data_capacity) {}
 
-	// A dense region of n keys will contribute a total number of expected shifts of approximately
-	// ((n-1)/2)((n-1)/2 + 1) = n^2/4 - 1/4
-	// This is exact for odd n and off by 0.25 for even n.
-	// Therefore, we track n^2/4.
-	void accumulate(int actual_position, int predicted_position) override {
-		if (actual_position > last_position_ + 1) {
-			long long dense_region_length = last_position_ - dense_region_start_idx_ + 1;
-			num_expected_shifts_ += (dense_region_length * dense_region_length) / 4;
-			dense_region_start_idx_ = actual_position;
-		}
-		last_position_ = actual_position;
-		count_++;
-	}
+    // A dense region of n keys will contribute a total number of expected shifts of approximately
+    // ((n-1)/2)((n-1)/2 + 1) = n^2/4 - 1/4
+    // This is exact for odd n and off by 0.25 for even n.
+    // Therefore, we track n^2/4.
+    void accumulate(int actual_position, int) override {
+        if (actual_position > last_position_ + 1) {
+            long long dense_region_length = last_position_ - dense_region_start_idx_ + 1;
+            num_expected_shifts_ += (dense_region_length * dense_region_length) / 4;
+            dense_region_start_idx_ = actual_position;
+        }
+        last_position_ = actual_position;
+        count_++;
+    }
 
-	double get_stat() override {
+    double get_stat() override {
         if (count_ == 0) return 0;
-	    // first need to accumulate statistics for current packed region
-		long long dense_region_length = last_position_ - dense_region_start_idx_ + 1;
-		long long cur_num_expected_shifts = num_expected_shifts_ + (dense_region_length * dense_region_length) / 4;
-		return cur_num_expected_shifts / static_cast<double>(count_);
-	}
+        // first need to accumulate statistics for current packed region
+        long long dense_region_length = last_position_ - dense_region_start_idx_ + 1;
+        long long cur_num_expected_shifts = num_expected_shifts_ + (dense_region_length * dense_region_length) / 4;
+        return cur_num_expected_shifts / static_cast<double>(count_);
+    }
 
     void reset() override {
-	    last_position_ = -1;
+        last_position_ = -1;
         dense_region_start_idx_ = 0;
         num_expected_shifts_ = 0;
         count_ = 0;
     }
 
 public:
-	int last_position_ = -1;
-	int dense_region_start_idx_ = 0;
-	long long num_expected_shifts_ = 0;
-	int count_ = 0;
-	int data_capacity_ = -1;  // capacity of node
+    int last_position_ = -1;
+    int dense_region_start_idx_ = 0;
+    long long num_expected_shifts_ = 0;
+    int count_ = 0;
+    int data_capacity_ = -1;  // capacity of node
 };
 
 // Combines ExpectedSearchIterationsAccumulator and ExpectedShiftsAccumulator
 class ExpectedIterationsAndShiftsAccumulator : public StatAccumulator {
 public:
-	ExpectedIterationsAndShiftsAccumulator() = default;
-	explicit ExpectedIterationsAndShiftsAccumulator(int data_capacity) : data_capacity_(data_capacity) {}
+    ExpectedIterationsAndShiftsAccumulator() = default;
+    explicit ExpectedIterationsAndShiftsAccumulator(int data_capacity) : data_capacity_(data_capacity) {}
 
-	void accumulate(int actual_position, int predicted_position) override {
-		cumulative_log_error_ += std::log2(std::abs(predicted_position - actual_position) + 1);
+    void accumulate(int actual_position, int predicted_position) override {
+        cumulative_log_error_ += std::log2(std::abs(predicted_position - actual_position) + 1);
 
-		if (actual_position > last_position_ + 1) {
-			long long dense_region_length = last_position_ - dense_region_start_idx_ + 1;
-			num_expected_shifts_ += (dense_region_length * dense_region_length) / 4;
-			dense_region_start_idx_ = actual_position;
-		}
-		last_position_ = actual_position;
+        if (actual_position > last_position_ + 1) {
+            long long dense_region_length = last_position_ - dense_region_start_idx_ + 1;
+            num_expected_shifts_ += (dense_region_length * dense_region_length) / 4;
+            dense_region_start_idx_ = actual_position;
+        }
+        last_position_ = actual_position;
 
-		count_++;
-	}
+        count_++;
+    }
 
-	double get_stat() override {
-		assert(false);  // this should not be used
-		return 0.0;
-	}
+    double get_stat() override {
+        assert(false);  // this should not be used
+        return 0;
+    }
 
-	double get_expected_num_search_iterations() {
-		if (count_ == 0) return 0;
-		return cumulative_log_error_ / count_;
-	}
+    double get_expected_num_search_iterations() {
+        if (count_ == 0) return 0;
+        return cumulative_log_error_ / count_;
+    }
 
-	double get_expected_num_shifts() {
-		if (count_ == 0) return 0;
-		long long dense_region_length = last_position_ - dense_region_start_idx_ + 1;
-		long long cur_num_expected_shifts = num_expected_shifts_ + (dense_region_length * dense_region_length) / 4;
-		return cur_num_expected_shifts / static_cast<double>(count_);
-	}
+    double get_expected_num_shifts() {
+        if (count_ == 0) return 0;
+        long long dense_region_length = last_position_ - dense_region_start_idx_ + 1;
+        long long cur_num_expected_shifts = num_expected_shifts_ + (dense_region_length * dense_region_length) / 4;
+        return cur_num_expected_shifts / static_cast<double>(count_);
+    }
 
     void reset() override {
         cumulative_log_error_ = 0;
@@ -292,12 +307,12 @@ public:
     }
 
 public:
-	double cumulative_log_error_ = 0;
-	int last_position_ = -1;
-	int dense_region_start_idx_ = 0;
-	long long num_expected_shifts_ = 0;
-	int count_ = 0;
-	int data_capacity_ = -1;  // capacity of node
+    double cumulative_log_error_ = 0;
+    int last_position_ = -1;
+    int dense_region_start_idx_ = 0;
+    long long num_expected_shifts_ = 0;
+    int count_ = 0;
+    int data_capacity_ = -1;  // capacity of node
 };
 
 /*** Miscellaneous helpers ***/

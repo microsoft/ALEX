@@ -93,6 +93,28 @@ namespace test
         }
     }
 
+    TEST(DataNode, TestNumKeysInRange)
+    {
+        AlexDataNode<int, int> node;
+
+        int keys[100];
+        int payload[100];
+        for (int i = 0; i < 100; i++) {
+            keys[i] = 2*i;
+            payload[i] = rand();
+        }
+
+        std::sort(keys, keys + 100);
+        node.bulk_load(keys, payload, 100);
+
+        int num_keys = node.num_keys_in_range(0, node.data_capacity_);
+        EXPECT_EQ(num_keys, 100);
+
+        int num_keys_first_half = node.num_keys_in_range(0, node.data_capacity_ / 2);
+        int num_keys_second_half = node.num_keys_in_range(node.data_capacity_ / 2, node.data_capacity_);
+        EXPECT_EQ(num_keys, num_keys_first_half + num_keys_second_half);
+    }
+
     TEST(DataNode, TestNextFilledPosition)
     {
         AlexDataNode<int, int> node;
@@ -121,64 +143,67 @@ namespace test
 
     TEST(DataNode, TestClosestGap)
     {
-        AlexDataNode<int, int> node;
+        auto node = new AlexDataNode<int, int>();
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
-        node.key_slots_ = new int[8]{ 1, 1, 2, 3, 4, 5, 6, 6 };
-        node.payload_slots_ = new int[8]();
+        node->key_slots_ = new int[8]{ 1, 1, 2, 3, 4, 5, 6, 6 };
+        node->payload_slots_ = new int[8]();
 #else
-        node.data_slots_ = new std::pair<int, int>[8]{ {1,0}, {1,0}, {2,0}, {3,0}, {4,0}, {5,0}, {6,0}, {6,0} };
+        node->data_slots_ = new std::pair<int, int>[8]{ {1,0}, {1,0}, {2,0}, {3,0}, {4,0}, {5,0}, {6,0}, {6,0} };
 #endif
-        node.data_capacity_ = 8;
-        node.bitmap_ = new uint64_t[1]();
+        node->data_capacity_ = 8;
+        node->bitmap_ = new uint64_t[1]();
         for (int i : { 1, 2, 3, 4, 5, 7 }) {
-            node.bitmap_[0] |= (1ULL << i);
+            node->bitmap_[0] |= (1ULL << i);
         }
 
-        EXPECT_EQ(0, node.closest_gap(1));
-        EXPECT_EQ(0, node.closest_gap(2));
-        EXPECT_EQ(0, node.closest_gap(3));  // border case, by default choose left gap
-        EXPECT_EQ(6, node.closest_gap(4));
-        EXPECT_EQ(6, node.closest_gap(5));
-        EXPECT_EQ(6, node.closest_gap(7));
+        EXPECT_EQ(0, node->closest_gap(1));
+        EXPECT_EQ(0, node->closest_gap(2));
+        EXPECT_EQ(0, node->closest_gap(3));  // border case, by default choose left gap
+        EXPECT_EQ(6, node->closest_gap(4));
+        EXPECT_EQ(6, node->closest_gap(5));
+        EXPECT_EQ(6, node->closest_gap(7));
+        delete node;
 
         // Test with 5 bitmap blocks
+        node = new AlexDataNode<int, int>();
 #if ALEX_DATA_NODE_SEP_ARRAYS
-        node.key_slots_ = new int[320];
-        node.payload_slots_ = new int[320]();
+        node->key_slots_ = new int[320];
+        node->payload_slots_ = new int[320]();
         for (int i = 0; i < 50; i++) {
-            node.key_slots_[i] = 50;
+            node->key_slots_[i] = 50;
         }
         for (int i = 50; i < 300; i++) {
-            node.key_slots_[i] = i;
+            node->key_slots_[i] = i;
         }
         for (int i = 300; i < 320; i++) {
-            node.key_slots_[i] = AlexDataNode<int, int>::kEndSentinel_;
+            node->key_slots_[i] = AlexDataNode<int, int>::kEndSentinel_;
         }
 #else
-        node.data_slots_ = new std::pair<int, int>[192];
+        node->data_slots_ = new std::pair<int, int>[192];
         for (int i = 0; i < 50; i++) {
-            node.data_slots_[i] = std::pair<int, int>(50, 0);
+            node->data_slots_[i] = std::pair<int, int>(50, 0);
         }
         for (int i = 50; i < 300; i++) {
-            node.data_slots_[i] = std::pair<int, int>(i, 0);
+            node->data_slots_[i] = std::pair<int, int>(i, 0);
         }
         for (int i = 300; i < 320; i++) {
-            node.data_slots_[i] = std::pair<int, int>(AlexDataNode<int, int>::kEndSentinel, 0);
+            node->data_slots_[i] = std::pair<int, int>(AlexDataNode<int, int>::kEndSentinel, 0);
         }
 #endif
-        node.data_capacity_ = 320;
-        node.bitmap_ = new uint64_t[5]();
+        node->data_capacity_ = 320;
+        node->bitmap_ = new uint64_t[5]();
         for (int i = 50; i < 300; i++) {
             size_t bitmap_pos = i >> 6;
             size_t bit_pos = i - (bitmap_pos << 6);
-            node.bitmap_[bitmap_pos] |= (1ULL << bit_pos);
+            node->bitmap_[bitmap_pos] |= (1ULL << bit_pos);
         }
 
-        EXPECT_EQ(49, node.closest_gap(75));  // pos in second block
-        EXPECT_EQ(49, node.closest_gap(130));  // pos in third block
-        EXPECT_EQ(300, node.closest_gap(180));  // pos in third block
-        EXPECT_EQ(300, node.closest_gap(200));  // pos in fourth block
+        EXPECT_EQ(49, node->closest_gap(75));  // pos in second block
+        EXPECT_EQ(49, node->closest_gap(130));  // pos in third block
+        EXPECT_EQ(300, node->closest_gap(180));  // pos in third block
+        EXPECT_EQ(300, node->closest_gap(200));  // pos in fourth block
+        delete node;
     }
 
     TEST(DataNode, TestInsertUsingShifts)
@@ -197,7 +222,7 @@ namespace test
             node.bitmap_[0] |= (1ULL << i);
         }
 
-        node.insert_using_shifts(4, rand(), 4, 0, 8);
+        node.insert_using_shifts(4, rand(), 4);
         int expected[] = { 1, 1, 2, 3, 4, 5, 6, 7 };
         for (int i = 0; i < 8; i++) {
             EXPECT_EQ(expected[i], node.get_key(i));
@@ -299,7 +324,7 @@ namespace test
         node.bulk_load(keys, payload, 100);
 
         std::vector<int> results;
-        AlexDataNode<int, int>::Iterator it(&node, 0);
+        AlexDataNode<int, int>::const_iterator_type it(&node, 0);
         for (; !it.is_end(); it++) {
             results.push_back(it.key());
         }
@@ -323,8 +348,8 @@ namespace test
         EXPECT_TRUE(node.find_upper(10) == node.find_lower(11));
 
         std::vector<int> results;
-        AlexDataNode<int, int>::Iterator it(&node, node.find_lower(2));
-        AlexDataNode<int, int>::Iterator end_it(&node, node.find_lower(4));
+        AlexDataNode<int, int>::const_iterator_type it(&node, node.find_lower(2));
+        AlexDataNode<int, int>::const_iterator_type end_it(&node, node.find_lower(4));
         for (; it != end_it; it++) {
             results.push_back(it.key());
         }

@@ -349,38 +349,38 @@ namespace test
 
     TEST(Alex, TestRangeScan)
     {
-       Alex<int, int> index;
+        Alex<int, int> index;
 
-       int keys[200];
-       int payload[200];
-       for (int i = 0; i < 200; i++) {
-           keys[i] = i;
-           payload[i] = i;
-       }
+        int keys[200];
+        int payload[200];
+        for (int i = 0; i < 200; i++) {
+            keys[i] = i;
+            payload[i] = i;
+        }
 
-       std::sort(keys, keys + 200);
-       index.bulk_load(keys, payload, 200);
+        std::sort(keys, keys + 200);
+        index.bulk_load(keys, payload, 200);
 
-       std::vector<int> results;
-       int sum = 0;
-       auto it = index.begin();
-       for (; it != index.end(); it++) {
-           results.push_back((*it).second);
-           sum += (*it).second;
-       }
-       EXPECT_EQ(results.size(), 200);
-       EXPECT_EQ(sum, 19900);
+        std::vector<int> results;
+        int sum = 0;
+        auto it = index.begin();
+        for (; it != index.end(); it++) {
+            results.push_back((*it).second);
+            sum += (*it).second;
+        }
+        EXPECT_EQ(results.size(), 200);
+        EXPECT_EQ(sum, 19900);
 
-       std::vector<int> results2;
-       int sum2 = 0;
-       auto it2 = index.find(10);
-       auto it_end = index.find(100);
-       for (; it2 != it_end; it2++) {
-           results2.push_back((*it2).second);
-           sum2 += (*it2).second;
-       }
-       EXPECT_EQ(results2.size(), 90);
-       EXPECT_EQ(sum2, 4905);
+        std::vector<int> results2;
+        int sum2 = 0;
+        auto it2 = index.find(10);
+        auto it_end = index.find(100);
+        for (; it2 != it_end; it2++) {
+            results2.push_back((*it2).second);
+            sum2 += (*it2).second;
+        }
+        EXPECT_EQ(results2.size(), 90);
+        EXPECT_EQ(sum2, 4905);
     }
 
     TEST(Alex, TestDebug)

@@ -9,7 +9,7 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     set(CMAKE_CXX_FLAGS "-O3 -xHost")
 else()
     # clang and gcc
-    set(CMAKE_CXX_FLAGS "-O3 -march=native -Wall")
+    set(CMAKE_CXX_FLAGS "-O3 -march=native -Wall -Wextra")
 endif()
 
 add_executable(example src/examples/main.cpp)

@@ -159,4 +159,7 @@ int main(int argc, char* argv[]) {
               << cumulative_inserts / cumulative_insert_time * 1e9 << " inserts/sec,\t"
               << cumulative_operations / cumulative_time * 1e9 << " ops/sec"
               << std::endl;
+
+    delete[] keys;
+    delete[] payloads;
 }
