@@ -49,8 +49,8 @@ int main(int argc, char* argv[]) {
     } else if (keys_file_type == "text") {
         load_text_data(keys, total_num_keys, keys_file_path);
     } else {
-        std::cerr << "keys_file_type must be either 'binary' or 'text'" << std::endl;
-        return EX_USAGE;
+        std::cerr << "--keys_file_type must be either 'binary' or 'text'" << std::endl;
+        return 1;
     }
 
     // Generate random payloads
@@ -89,8 +89,8 @@ int main(int argc, char* argv[]) {
         } else if (lookup_distribution == "zipf") {
             lookup_keys = get_search_keys_zipf(keys, i, num_lookups_per_batch);
         } else {
-            std::cerr << "lookup_distribution must be either 'uniform' or 'zipf'" << std::endl;
-            return EX_USAGE;
+            std::cerr << "--lookup_distribution must be either 'uniform' or 'zipf'" << std::endl;
+            return 1;
         }
         auto lookups_start_time = std::chrono::high_resolution_clock::now();
         for (int j = 0; j < num_lookups_per_batch; j++) {
