@@ -64,6 +64,77 @@ namespace test
         }
     }
 
+    TEST(Alex, TestIterators)
+    {
+        Alex<int, int> index;
+
+        int keys[500];
+        int payload[500];
+        for (int i = 0; i < 250; i++) {
+            keys[i] = i;
+            payload[i] = i;
+        }
+        for (int i = 250; i < 500; i++) {
+            keys[i] = 5 * i;
+            payload[i] = i;
+        }
+
+        std::sort(keys, keys + 500);
+        index.bulk_load(keys, payload, 500);
+
+        // Iterator from beginning to end
+        int num_keys = 0;
+        for (auto it = index.begin(); it != index.end(); ++it) {
+            num_keys++;
+        }
+        EXPECT_EQ(500, num_keys);
+
+        // Const iterator from beginning to end
+        num_keys = 0;
+        for (auto it = index.cbegin(); it != index.cend(); ++it) {
+            num_keys++;
+        }
+        EXPECT_EQ(500, num_keys);
+
+        // Reverse iterator from beginning to end
+        num_keys = 0;
+        for (auto it = index.rbegin(); it != index.rend(); ++it) {
+            num_keys++;
+        }
+        EXPECT_EQ(500, num_keys);
+
+        // Const reverse iterator from beginning to end
+        num_keys = 0;
+        for (auto it = index.crbegin(); it != index.crend(); ++it) {
+            num_keys++;
+        }
+        EXPECT_EQ(500, num_keys);
+
+        // Convert iterator to reverse iterator
+        auto it = index.find(keys[250]);
+        auto rit = Alex<int, int>::ReverseIterator(it);
+        num_keys = 0;
+        for (; it != index.end(); ++it) {
+            num_keys++;
+        }
+        for (; rit != index.rend(); ++rit) {
+            num_keys++;
+        }
+        EXPECT_EQ(501, num_keys);
+
+        // Convert const iterator to const reverse iterator
+        typename Alex<int, int>::ConstIterator cit = index.find(keys[250]);
+        auto crit = Alex<int, int>::ConstReverseIterator(cit);
+        num_keys = 0;
+        for (; cit != index.cend(); ++cit) {
+            num_keys++;
+        }
+        for (; crit != index.crend(); ++crit) {
+            num_keys++;
+        }
+        EXPECT_EQ(501, num_keys);
+    }
+
     TEST(Alex, TestFind)
     {
         Alex<int, int> index;

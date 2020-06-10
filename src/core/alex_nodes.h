@@ -418,7 +418,7 @@ public:
     }
 
     // Position in key/data_slots of first (i.e., min) key
-    T first_pos() const {
+    int first_pos() const {
         for (int i = 0; i < data_capacity_; i++) {
             if (check_exists(i)) return i;
         }
@@ -426,7 +426,7 @@ public:
     }
 
     // Position in key/data_slots of last (i.e., max) key
-    T last_pos() const {
+    int last_pos() const {
         for (int i = data_capacity_ - 1; i >= 0; i--) {
             if (check_exists(i)) return i;
         }

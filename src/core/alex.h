@@ -54,7 +54,11 @@ class Alex
 public:
     typedef std::pair<T,P> V;  // Value type, returned by dereferencing an iterator
 
-    class Iterator;  // Iterates through keys
+    // Forward declaration for iterators
+    class Iterator;
+    class ConstIterator;
+    class ReverseIterator;
+    class ConstReverseIterator;
     class NodeIterator;  // Iterates through all nodes with pre-order traversal
 
     AlexNode<T,P>* root_node_ = nullptr;
@@ -687,6 +691,17 @@ public:
         }
     }
 
+    typename Alex<T,P>::ConstIterator find(T key) const {
+        stats_.num_lookups++;
+        AlexDataNode<T,P>* leaf = get_leaf(key);
+        int idx = leaf->find_key(key);
+        if (idx < 0) {
+            return cend();
+        } else {
+            return ConstIterator(leaf, idx);
+        }
+    }
+
     // Returns an iterator to the first key no less than the input value
     typename Alex<T,P>::Iterator lower_bound(T key) {
         stats_.num_lookups++;
@@ -695,12 +710,26 @@ public:
         return Iterator(leaf, idx);  // automatically handles the case where idx == leaf->data_capacity
     }
 
+    typename Alex<T,P>::ConstIterator lower_bound(T key) const {
+        stats_.num_lookups++;
+        AlexDataNode<T,P>* leaf = get_leaf(key);
+        int idx = leaf->find_lower(key);
+        return ConstIterator(leaf, idx);  // automatically handles the case where idx == leaf->data_capacity
+    }
+
     // Returns an iterator to the first key greater than the input value
     typename Alex<T,P>::Iterator upper_bound(T key) {
         stats_.num_lookups++;
         AlexDataNode<T,P>* leaf = get_leaf(key);
         int idx = leaf->find_upper(key);
         return Iterator(leaf, idx);  // automatically handles the case where idx == leaf->data_capacity
+    }
+
+    typename Alex<T,P>::ConstIterator upper_bound(T key) const {
+        stats_.num_lookups++;
+        AlexDataNode<T,P>* leaf = get_leaf(key);
+        int idx = leaf->find_upper(key);
+        return ConstIterator(leaf, idx);  // automatically handles the case where idx == leaf->data_capacity
     }
 
     // Directly returns a pointer to the payload found through find(key)
@@ -756,7 +785,6 @@ public:
         }
     }
 
-    // Iterator to the first key
     typename Alex<T,P>::Iterator begin() {
         AlexNode<T,P>* cur = root_node_;
 
@@ -768,6 +796,58 @@ public:
 
     typename Alex<T,P>::Iterator end() {
         Iterator it = Iterator();
+        it.cur_leaf_ = nullptr;
+        it.cur_idx_ = 0;
+        return it;
+    }
+
+    typename Alex<T,P>::ConstIterator cbegin() {
+        AlexNode<T,P>* cur = root_node_;
+
+        while (!cur->is_leaf_) {
+            cur = static_cast<AlexModelNode<T,P>*>(cur)->children_[0];
+        }
+        return ConstIterator(static_cast<AlexDataNode<T,P>*>(cur), 0);
+    }
+
+    typename Alex<T,P>::ConstIterator cend() {
+        ConstIterator it = ConstIterator();
+        it.cur_leaf_ = nullptr;
+        it.cur_idx_ = 0;
+        return it;
+    }
+
+    typename Alex<T,P>::ReverseIterator rbegin() {
+        AlexNode<T,P>* cur = root_node_;
+
+        while (!cur->is_leaf_) {
+            auto model_node = static_cast<AlexModelNode<T,P>*>(cur);
+            cur = model_node->children_[model_node->num_children_-1];
+        }
+        auto data_node = static_cast<AlexDataNode<T,P>*>(cur);
+        return ReverseIterator(data_node, data_node->data_capacity_-1);
+    }
+
+    typename Alex<T,P>::ReverseIterator rend() {
+        ReverseIterator it = ReverseIterator();
+        it.cur_leaf_ = nullptr;
+        it.cur_idx_ = 0;
+        return it;
+    }
+
+    typename Alex<T,P>::ConstReverseIterator crbegin() {
+        AlexNode<T,P>* cur = root_node_;
+
+        while (!cur->is_leaf_) {
+            auto model_node = static_cast<AlexModelNode<T,P>*>(cur);
+            cur = model_node->children_[model_node->num_children_-1];
+        }
+        auto data_node = static_cast<AlexDataNode<T,P>*>(cur);
+        return ConstReverseIterator(data_node, data_node->data_capacity_-1);
+    }
+
+    typename Alex<T,P>::ConstReverseIterator crend() {
+        ConstReverseIterator it = ConstReverseIterator();
         it.cur_leaf_ = nullptr;
         it.cur_idx_ = 0;
         return it;
@@ -1778,6 +1858,13 @@ public:
             initialize();
         }
 
+        Iterator (const Iterator& other) : cur_leaf_(other.cur_leaf_), cur_idx_(other.cur_idx_),
+                                           cur_bitmap_idx_(other.cur_bitmap_idx_), cur_bitmap_data_(other.cur_bitmap_data_) {}
+
+        Iterator (const ReverseIterator& other) : cur_leaf_(other.cur_leaf_), cur_idx_(other.cur_idx_) {
+            initialize();
+        }
+
         Iterator& operator = (const Iterator& other) {
             if (this != &other) {
                 cur_idx_ = other.cur_idx_;
@@ -1788,44 +1875,20 @@ public:
             return *this;
         }
 
-        void initialize() {
-            if (!cur_leaf_) return;
-            assert(cur_idx_ >= 0);
-            if (cur_idx_ >= cur_leaf_->data_capacity_) {
-                cur_leaf_ = cur_leaf_->next_leaf_;
-                cur_idx_ = 0;
-                if (!cur_leaf_) return;
-            }
-
-            cur_bitmap_idx_ = cur_idx_ >> 6;
-            cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
-
-            // Zero out extra bits
-            int bit_pos = cur_idx_ - (cur_bitmap_idx_ << 6);
-            cur_bitmap_data_ &= ~((1ULL << bit_pos) - 1);
-
-            (*this)++;
+        Iterator& operator ++ () {
+            advance();
+            return *this;
         }
 
-        void operator ++ (int) {
-            while (cur_bitmap_data_ == 0) {
-                cur_bitmap_idx_++;
-                if (cur_bitmap_idx_ >= cur_leaf_->bitmap_size_) {
-                    cur_leaf_ = cur_leaf_->next_leaf_;
-                    cur_idx_ = 0;
-                    if (cur_leaf_ == nullptr) {
-                        return;
-                    }
-                    cur_bitmap_idx_ = 0;
-                }
-                cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
-            }
-            uint64_t bit = extract_rightmost_one(cur_bitmap_data_);
-            cur_idx_ = get_offset(cur_bitmap_idx_, bit);
-            cur_bitmap_data_ = remove_rightmost_one(cur_bitmap_data_);
+        Iterator operator ++ (int) {
+            Iterator tmp = *this;
+            advance();
+            return tmp;
         }
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
+        // Does not return a reference because keys and payloads are stored separately.
+        // If possible, use key() and payload() instead.
         V operator * () const {
             return std::make_pair(cur_leaf_->key_slots_[cur_idx_], cur_leaf_->payload_slots_[cur_idx_]);
         }
@@ -1855,6 +1918,399 @@ public:
         bool operator != (const Iterator & rhs) const {
             return !(*this == rhs);
         };
+
+    private:
+        void initialize() {
+            if (!cur_leaf_) return;
+            assert(cur_idx_ >= 0);
+            if (cur_idx_ >= cur_leaf_->data_capacity_) {
+                cur_leaf_ = cur_leaf_->next_leaf_;
+                cur_idx_ = 0;
+                if (!cur_leaf_) return;
+            }
+
+            cur_bitmap_idx_ = cur_idx_ >> 6;
+            cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
+
+            // Zero out extra bits
+            int bit_pos = cur_idx_ - (cur_bitmap_idx_ << 6);
+            cur_bitmap_data_ &= ~((1ULL << bit_pos) - 1);
+
+            advance();
+        }
+
+        inline void advance() {
+            while (cur_bitmap_data_ == 0) {
+                cur_bitmap_idx_++;
+                if (cur_bitmap_idx_ >= cur_leaf_->bitmap_size_) {
+                    cur_leaf_ = cur_leaf_->next_leaf_;
+                    cur_idx_ = 0;
+                    if (cur_leaf_ == nullptr) {
+                        return;
+                    }
+                    cur_bitmap_idx_ = 0;
+                }
+                cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
+            }
+            uint64_t bit = extract_rightmost_one(cur_bitmap_data_);
+            cur_idx_ = get_offset(cur_bitmap_idx_, bit);
+            cur_bitmap_data_ = remove_rightmost_one(cur_bitmap_data_);
+        }
+    };
+
+    class ConstIterator {
+    public:
+        const AlexDataNode<T,P>* cur_leaf_ = nullptr;  // current data node
+        int cur_idx_;  // current position in key/data_slots of data node
+        int cur_bitmap_idx_;  // current position in bitmap
+        uint64_t cur_bitmap_data_;  // caches the relevant data in the current bitmap position
+
+        ConstIterator () {}
+
+        ConstIterator (const AlexDataNode<T,P>* leaf, int idx) : cur_leaf_(leaf), cur_idx_(idx) {
+            initialize();
+        }
+
+        ConstIterator (const Iterator& other) : cur_leaf_(other.cur_leaf_), cur_idx_(other.cur_idx_),
+                                                cur_bitmap_idx_(other.cur_bitmap_idx_), cur_bitmap_data_(other.cur_bitmap_data_) {}
+
+        ConstIterator (const ConstIterator& other) : cur_leaf_(other.cur_leaf_), cur_idx_(other.cur_idx_),
+                                                     cur_bitmap_idx_(other.cur_bitmap_idx_), cur_bitmap_data_(other.cur_bitmap_data_) {}
+
+        ConstIterator (const ReverseIterator& other) : cur_leaf_(other.cur_leaf_), cur_idx_(other.cur_idx_) {
+            initialize();
+        }
+
+        ConstIterator (const ConstReverseIterator& other) : cur_leaf_(other.cur_leaf_), cur_idx_(other.cur_idx_) {
+            initialize();
+        }
+
+        ConstIterator& operator = (const ConstIterator& other) {
+            if (this != &other) {
+                cur_idx_ = other.cur_idx_;
+                cur_leaf_ = other.cur_leaf_;
+                cur_bitmap_idx_ = other.cur_bitmap_idx_;
+                cur_bitmap_data_ = other.cur_bitmap_data_;
+            }
+            return *this;
+        }
+
+        ConstIterator& operator ++ () {
+            advance();
+            return *this;
+        }
+
+        ConstIterator operator ++ (int) {
+            ConstIterator tmp = *this;
+            advance();
+            return tmp;
+        }
+
+#if ALEX_DATA_NODE_SEP_ARRAYS
+        // Does not return a reference because keys and payloads are stored separately.
+        // If possible, use key() and payload() instead.
+        V operator * () const {
+            return std::make_pair(cur_leaf_->key_slots_[cur_idx_], cur_leaf_->payload_slots_[cur_idx_]);
+        }
+#else
+        // If data node stores key-payload pairs contiguously, return reference to V
+    const V& operator * () const {
+        return cur_leaf_->data_slots_[cur_idx_];
+    }
+#endif
+
+        const T& key () const {
+            return cur_leaf_->get_key(cur_idx_);
+        }
+
+        const P& payload () const {
+            return cur_leaf_->get_payload(cur_idx_);
+        }
+
+        bool is_end() const {
+            return cur_leaf_ == nullptr;
+        }
+
+        bool operator == (const ConstIterator & rhs) const {
+            return cur_idx_ == rhs.cur_idx_ && cur_leaf_ == rhs.cur_leaf_;
+        }
+
+        bool operator != (const ConstIterator & rhs) const {
+            return !(*this == rhs);
+        };
+
+    private:
+        void initialize() {
+            if (!cur_leaf_) return;
+            assert(cur_idx_ >= 0);
+            if (cur_idx_ >= cur_leaf_->data_capacity_) {
+                cur_leaf_ = cur_leaf_->next_leaf_;
+                cur_idx_ = 0;
+                if (!cur_leaf_) return;
+            }
+
+            cur_bitmap_idx_ = cur_idx_ >> 6;
+            cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
+
+            // Zero out extra bits
+            int bit_pos = cur_idx_ - (cur_bitmap_idx_ << 6);
+            cur_bitmap_data_ &= ~((1ULL << bit_pos) - 1);
+
+            advance();
+        }
+
+        inline void advance() {
+            while (cur_bitmap_data_ == 0) {
+                cur_bitmap_idx_++;
+                if (cur_bitmap_idx_ >= cur_leaf_->bitmap_size_) {
+                    cur_leaf_ = cur_leaf_->next_leaf_;
+                    cur_idx_ = 0;
+                    if (cur_leaf_ == nullptr) {
+                        return;
+                    }
+                    cur_bitmap_idx_ = 0;
+                }
+                cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
+            }
+            uint64_t bit = extract_rightmost_one(cur_bitmap_data_);
+            cur_idx_ = get_offset(cur_bitmap_idx_, bit);
+            cur_bitmap_data_ = remove_rightmost_one(cur_bitmap_data_);
+        }
+    };
+
+    class ReverseIterator {
+    public:
+        AlexDataNode<T,P>* cur_leaf_ = nullptr;  // current data node
+        int cur_idx_;  // current position in key/data_slots of data node
+        int cur_bitmap_idx_;  // current position in bitmap
+        uint64_t cur_bitmap_data_;  // caches the relevant data in the current bitmap position
+
+        ReverseIterator () {}
+
+        ReverseIterator (AlexDataNode<T,P>* leaf, int idx) : cur_leaf_(leaf), cur_idx_(idx) {
+            initialize();
+        }
+
+        ReverseIterator (const ReverseIterator& other) : cur_leaf_(other.cur_leaf_), cur_idx_(other.cur_idx_),
+                                                         cur_bitmap_idx_(other.cur_bitmap_idx_), cur_bitmap_data_(other.cur_bitmap_data_) {}
+
+        ReverseIterator (const Iterator& other) : cur_leaf_(other.cur_leaf_), cur_idx_(other.cur_idx_) {
+            initialize();
+        }
+
+        ReverseIterator& operator = (const ReverseIterator& other) {
+            if (this != &other) {
+                cur_idx_ = other.cur_idx_;
+                cur_leaf_ = other.cur_leaf_;
+                cur_bitmap_idx_ = other.cur_bitmap_idx_;
+                cur_bitmap_data_ = other.cur_bitmap_data_;
+            }
+            return *this;
+        }
+
+        ReverseIterator& operator ++ () {
+            advance();
+            return *this;
+        }
+
+        ReverseIterator operator ++ (int) {
+            ReverseIterator tmp = *this;
+            advance();
+            return tmp;
+        }
+
+#if ALEX_DATA_NODE_SEP_ARRAYS
+        // Does not return a reference because keys and payloads are stored separately.
+        // If possible, use key() and payload() instead.
+        V operator * () const {
+            return std::make_pair(cur_leaf_->key_slots_[cur_idx_], cur_leaf_->payload_slots_[cur_idx_]);
+        }
+#else
+        // If data node stores key-payload pairs contiguously, return reference to V
+    V& operator * () const {
+        return cur_leaf_->data_slots_[cur_idx_];
+    }
+#endif
+
+        const T& key () const {
+            return cur_leaf_->get_key(cur_idx_);
+        }
+
+        P& payload () const {
+            return cur_leaf_->get_payload(cur_idx_);
+        }
+
+        bool is_end() const {
+            return cur_leaf_ == nullptr;
+        }
+
+        bool operator == (const ReverseIterator & rhs) const {
+            return cur_idx_ == rhs.cur_idx_ && cur_leaf_ == rhs.cur_leaf_;
+        }
+
+        bool operator != (const ReverseIterator & rhs) const {
+            return !(*this == rhs);
+        };
+
+    private:
+        void initialize() {
+            if (!cur_leaf_) return;
+            assert(cur_idx_ >= 0);
+            if (cur_idx_ >= cur_leaf_->data_capacity_) {
+                cur_leaf_ = cur_leaf_->next_leaf_;
+                cur_idx_ = 0;
+                if (!cur_leaf_) return;
+            }
+
+            cur_bitmap_idx_ = cur_idx_ >> 6;
+            cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
+
+            // Zero out extra bits
+            int bit_pos = cur_idx_ - (cur_bitmap_idx_ << 6);
+            cur_bitmap_data_ &= (1ULL << bit_pos) | ((1ULL << bit_pos) - 1);
+
+            advance();
+        }
+
+        inline void advance() {
+            while (cur_bitmap_data_ == 0) {
+                cur_bitmap_idx_--;
+                if (cur_bitmap_idx_ < 0) {
+                    cur_leaf_ = cur_leaf_->prev_leaf_;
+                    if (cur_leaf_ == nullptr) {
+                        cur_idx_ = 0;
+                        return;
+                    }
+                    cur_idx_ = cur_leaf_->data_capacity_ - 1;
+                    cur_bitmap_idx_ = cur_leaf_->bitmap_size_ - 1;
+                }
+                cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
+            }
+            int bit_pos = static_cast<int>(63 - _lzcnt_u64(cur_bitmap_data_));
+            cur_idx_ = (cur_bitmap_idx_ << 6) + bit_pos;
+            cur_bitmap_data_ &= ~(1ULL << bit_pos);
+        }
+    };
+
+    class ConstReverseIterator {
+    public:
+        const AlexDataNode<T,P>* cur_leaf_ = nullptr;  // current data node
+        int cur_idx_;  // current position in key/data_slots of data node
+        int cur_bitmap_idx_;  // current position in bitmap
+        uint64_t cur_bitmap_data_;  // caches the relevant data in the current bitmap position
+
+        ConstReverseIterator () {}
+
+        ConstReverseIterator (const AlexDataNode<T,P>* leaf, int idx) : cur_leaf_(leaf), cur_idx_(idx) {
+            initialize();
+        }
+
+        ConstReverseIterator (const ConstReverseIterator& other) : cur_leaf_(other.cur_leaf_), cur_idx_(other.cur_idx_),
+                                                                   cur_bitmap_idx_(other.cur_bitmap_idx_), cur_bitmap_data_(other.cur_bitmap_data_) {}
+
+        ConstReverseIterator (const ReverseIterator& other) : cur_leaf_(other.cur_leaf_), cur_idx_(other.cur_idx_),
+                                                              cur_bitmap_idx_(other.cur_bitmap_idx_), cur_bitmap_data_(other.cur_bitmap_data_) {}
+
+        ConstReverseIterator (const Iterator& other) : cur_leaf_(other.cur_leaf_), cur_idx_(other.cur_idx_) {
+            initialize();
+        }
+
+        ConstReverseIterator (const ConstIterator& other) : cur_leaf_(other.cur_leaf_), cur_idx_(other.cur_idx_) {
+            initialize();
+        }
+
+        ConstReverseIterator& operator = (const ConstReverseIterator& other) {
+            if (this != &other) {
+                cur_idx_ = other.cur_idx_;
+                cur_leaf_ = other.cur_leaf_;
+                cur_bitmap_idx_ = other.cur_bitmap_idx_;
+                cur_bitmap_data_ = other.cur_bitmap_data_;
+            }
+            return *this;
+        }
+
+        ConstReverseIterator& operator ++ () {
+            advance();
+            return *this;
+        }
+
+        ConstReverseIterator operator ++ (int) {
+            ConstReverseIterator tmp = *this;
+            advance();
+            return tmp;
+        }
+
+#if ALEX_DATA_NODE_SEP_ARRAYS
+        // Does not return a reference because keys and payloads are stored separately.
+        // If possible, use key() and payload() instead.
+        V operator * () const {
+            return std::make_pair(cur_leaf_->key_slots_[cur_idx_], cur_leaf_->payload_slots_[cur_idx_]);
+        }
+#else
+        // If data node stores key-payload pairs contiguously, return reference to V
+    const V& operator * () const {
+        return cur_leaf_->data_slots_[cur_idx_];
+    }
+#endif
+
+        const T& key () const {
+            return cur_leaf_->get_key(cur_idx_);
+        }
+
+        const P& payload () const {
+            return cur_leaf_->get_payload(cur_idx_);
+        }
+
+        bool is_end() const {
+            return cur_leaf_ == nullptr;
+        }
+
+        bool operator == (const ConstReverseIterator & rhs) const {
+            return cur_idx_ == rhs.cur_idx_ && cur_leaf_ == rhs.cur_leaf_;
+        }
+
+        bool operator != (const ConstReverseIterator & rhs) const {
+            return !(*this == rhs);
+        };
+
+    private:
+        void initialize() {
+            if (!cur_leaf_) return;
+            assert(cur_idx_ >= 0);
+            if (cur_idx_ >= cur_leaf_->data_capacity_) {
+                cur_leaf_ = cur_leaf_->next_leaf_;
+                cur_idx_ = 0;
+                if (!cur_leaf_) return;
+            }
+
+            cur_bitmap_idx_ = cur_idx_ >> 6;
+            cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
+
+            // Zero out extra bits
+            int bit_pos = cur_idx_ - (cur_bitmap_idx_ << 6);
+            cur_bitmap_data_ &= (1ULL << bit_pos) | ((1ULL << bit_pos) - 1);
+
+            advance();
+        }
+
+        inline void advance() {
+            while (cur_bitmap_data_ == 0) {
+                cur_bitmap_idx_--;
+                if (cur_bitmap_idx_ < 0) {
+                    cur_leaf_ = cur_leaf_->prev_leaf_;
+                    if (cur_leaf_ == nullptr) {
+                        cur_idx_ = 0;
+                        return;
+                    }
+                    cur_idx_ = cur_leaf_->data_capacity_ - 1;
+                    cur_bitmap_idx_ = cur_leaf_->bitmap_size_ - 1;
+                }
+                cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
+            }
+            int bit_pos = static_cast<int>(63 - _lzcnt_u64(cur_bitmap_data_));
+            cur_idx_ = (cur_bitmap_idx_ << 6) + bit_pos;
+            cur_bitmap_data_ &= ~(1ULL << bit_pos);
+        }
     };
 
     // Iterates through all nodes with pre-order traversal
