@@ -272,21 +272,24 @@ class AlexModelNode : public AlexNode<T, P> {
 * - Stats
 * - Debugging
 */
-template <class T, class P>
+template <class T, class P, class Compare = AlexCompare>
 class AlexDataNode : public AlexNode<T, P> {
  public:
   typedef std::pair<T, P> V;
+  typedef AlexDataNode<T,P,Compare> self_type;
+
+  Compare key_less_;
 
   // Forward declaration
-  template <typename node_type = AlexDataNode<T, P>,
+  template <typename node_type = self_type,
             typename payload_return_type = P, typename value_return_type = V>
   class Iterator;
   typedef Iterator<> iterator_type;
-  typedef Iterator<const AlexDataNode<T, P>, const P, const V>
+  typedef Iterator<const self_type, const P, const V>
       const_iterator_type;
 
-  AlexDataNode* next_leaf_ = nullptr;
-  AlexDataNode* prev_leaf_ = nullptr;
+  self_type* next_leaf_ = nullptr;
+  self_type* prev_leaf_ = nullptr;
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
   T* key_slots_ = nullptr;  // holds keys
@@ -354,12 +357,10 @@ class AlexDataNode : public AlexNode<T, P> {
 
   /*** Constructors and destructors ***/
 
-  AlexDataNode() : AlexNode<T, P>(0, true) {}
+  explicit AlexDataNode(Compare comp = Compare()) : AlexNode<T, P>(0, true), key_less_(comp) {}
 
-  explicit AlexDataNode(short level) : AlexNode<T, P>(level, true) {}
-
-  AlexDataNode(short level, int max_data_node_slots)
-      : AlexNode<T, P>(level, true), max_slots_(max_data_node_slots) {}
+  AlexDataNode(short level, int max_data_node_slots, Compare comp = Compare())
+      : AlexNode<T, P>(level, true), key_less_(comp), max_slots_(max_data_node_slots) {}
 
   ~AlexDataNode() {
 #if ALEX_DATA_NODE_SEP_ARRAYS
@@ -371,8 +372,9 @@ class AlexDataNode : public AlexNode<T, P> {
     delete[] bitmap_;
   }
 
-  AlexDataNode(const AlexDataNode& other)
+  AlexDataNode(const self_type& other)
       : AlexNode<T, P>(other),
+        key_less_(other.key_less_),
         next_leaf_(other.next_leaf_),
         prev_leaf_(other.prev_leaf_),
         data_capacity_(other.data_capacity_),
@@ -511,6 +513,36 @@ class AlexDataNode : public AlexNode<T, P> {
       }
     }
     return num_keys;
+  }
+
+  // True if a < b
+  template <class K>
+  forceinline bool key_less(const T& a, const K& b) const {
+    return key_less_(a, b);
+  }
+
+  // True if a <= b
+  template <class K>
+  forceinline bool key_lessequal(const T& a, const K& b) const {
+    return !key_less_(b, a);
+  }
+
+  // True if a > b
+  template <class K>
+  forceinline bool key_greater(const T& a, const K& b) const {
+    return key_less_(b, a);
+  }
+
+  // True if a >= b
+  template <class K>
+  forceinline bool key_greaterequal(const T& a, const K& b) const {
+    return !key_less_(a, b);
+  }
+
+  // True if a == b
+  template <class K>
+  forceinline bool key_equal(const T& a, const K& b) const {
+    return !key_less_(a, b) && !key_less_(b, a);
   }
 
   /*** Iterator ***/
@@ -956,7 +988,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // key/data_slots of an existing node
   // Assumes existing_model is trained on the dense array of keys
   static double compute_expected_cost_from_existing(
-      const AlexDataNode<T, P>* node, int left, int right, double density,
+      const self_type* node, int left, int right, double density,
       double expected_insert_frac,
       const LinearModel<T>* existing_model = nullptr,
       DataNodeStats* stats = nullptr) {
@@ -1016,7 +1048,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // Helper function for compute_expected_cost
   // Implicitly build the data node in order to collect the stats
   static void build_node_implicit_from_existing(
-      const AlexDataNode<T, P>* node, int left, int right, int num_actual_keys,
+      const self_type* node, int left, int right, int num_actual_keys,
       int data_capacity, StatAccumulator* acc, const LinearModel<T>* model) {
     int last_position = -1;
     int keys_remaining = num_actual_keys;
@@ -1145,7 +1177,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // If the linear model and num_actual_keys have been precomputed, we can avoid
   // redundant work
   void bulk_load_from_existing(
-      const AlexDataNode<T, P>* node, int left, int right,
+      const self_type* node, int left, int right,
       bool keep_left = false, bool keep_right = false,
       const LinearModel<T>* precomputed_model = nullptr,
       int precomputed_num_actual_keys = -1) {
@@ -1367,7 +1399,7 @@ class AlexDataNode : public AlexNode<T, P> {
     // The last key slot with a certain value is guaranteed to be a real key
     // (instead of a gap)
     int pos = exponential_search_upper_bound(predicted_pos, key) - 1;
-    if (pos < 0 || ALEX_DATA_NODE_KEY_AT(pos) != key) {
+    if (pos < 0 || !key_equal(ALEX_DATA_NODE_KEY_AT(pos), key)) {
       return -1;
     } else {
       return pos;
@@ -1463,9 +1495,9 @@ class AlexDataNode : public AlexNode<T, P> {
     // binary search.
     int bound = 1;
     int l, r;  // will do binary search in range [l, r)
-    if (ALEX_DATA_NODE_KEY_AT(m) > key) {
+    if (key_greater(ALEX_DATA_NODE_KEY_AT(m), key)) {
       int size = m;
-      while (bound < size && ALEX_DATA_NODE_KEY_AT(m - bound) > key) {
+      while (bound < size && key_greater(ALEX_DATA_NODE_KEY_AT(m - bound), key)) {
         bound *= 2;
         num_exp_search_iterations_++;
       }
@@ -1473,7 +1505,7 @@ class AlexDataNode : public AlexNode<T, P> {
       r = m - bound / 2;
     } else {
       int size = data_capacity_ - m;
-      while (bound < size && ALEX_DATA_NODE_KEY_AT(m + bound) <= key) {
+      while (bound < size && key_lessequal(ALEX_DATA_NODE_KEY_AT(m + bound), key)) {
         bound *= 2;
         num_exp_search_iterations_++;
       }
@@ -1490,7 +1522,7 @@ class AlexDataNode : public AlexNode<T, P> {
   inline int binary_search_upper_bound(int l, int r, K key) const {
     while (l < r) {
       int mid = l + (r - l) / 2;
-      if (key >= ALEX_DATA_NODE_KEY_AT(mid)) {
+      if (key_lessequal(ALEX_DATA_NODE_KEY_AT(mid), key)) {
         l = mid + 1;
       } else {
         r = mid;
@@ -1518,9 +1550,9 @@ class AlexDataNode : public AlexNode<T, P> {
     // binary search.
     int bound = 1;
     int l, r;  // will do binary search in range [l, r)
-    if (ALEX_DATA_NODE_KEY_AT(m) >= key) {
+    if (key_greaterequal(ALEX_DATA_NODE_KEY_AT(m), key)) {
       int size = m;
-      while (bound < size && ALEX_DATA_NODE_KEY_AT(m - bound) >= key) {
+      while (bound < size && key_greaterequal(ALEX_DATA_NODE_KEY_AT(m - bound), key)) {
         bound *= 2;
         num_exp_search_iterations_++;
       }
@@ -1528,7 +1560,7 @@ class AlexDataNode : public AlexNode<T, P> {
       r = m - bound / 2;
     } else {
       int size = data_capacity_ - m;
-      while (bound < size && ALEX_DATA_NODE_KEY_AT(m + bound) < key) {
+      while (bound < size && key_less(ALEX_DATA_NODE_KEY_AT(m + bound), key)) {
         bound *= 2;
         num_exp_search_iterations_++;
       }
@@ -1545,7 +1577,7 @@ class AlexDataNode : public AlexNode<T, P> {
   inline int binary_search_lower_bound(int l, int r, K key) const {
     while (l < r) {
       int mid = l + (r - l) / 2;
-      if (key <= ALEX_DATA_NODE_KEY_AT(mid)) {
+      if (key_greaterequal(ALEX_DATA_NODE_KEY_AT(mid), key)) {
         r = mid;
       } else {
         l = mid + 1;
@@ -2000,7 +2032,7 @@ class AlexDataNode : public AlexNode<T, P> {
   int erase_one(T key) {
     int pos = find_lower(key);
 
-    if (pos == data_capacity_ || ALEX_DATA_NODE_KEY_AT(pos) != key) return 0;
+    if (pos == data_capacity_ || !key_equal(ALEX_DATA_NODE_KEY_AT(pos), key)) return 0;
 
     // Erase key at pos
     T next_key;
@@ -2034,7 +2066,7 @@ class AlexDataNode : public AlexNode<T, P> {
   int erase(T key) {
     int pos = upper_bound(key);
 
-    if (pos == 0 || ALEX_DATA_NODE_KEY_AT(pos - 1) != key) return 0;
+    if (pos == 0 || !key_equal(ALEX_DATA_NODE_KEY_AT(pos - 1), key)) return 0;
 
     // Erase preceding positions until we reach a key with smaller value
     int num_erased = 0;
@@ -2045,7 +2077,7 @@ class AlexDataNode : public AlexNode<T, P> {
       next_key = ALEX_DATA_NODE_KEY_AT(pos);
     }
     pos--;
-    while (pos >= 0 && ALEX_DATA_NODE_KEY_AT(pos) == key) {
+    while (pos >= 0 && key_equal(ALEX_DATA_NODE_KEY_AT(pos), key)) {
       ALEX_DATA_NODE_KEY_AT(pos) = next_key;
       num_erased += check_exists(pos);
       unset_bit(pos);
@@ -2082,7 +2114,7 @@ class AlexDataNode : public AlexNode<T, P> {
       next_key = ALEX_DATA_NODE_KEY_AT(pos);
     }
     pos--;
-    while (pos >= 0 && ALEX_DATA_NODE_KEY_AT(pos) >= start_key) {
+    while (pos >= 0 && key_greaterequal(ALEX_DATA_NODE_KEY_AT(pos), start_key)) {
       ALEX_DATA_NODE_KEY_AT(pos) = next_key;
       num_erased += check_exists(pos);
       unset_bit(pos);
@@ -2101,7 +2133,7 @@ class AlexDataNode : public AlexNode<T, P> {
   /*** Stats ***/
 
   // Total size of node metadata
-  long long node_size() const override { return sizeof(AlexDataNode<T, P>); }
+  long long node_size() const override { return sizeof(self_type); }
 
   // Total size in bytes of key/payload/data_slots and bitmap
   long long data_size() const {
@@ -2139,12 +2171,12 @@ class AlexDataNode : public AlexNode<T, P> {
       return false;
     }
     for (int i = 0; i < data_capacity_ - 1; i++) {
-      if (ALEX_DATA_NODE_KEY_AT(i) > ALEX_DATA_NODE_KEY_AT(i + 1)) {
+      if (key_greater(ALEX_DATA_NODE_KEY_AT(i), ALEX_DATA_NODE_KEY_AT(i + 1))) {
         if (verbose) {
           std::cout << "Keys should be in non-increasing order" << std::endl;
         }
         return false;
-      } else if (ALEX_DATA_NODE_KEY_AT(i) < ALEX_DATA_NODE_KEY_AT(i + 1) &&
+      } else if (key_less(ALEX_DATA_NODE_KEY_AT(i), ALEX_DATA_NODE_KEY_AT(i + 1)) &&
                  !check_exists(i)) {
         if (verbose) {
           std::cout << "The last key of a certain value should not be a gap"
@@ -2186,7 +2218,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // bitmap is correctly set to 1
   bool key_exists(T key, bool validate_bitmap) const {
     for (int i = 0; i < data_capacity_ - 1; i++) {
-      if (ALEX_DATA_NODE_KEY_AT(i) == key &&
+      if (key_equal(ALEX_DATA_NODE_KEY_AT(i), key) &&
           (!validate_bitmap || check_exists(i))) {
         return true;
       }

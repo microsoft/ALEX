@@ -142,6 +142,16 @@ class LinearModelBuilder {
   double y_max_ = std::numeric_limits<double>::lowest();
 };
 
+/*** Comparison ***/
+
+struct AlexCompare {
+  template <class T1, class T2>
+  bool operator() (const T1& x, const T2& y) const {
+    static_assert(std::is_arithmetic<T1>::value && std::is_arithmetic<T2>::value, "Comparison types must be numeric.");
+    return x < y;
+  }
+};
+
 /*** Helper methods for bitmap ***/
 
 // Extract the rightmost 1 in the binary representation.
