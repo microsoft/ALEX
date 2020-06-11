@@ -64,32 +64,35 @@ class AlexNode {
   virtual long long node_size() const = 0;
 };
 
-// Used to help with logic for adaptive RMI.
-// Model should assume this node is a model node, and should always output in
-// range [0, 1).
-template <class T, class P>
-class TemporaryNode : public AlexNode<T, P> {
- public:
-  TemporaryNode() = default;
-  explicit TemporaryNode(short level) : AlexNode<T, P>(level){};
-  long long node_size() const override { return 0; }
-};
-
-template <class T, class P>
+template <class T, class P, class Alloc = std::allocator<std::pair<T,P>>>
 class AlexModelNode : public AlexNode<T, P> {
  public:
+  typedef AlexModelNode<T, P, Alloc> self_type;
+  typedef typename Alloc::template rebind<self_type>::other alloc_type;
+  typedef typename Alloc::template rebind<AlexNode<T, P>*>::other pointer_alloc_type;
+
+  const Alloc& allocator_;
+
   // Number of logical children. Must be a power of 2
   int num_children_ = 0;
 
   // Array of pointers to children
   AlexNode<T, P>** children_ = nullptr;
 
-  AlexModelNode() : AlexNode<T, P>(0, false) {}
-  explicit AlexModelNode(short level) : AlexNode<T, P>(level, false) {}
-  ~AlexModelNode() { delete[] children_; }
-  AlexModelNode(const AlexModelNode& other)
-      : AlexNode<T, P>(other), num_children_(other.num_children_) {
-    children_ = new AlexNode<T, P>*[other.num_children_];
+  explicit AlexModelNode(const Alloc& alloc = Alloc()) : AlexNode<T, P>(0, false), allocator_(alloc) {}
+
+  explicit AlexModelNode(short level, const Alloc& alloc = Alloc()) : AlexNode<T, P>(level, false), allocator_(alloc) {}
+
+  ~AlexModelNode() {
+    if (children_ == nullptr) {
+      return;
+    }
+    pointer_allocator().deallocate(children_, num_children_);
+  }
+
+  AlexModelNode(const self_type& other)
+      : AlexNode<T, P>(other), allocator_(other.allocator_), num_children_(other.num_children_) {
+    children_ = new (pointer_allocator().allocate(other.num_children_)) AlexNode<T, P>*[other.num_children_];
     std::copy(other.children_, other.children_ + other.num_children_,
               children_);
   }
@@ -109,7 +112,8 @@ class AlexModelNode : public AlexNode<T, P> {
   int expand(int log2_expansion_factor) {
     assert(log2_expansion_factor >= 0);
     int expansion_factor = 1 << log2_expansion_factor;
-    auto new_children = new AlexNode<T, P>*[num_children_ * expansion_factor];
+    int num_new_children = num_children_ * expansion_factor;
+    auto new_children = new (pointer_allocator().allocate(num_new_children)) AlexNode<T, P>*[num_new_children];
     int cur = 0;
     while (cur < num_children_) {
       AlexNode<T, P>* cur_child = children_[cur];
@@ -121,15 +125,19 @@ class AlexModelNode : public AlexNode<T, P> {
       cur_child->duplication_factor_ += log2_expansion_factor;
       cur += cur_child_repeats;
     }
-    delete[] children_;
+    pointer_allocator().deallocate(children_, num_children_);
     children_ = new_children;
-    num_children_ *= expansion_factor;
+    num_children_ = num_new_children;
     this->model_.expand(expansion_factor);
     return expansion_factor;
   }
 
+  pointer_alloc_type pointer_allocator() {
+    return pointer_alloc_type(allocator_);
+  }
+
   long long node_size() const override {
-    long long size = sizeof(AlexModelNode<T, P>);
+    long long size = sizeof(self_type);
     size += num_children_ * sizeof(AlexNode<T, P>*);  // pointers to children
     return size;
   }
@@ -272,13 +280,19 @@ class AlexModelNode : public AlexNode<T, P> {
 * - Stats
 * - Debugging
 */
-template <class T, class P, class Compare = AlexCompare>
+template <class T, class P, class Compare = AlexCompare, class Alloc = std::allocator<std::pair<T,P>>>
 class AlexDataNode : public AlexNode<T, P> {
  public:
   typedef std::pair<T, P> V;
-  typedef AlexDataNode<T,P,Compare> self_type;
+  typedef AlexDataNode<T,P,Compare, Alloc> self_type;
+  typedef typename Alloc::template rebind<self_type>::other alloc_type;
+  typedef typename Alloc::template rebind<T>::other key_alloc_type;
+  typedef typename Alloc::template rebind<P>::other payload_alloc_type;
+  typedef typename Alloc::template rebind<V>::other value_alloc_type;
+  typedef typename Alloc::template rebind<uint64_t>::other bitmap_alloc_type;
 
-  Compare key_less_;
+  const Compare& key_less_;
+  const Alloc& allocator_;
 
   // Forward declaration
   template <typename node_type = self_type,
@@ -357,24 +371,31 @@ class AlexDataNode : public AlexNode<T, P> {
 
   /*** Constructors and destructors ***/
 
-  explicit AlexDataNode(Compare comp = Compare()) : AlexNode<T, P>(0, true), key_less_(comp) {}
+  explicit AlexDataNode(const Compare& comp = Compare(), const Alloc& alloc = Alloc()) : AlexNode<T, P>(0, true), key_less_(comp), allocator_(alloc) {}
 
-  AlexDataNode(short level, int max_data_node_slots, Compare comp = Compare())
-      : AlexNode<T, P>(level, true), key_less_(comp), max_slots_(max_data_node_slots) {}
+  AlexDataNode(short level, int max_data_node_slots, const Compare& comp = Compare(), const Alloc& alloc = Alloc())
+      : AlexNode<T, P>(level, true), key_less_(comp), allocator_(alloc), max_slots_(max_data_node_slots) {}
 
   ~AlexDataNode() {
 #if ALEX_DATA_NODE_SEP_ARRAYS
-    delete[] key_slots_;
-    delete[] payload_slots_;
+    if (key_slots_ == nullptr) {
+      return;
+    }
+    key_allocator().deallocate(key_slots_, data_capacity_);
+    payload_allocator().deallocate(payload_slots_, data_capacity_);
 #else
-    delete[] data_slots_;
+    if (data_slots_ == nullptr) {
+      return;
+    }
+    value_allocator().deallocate(data_slots_, data_capacity_);
 #endif
-    delete[] bitmap_;
+    bitmap_allocator().deallocate(bitmap_, bitmap_size_);
   }
 
   AlexDataNode(const self_type& other)
       : AlexNode<T, P>(other),
         key_less_(other.key_less_),
+        allocator_(other.allocator_),
         next_leaf_(other.next_leaf_),
         prev_leaf_(other.prev_leaf_),
         data_capacity_(other.data_capacity_),
@@ -397,19 +418,37 @@ class AlexDataNode : public AlexNode<T, P> {
             other.expected_avg_exp_search_iterations_),
         expected_avg_shifts_(other.expected_avg_shifts_) {
 #if ALEX_DATA_NODE_SEP_ARRAYS
-    key_slots_ = new T[other.data_capacity_];
+    key_slots_ = new (key_allocator().allocate(other.data_capacity_)) T[other.data_capacity_];
     std::copy(other.key_slots_, other.key_slots_ + other.data_capacity_,
               key_slots_);
-    payload_slots_ = new P[other.data_capacity_];
+    payload_slots_ = new (payload_allocator().allocate(other.data_capacity_)) P[other.data_capacity_];
     std::copy(other.payload_slots_, other.payload_slots_ + other.data_capacity_,
               payload_slots_);
 #else
-    data_slots_ = new V[other.data_capacity_];
+    data_slots_ = new (value_allocator().allocate(other.data_capacity_)) V[other.data_capacity_];
     std::copy(other.data_slots_, other.data_slots_ + other.data_capacity_,
               data_slots_);
 #endif
-    bitmap_ = new uint64_t[other.bitmap_size_];
+    bitmap_ = new (bitmap_allocator().allocate(other.bitmap_size_)) uint64_t[other.bitmap_size_];
     std::copy(other.bitmap_, other.bitmap_ + other.bitmap_size_, bitmap_);
+  }
+
+  /*** Allocators ***/
+
+  key_alloc_type key_allocator() {
+    return key_alloc_type(allocator_);
+  }
+
+  payload_alloc_type payload_allocator() {
+    return payload_alloc_type(allocator_);
+  }
+
+  value_alloc_type value_allocator() {
+    return value_alloc_type(allocator_);
+  }
+
+  bitmap_alloc_type bitmap_allocator() {
+    return bitmap_alloc_type(allocator_);
   }
 
   /*** General helper functions ***/
@@ -998,12 +1037,12 @@ class AlexDataNode : public AlexNode<T, P> {
     int num_actual_keys = 0;
     if (existing_model == nullptr) {
       const_iterator_type it(node, left);
-      auto builder = model.builder();
+      LinearModelBuilder<T> builder(&model);
       for (int i = 0; it.cur_idx_ < right && !it.is_end(); it++, i++) {
-        builder->add(it.key(), i);
+        builder.add(it.key(), i);
         num_actual_keys++;
       }
-      builder->build();
+      builder.build();
     } else {
       num_actual_keys = node->num_keys_in_range(left, right);
       model.a_ = existing_model->a_;
@@ -1082,12 +1121,12 @@ class AlexDataNode : public AlexNode<T, P> {
     data_capacity_ =
         std::max(static_cast<int>(num_keys / density), num_keys + 1);
     bitmap_size_ = static_cast<size_t>(std::ceil(data_capacity_ / 64.));
-    bitmap_ = new uint64_t[bitmap_size_]();  // initialize to all false
+    bitmap_ = new (bitmap_allocator().allocate(bitmap_size_)) uint64_t[bitmap_size_]();  // initialize to all false
 #if ALEX_DATA_NODE_SEP_ARRAYS
-    key_slots_ = new T[data_capacity_];
-    payload_slots_ = new P[data_capacity_];
+    key_slots_ = new (key_allocator().allocate(data_capacity_)) T[data_capacity_];
+    payload_slots_ = new (payload_allocator().allocate(data_capacity_)) P[data_capacity_];
 #else
-    data_slots_ = new V[data_capacity];
+    data_slots_ = new (value_allocator().allocate(data_capacity_)) V[data_capacity];
 #endif
   }
 
@@ -1187,12 +1226,12 @@ class AlexDataNode : public AlexNode<T, P> {
     int num_actual_keys = 0;
     if (precomputed_model == nullptr || precomputed_num_actual_keys == -1) {
       const_iterator_type it(node, left);
-      auto builder = this->model_.builder();
+      LinearModelBuilder<T> builder(&(this->model_));
       for (int i = 0; it.cur_idx_ < right && !it.is_end(); it++, i++) {
-        builder->add(it.key(), i);
+        builder.add(it.key(), i);
         num_actual_keys++;
       }
-      builder->build();
+      builder.build();
     } else {
       num_actual_keys = precomputed_num_actual_keys;
       this->model_.a_ = precomputed_model->a_;
@@ -1284,13 +1323,11 @@ class AlexDataNode : public AlexNode<T, P> {
       return;
     }
 
-    auto builder = model->builder();
-
+    LinearModelBuilder<T> builder(model);
     for (int i = 0; i < num_keys; i++) {
-      builder->add(values[i].first, i);
+      builder.add(values[i].first, i);
     }
-
-    builder->build();
+    builder.build();
   }
 
   // Uses progressive non-random uniform sampling to build the model
@@ -1323,11 +1360,11 @@ class AlexDataNode : public AlexNode<T, P> {
     step_size /= sample_size_multiplier;
 
     // Run with initial step size
-    auto builder = model->builder();
+    LinearModelBuilder<T> builder(model);
     for (int i = 0; i < num_keys; i += step_size) {
-      builder->add(values[i].first, i);
+      builder.add(values[i].first, i);
     }
-    builder->build();
+    builder.build();
     double prev_a = model->a_;
     double prev_b = model->b_;
     if (verbose) {
@@ -1345,10 +1382,10 @@ class AlexDataNode : public AlexNode<T, P> {
         i += step_size;
         for (int j = 1; (j < sample_size_multiplier) && (i < num_keys);
              j++, i += step_size) {
-          builder->add(values[i].first, i);
+          builder.add(values[i].first, i);
         }
       }
-      builder->build();
+      builder.build();
 
       double rel_change_in_a = std::abs((model->a_ - prev_a) / prev_a);
       double abs_change_in_b = std::abs(model->b_ - prev_b);
@@ -1666,23 +1703,23 @@ class AlexDataNode : public AlexNode<T, P> {
     auto new_bitmap_size =
         static_cast<size_t>(std::ceil(new_data_capacity / 64.));
     auto new_bitmap =
-        new uint64_t[new_bitmap_size]();  // initialize to all false
+        new (bitmap_allocator().allocate(new_bitmap_size)) uint64_t[new_bitmap_size]();  // initialize to all false
 #if ALEX_DATA_NODE_SEP_ARRAYS
-    T* new_key_slots = new T[new_data_capacity];
-    P* new_payload_slots = new P[new_data_capacity];
+    T* new_key_slots = new (key_allocator().allocate(new_data_capacity)) T[new_data_capacity];
+    P* new_payload_slots = new (payload_allocator().allocate(new_data_capacity)) P[new_data_capacity];
 #else
-    V* new_data_slots = new V[new_data_capacity];
+    V* new_data_slots = new (value_allocator().allocate(new_data_capacity)) V[new_data_capacity];
 #endif
 
     // Retrain model if necessary
     // Do not retrain if the number of keys is sufficiently small (under 50)
     if (num_keys_ < 50 || force_retrain) {
       const_iterator_type it(this, 0);
-      auto builder = this->model_.builder();
+      LinearModelBuilder<T> builder(&(this->model_));
       for (int i = 0; it.cur_idx_ < data_capacity_ && !it.is_end(); it++, i++) {
-        builder->add(it.key(), i);
+        builder.add(it.key(), i);
       }
-      builder->build();
+      builder.build();
       if (keep_left) {
         this->model_.expand(static_cast<double>(data_capacity_) / num_keys_);
       } else if (keep_right) {
@@ -1761,12 +1798,12 @@ class AlexDataNode : public AlexNode<T, P> {
     }
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
-    delete[] key_slots_;
-    delete[] payload_slots_;
+    key_allocator().deallocate(key_slots_, data_capacity_);
+    payload_allocator().deallocate(payload_slots_, data_capacity_);
 #else
-    delete[] data_slots_;
+    value_allocator().deallocate(data_slots_, data_capacity_);
 #endif
-    delete[] bitmap_;
+    bitmap_allocator().deallocate(bitmap_, bitmap_size_);
 
     data_capacity_ = new_data_capacity;
     bitmap_size_ = new_bitmap_size;

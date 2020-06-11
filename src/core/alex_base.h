@@ -75,11 +75,6 @@ class LinearModel {
   inline double predict_double(T key) const {
     return a_ * static_cast<double>(key) + b_;
   }
-
-  std::unique_ptr<LinearModelBuilder<T>> builder() {
-    return std::unique_ptr<LinearModelBuilder<T>>(
-        new LinearModelBuilder<T>(this));
-  }
 };
 
 template <class T>

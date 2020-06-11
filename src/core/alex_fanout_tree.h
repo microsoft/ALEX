@@ -375,12 +375,12 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
       int num_actual_keys = 0;
       LinearModel<T> model;
       typename AlexDataNode<T, P>::const_iterator_type it(node, left_boundary);
-      auto builder = model.builder();
+      LinearModelBuilder<T> builder(&model);
       for (int j = 0; it.cur_idx_ < right_boundary && !it.is_end(); it++, j++) {
-        builder->add(it.key(), j);
+        builder.add(it.key(), j);
         num_actual_keys++;
       }
-      builder->build();
+      builder.build();
 
       double empirical_insert_frac = node->frac_inserts();
       DataNodeStats stats;

@@ -48,7 +48,7 @@
 
 namespace alex {
 
-template <class T, class P, class Compare = AlexCompare, class Alloc = std::allocator<std::pair<const T,P>>,
+template <class T, class P, class Compare = AlexCompare, class Alloc = std::allocator<std::pair<T,P>>,
     bool allow_duplicates = false>
 class Alex {
   static_assert(std::is_arithmetic<T>::value, "ALEX key type must be numeric.");
@@ -59,7 +59,8 @@ class Alex {
 
   // ALEX class aliases
   typedef Alex<T,P,Compare,Alloc,allow_duplicates> self_type;
-  typedef AlexDataNode<T, P, Compare> data_node_type;
+  typedef AlexModelNode<T, P, Alloc> model_node_type;
+  typedef AlexDataNode<T, P, Compare, Alloc> data_node_type;
 
   // Forward declaration for iterators
   class Iterator;
@@ -69,7 +70,7 @@ class Alex {
   class NodeIterator;  // Iterates through all nodes with pre-order traversal
 
   AlexNode<T, P>* root_node_ = nullptr;
-  AlexModelNode<T, P>* superroot_ =
+  model_node_type* superroot_ =
       nullptr;  // phantom node that is the root's parent
 
   /* User-changeable parameters */
@@ -163,7 +164,7 @@ class Alex {
   /* Save the traversal path down the RMI by having a linked list of these
    * structs. */
   struct TraversalNode {
-    AlexModelNode<T, P>* node = nullptr;
+    model_node_type* node = nullptr;
     int bucketID = -1;
   };
 
@@ -176,7 +177,7 @@ class Alex {
    * (base_cost). */
   struct SplitDecisionCosts {
     static constexpr double base_cost =
-        static_cast<double>(sizeof(AlexModelNode<T, P>)) / sizeof(void*);
+        static_cast<double>(sizeof(model_node_type)) / sizeof(void*);
     // Additional cost due to this node if propagation stops at this node.
     // Equal to 0 if redundant slot exists, otherwise number of new pointers due
     // to node expansion.
@@ -207,7 +208,7 @@ class Alex {
  public:
   Alex() {
     // Set up root as empty data node
-    auto empty_data_node = new AlexDataNode<T, P, Compare>(key_less_);
+    auto empty_data_node = new (data_node_allocator().allocate(1)) data_node_type(key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     create_superroot();
@@ -215,7 +216,7 @@ class Alex {
 
   Alex(const Compare& comp, const Alloc& alloc = Alloc()) : key_less_(comp), allocator_(alloc) {
     // Set up root as empty data node
-    auto empty_data_node = new data_node_type(key_less_);
+    auto empty_data_node = new (data_node_allocator().allocate(1)) data_node_type(key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     create_superroot();
@@ -223,7 +224,7 @@ class Alex {
 
   Alex(const Alloc& alloc) : allocator_(alloc) {
     // Set up root as empty data node
-    auto empty_data_node = new data_node_type(key_less_);
+    auto empty_data_node = new (data_node_allocator().allocate(1)) data_node_type(key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     create_superroot();
@@ -232,9 +233,9 @@ class Alex {
   ~Alex() {
     for (NodeIterator node_it = NodeIterator(this); !node_it.is_end();
          node_it.next()) {
-      delete node_it.current();
+      delete_node(node_it.current());
     }
-    delete superroot_;
+    delete_node(superroot_);
   }
 
   // Initializes with range [first, last). The range does not need to be
@@ -273,7 +274,7 @@ class Alex {
         experimental_params_(other.experimental_params_),
         istats_(other.istats_),
         key_less_(other.key_less_), allocator_(other.allocator_) {
-    superroot_ = static_cast<AlexModelNode<T, P>*>(
+    superroot_ = static_cast<model_node_type*>(
         copy_tree_recursive(other.superroot_));
     root_node_ = superroot_->children_[0];
   }
@@ -282,9 +283,9 @@ class Alex {
     if (this != &other) {
       for (NodeIterator node_it = NodeIterator(this); !node_it.is_end();
            node_it.next()) {
-        delete node_it.current();
+        delete_node(node_it.current());
       }
-      delete superroot_;
+      delete_node(superroot_);
       params_ = other.params_;
       derived_params_ = other.derived_params_;
       experimental_params_ = other.experimental_params_;
@@ -292,7 +293,7 @@ class Alex {
       stats_ = other.stats_;
       key_less_ = other.key_less_;
       allocator_ = other.allocator_;
-      superroot_ = static_cast<AlexModelNode<T, P>*>(
+      superroot_ = static_cast<model_node_type*>(
           copy_tree_recursive(other.superroot_));
       root_node_ = superroot_->children_[0];
     }
@@ -317,11 +318,11 @@ class Alex {
   AlexNode<T, P>* copy_tree_recursive(const AlexNode<T, P>* node) {
     if (!node) return nullptr;
     if (node->is_leaf_) {
-      return new AlexDataNode<T, P,Compare>(
-          *static_cast<const AlexDataNode<T, P,Compare>*>(node));
+      return new (data_node_allocator().allocate(1)) data_node_type(
+          *static_cast<const data_node_type*>(node));
     } else {
-      auto node_copy = new AlexModelNode<T, P>(
-          *static_cast<const AlexModelNode<T, P>*>(node));
+      auto node_copy = new (model_node_allocator().allocate(1)) model_node_type(
+          *static_cast<const model_node_type*>(node));
       int cur = 0;
       while (cur < node_copy->num_children_) {
         AlexNode<T, P>* child_node = node_copy->children_[cur];
@@ -390,7 +391,7 @@ class Alex {
     }
 
     while (true) {
-      auto node = static_cast<AlexModelNode<T, P>*>(cur);
+      auto node = static_cast<model_node_type*>(cur);
       double bucketID_prediction = node->model_.predict_double(key);
       int bucketID = static_cast<int>(bucketID_prediction);
       bucketID =
@@ -418,7 +419,7 @@ class Alex {
                 // Correct the traversal path
                 int repeats = 1 << leaf->duplication_factor_;
                 TraversalNode& tn = traversal_path->back();
-                AlexModelNode<T, P>* parent = tn.node;
+                model_node_type* parent = tn.node;
                 // First bucket whose pointer is to leaf
                 int start_bucketID = tn.bucketID - (tn.bucketID % repeats);
                 if (start_bucketID == 0) {
@@ -434,7 +435,7 @@ class Alex {
                   tn.bucketID = correct_bucketID;
                   cur = parent->children_[correct_bucketID];
                   while (!cur->is_leaf_) {
-                    node = static_cast<AlexModelNode<T, P>*>(cur);
+                    node = static_cast<model_node_type*>(cur);
                     traversal_path->push_back({node, node->num_children_ - 1});
                     cur = node->children_[node->num_children_ - 1];
                   }
@@ -451,7 +452,7 @@ class Alex {
                 // Correct the traversal path
                 int repeats = 1 << leaf->duplication_factor_;
                 TraversalNode& tn = traversal_path->back();
-                AlexModelNode<T, P>* parent = tn.node;
+                model_node_type* parent = tn.node;
                 // First bucket whose pointer is not to leaf
                 int end_bucketID =
                     tn.bucketID - (tn.bucketID % repeats) + repeats;
@@ -469,7 +470,7 @@ class Alex {
                   tn.bucketID = correct_bucketID;
                   cur = parent->children_[correct_bucketID];
                   while (!cur->is_leaf_) {
-                    node = static_cast<AlexModelNode<T, P>*>(cur);
+                    node = static_cast<model_node_type*>(cur);
                     traversal_path->push_back({node, 0});
                     cur = node->children_[0];
                   }
@@ -495,7 +496,7 @@ class Alex {
     AlexNode<T, P>* cur = root_node_;
 
     while (!cur->is_leaf_) {
-      auto node = static_cast<AlexModelNode<T, P>*>(cur);
+      auto node = static_cast<model_node_type*>(cur);
       int bucketID = node->model_.predict(key);
       bucketID =
           std::min<int>(std::max<int>(bucketID, 0), node->num_children_ - 1);
@@ -516,7 +517,7 @@ class Alex {
     AlexNode<T, P>* cur = root_node_;
 
     while (!cur->is_leaf_) {
-      cur = static_cast<AlexModelNode<T, P>*>(cur)->children_[0];
+      cur = static_cast<model_node_type*>(cur)->children_[0];
     }
     return static_cast<data_node_type*>(cur);
   }
@@ -526,7 +527,7 @@ class Alex {
     AlexNode<T, P>* cur = root_node_;
 
     while (!cur->is_leaf_) {
-      auto node = static_cast<AlexModelNode<T, P>*>(cur);
+      auto node = static_cast<model_node_type*>(cur);
       cur = node->children_[node->num_children_ - 1];
     }
     return static_cast<data_node_type*>(cur);
@@ -572,6 +573,33 @@ class Alex {
     }
   }
 
+  /*** Allocators ***/
+
+ private:
+  typename model_node_type::alloc_type model_node_allocator() {
+    return typename model_node_type::alloc_type(allocator_);
+  }
+
+  typename data_node_type::alloc_type data_node_allocator() {
+    return typename data_node_type::alloc_type(allocator_);
+  }
+
+  typename model_node_type::pointer_alloc_type pointer_allocator() {
+    return typename model_node_type::pointer_alloc_type(allocator_);
+  }
+
+  void delete_node(AlexNode<T, P>* node) {
+    if (node == nullptr) {
+      return;
+    } else if (node->is_leaf_) {
+      data_node_allocator().destroy(static_cast<data_node_type*>(node));
+      data_node_allocator().deallocate(static_cast<data_node_type*>(node), 1);
+    } else {
+      model_node_allocator().destroy(static_cast<model_node_type*>(node));
+      model_node_allocator().deallocate(static_cast<model_node_type*>(node), 1);
+    }
+  }
+
   /*** Bulk loading ***/
 
  public:
@@ -582,12 +610,12 @@ class Alex {
     if (stats_.num_keys > 0 || num_keys <= 0) {
       return;
     }
-    delete root_node_;  // delete the empty root node from constructor
+    delete_node(root_node_);  // delete the empty root node from constructor
 
     stats_.num_keys = num_keys;
 
     // Build temporary root model, which outputs a CDF in the range [0, 1]
-    root_node_ = new TemporaryNode<T, P>(0);
+    root_node_ = new (model_node_allocator().allocate(1)) model_node_type(0, allocator_);
     T min_key = values[0].first;
     T max_key = values[num_keys - 1].first;
     root_node_->model_.a_ = 1.0 / (max_key - min_key);
@@ -623,11 +651,11 @@ class Alex {
   // Only call this after creating a root node
   void create_superroot() {
     if (!root_node_) return;
-    delete superroot_;
+    delete_node(superroot_);
     superroot_ =
-        new AlexModelNode<T, P>(static_cast<short>(root_node_->level_ - 1));
+        new (model_node_allocator().allocate(1)) model_node_type(static_cast<short>(root_node_->level_ - 1), allocator_);
     superroot_->num_children_ = 1;
-    superroot_->children_ = new AlexNode<T, P>*[1];
+    superroot_->children_ = new (pointer_allocator().allocate(1)) AlexNode<T, P>*[1];
     update_superroot_pointer();
   }
 
@@ -668,12 +696,12 @@ class Alex {
                         data_node_type::kMinDensity_ &&
         (node->cost_ < kNodeLookupsWeight || node->model_.a_ == 0)) {
       stats_.num_data_nodes++;
-      auto data_node = new AlexDataNode<T, P, Compare>(
-          node->level_, derived_params_.max_data_node_slots, key_less_);
+      auto data_node = new (data_node_allocator().allocate(1)) data_node_type(
+          node->level_, derived_params_.max_data_node_slots, key_less_, allocator_);
       data_node->bulk_load(values, num_keys, data_node_model,
                            params_.approximate_model_computation);
       data_node->cost_ = node->cost_;
-      delete node;
+      delete_node(node);
       node = data_node;
       return;
     }
@@ -704,7 +732,7 @@ class Alex {
                        data_node_type::kMinDensity_) {
       // Convert to model node based on the output of the fanout tree
       stats_.num_model_nodes++;
-      auto model_node = new AlexModelNode<T, P>(node->level_);
+      auto model_node = new (model_node_allocator().allocate(1)) model_node_type(node->level_, allocator_);
       if (best_fanout_tree_depth == 0) {
         // slightly hacky: we assume this means that the node is relatively
         // uniform but we need to split in
@@ -726,13 +754,13 @@ class Alex {
       model_node->model_.a_ = node->model_.a_ * fanout;
       model_node->model_.b_ = node->model_.b_ * fanout;
       model_node->num_children_ = fanout;
-      model_node->children_ = new AlexNode<T, P>*[fanout];
+      model_node->children_ = new (pointer_allocator().allocate(fanout)) AlexNode<T, P>*[fanout];
 
       // Instantiate all the child nodes and recurse
       int cur = 0;
       for (fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {
         auto child_node =
-            new TemporaryNode<T, P>(static_cast<short>(node->level_ + 1));
+            new (model_node_allocator().allocate(1)) model_node_type(static_cast<short>(node->level_ + 1), allocator_);
         child_node->cost_ = tree_node.cost;
         child_node->duplication_factor_ =
             static_cast<uint8_t>(best_fanout_tree_depth - tree_node.level);
@@ -765,17 +793,17 @@ class Alex {
         cur += repeats;
       }
 
-      delete node;
+      delete_node(node);
       node = model_node;
     } else {
       // Convert to data node
       stats_.num_data_nodes++;
-      auto data_node = new AlexDataNode<T, P, Compare>(
-          node->level_, derived_params_.max_data_node_slots, key_less_);
+      auto data_node = new (data_node_allocator().allocate(1)) data_node_type(
+          node->level_, derived_params_.max_data_node_slots, key_less_, allocator_);
       data_node->bulk_load(values, num_keys, data_node_model,
                            params_.approximate_model_computation);
       data_node->cost_ = node->cost_;
-      delete node;
+      delete_node(node);
       node = data_node;
     }
   }
@@ -787,7 +815,7 @@ class Alex {
       bool compute_cost = true, const fanout_tree::FTNode* tree_node = nullptr,
       bool reuse_model = false, bool keep_left = false,
       bool keep_right = false) {
-    auto node = new AlexDataNode<T, P, Compare>(key_less_);
+    auto node = new (data_node_allocator().allocate(1)) data_node_type(key_less_, allocator_);
     stats_.num_data_nodes++;
     if (tree_node) {
       // Use the model and num_keys saved in the tree node so we don't have to
@@ -941,7 +969,7 @@ class Alex {
     AlexNode<T, P>* cur = root_node_;
 
     while (!cur->is_leaf_) {
-      cur = static_cast<AlexModelNode<T, P>*>(cur)->children_[0];
+      cur = static_cast<model_node_type*>(cur)->children_[0];
     }
     return Iterator(static_cast<data_node_type*>(cur), 0);
   }
@@ -957,7 +985,7 @@ class Alex {
     AlexNode<T, P>* cur = root_node_;
 
     while (!cur->is_leaf_) {
-      cur = static_cast<AlexModelNode<T, P>*>(cur)->children_[0];
+      cur = static_cast<model_node_type*>(cur)->children_[0];
     }
     return ConstIterator(static_cast<data_node_type*>(cur), 0);
   }
@@ -973,7 +1001,7 @@ class Alex {
     AlexNode<T, P>* cur = root_node_;
 
     while (!cur->is_leaf_) {
-      auto model_node = static_cast<AlexModelNode<T, P>*>(cur);
+      auto model_node = static_cast<model_node_type*>(cur);
       cur = model_node->children_[model_node->num_children_ - 1];
     }
     auto data_node = static_cast<data_node_type*>(cur);
@@ -991,7 +1019,7 @@ class Alex {
     AlexNode<T, P>* cur = root_node_;
 
     while (!cur->is_leaf_) {
-      auto model_node = static_cast<AlexModelNode<T, P>*>(cur);
+      auto model_node = static_cast<model_node_type*>(cur);
       cur = model_node->children_[model_node->num_children_ - 1];
     }
     auto data_node = static_cast<data_node_type*>(cur);
@@ -1041,7 +1069,7 @@ class Alex {
     if (fail) {
       std::vector<TraversalNode> traversal_path;
       get_leaf(key, &traversal_path);
-      AlexModelNode<T, P>* parent = traversal_path.back().node;
+      model_node_type* parent = traversal_path.back().node;
 
       while (fail) {
         auto start_time = std::chrono::high_resolution_clock::now();
@@ -1228,7 +1256,7 @@ class Alex {
   // If the root node is at the max node size, then we split the root and create
   // a new root node.
   void expand_root(bool expand_left) {
-    auto root = static_cast<AlexModelNode<T, P>*>(root_node_);
+    auto root = static_cast<model_node_type*>(root_node_);
     T domain_size = istats_.key_domain_max_ - istats_.key_domain_min_;
     int expansion_factor;
     T new_domain_min = istats_.key_domain_min_;
@@ -1264,7 +1292,7 @@ class Alex {
       stats_.num_model_node_expansion_pointers += root->num_children_;
 
       int new_num_children = root->num_children_ * expansion_factor;
-      auto new_children = new AlexNode<T, P>*[new_num_children];
+      auto new_children = new (pointer_allocator().allocate(new_num_children)) AlexNode<T, P>*[new_num_children];
       int copy_start;
       if (expand_left) {
         copy_start = new_num_children - root->num_children_;
@@ -1279,18 +1307,18 @@ class Alex {
       for (int i = 0; i < root->num_children_; i++) {
         new_children[copy_start + i] = root->children_[i];
       }
-      delete[] root->children_;
+      pointer_allocator().deallocate(root->children_, root->num_children_);
       root->children_ = new_children;
       root->num_children_ = new_num_children;
     } else {
       // Create new root node
       auto new_root =
-          new AlexModelNode<T, P>(static_cast<short>(root->level_ - 1));
+          new (model_node_allocator().allocate(1)) model_node_type(static_cast<short>(root->level_ - 1), allocator_);
       new_root->model_.a_ =
           static_cast<double>(expansion_factor) / new_domain_size;
       new_root->model_.b_ = -1.0 * new_domain_min * new_root->model_.a_;
       new_root->num_children_ = expansion_factor;
-      new_root->children_ = new AlexNode<T, P>*[expansion_factor];
+      new_root->children_ = new (pointer_allocator().allocate(expansion_factor)) AlexNode<T, P>*[expansion_factor];
       if (expand_left) {
         new_root->children_[expansion_factor - 1] = root;
         new_nodes_start = 0;
@@ -1366,8 +1394,8 @@ class Alex {
   // the pointers of the parent.
   // If no fanout tree is provided, then splits downward in two. Returns the
   // newly created model node.
-  AlexModelNode<T, P>* split_downwards(
-      AlexModelNode<T, P>* parent, int bucketID, int fanout_tree_depth,
+  model_node_type* split_downwards(
+      model_node_type* parent, int bucketID, int fanout_tree_depth,
       const std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes,
       bool reuse_model) {
     auto leaf = static_cast<data_node_type*>(parent->children_[bucketID]);
@@ -1376,10 +1404,10 @@ class Alex {
 
     // Create the new model node that will replace the current data node
     int fanout = 1 << fanout_tree_depth;
-    auto new_node = new AlexModelNode<T, P>(leaf->level_);
+    auto new_node = new (model_node_allocator().allocate(1)) model_node_type(leaf->level_, allocator_);
     new_node->duplication_factor_ = leaf->duplication_factor_;
     new_node->num_children_ = fanout;
-    new_node->children_ = new AlexNode<T, P>*[fanout];
+    new_node->children_ = new (pointer_allocator().allocate(fanout)) AlexNode<T, P>*[fanout];
 
     int repeats = 1 << leaf->duplication_factor_;
     int start_bucketID =
@@ -1403,7 +1431,7 @@ class Alex {
                             used_fanout_tree_nodes);
     }
 
-    delete leaf;
+    delete_node(leaf);
     stats_.num_data_nodes--;
     stats_.num_model_nodes++;
     for (int i = start_bucketID; i < end_bucketID; i++) {
@@ -1420,7 +1448,7 @@ class Alex {
   // Splits data node sideways in the manner determined by the fanout tree.
   // If no fanout tree is provided, then splits sideways in two.
   void split_sideways(
-      AlexModelNode<T, P>* parent, int bucketID, int fanout_tree_depth,
+      model_node_type* parent, int bucketID, int fanout_tree_depth,
       const std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes,
       bool reuse_model) {
     auto leaf = static_cast<data_node_type*>(parent->children_[bucketID]);
@@ -1458,7 +1486,7 @@ class Alex {
                             extra_duplication_factor);
     }
 
-    delete leaf;
+    delete_node(leaf);
     stats_.num_data_nodes--;
   }
 
@@ -1469,7 +1497,7 @@ class Alex {
   // duplication_factor denotes how many child pointer slots were assigned to
   // the old data node.
   void create_two_new_data_nodes(data_node_type* old_node,
-                                 AlexModelNode<T, P>* parent,
+                                 model_node_type* parent,
                                  int duplication_factor, bool reuse_model,
                                  int start_bucketID = 0) {
     assert(duplication_factor >= 1);
@@ -1523,7 +1551,7 @@ class Alex {
   // and link the new data nodes together.
   // Helper for splitting when using a fanout tree.
   void create_new_data_nodes(
-      const data_node_type* old_node, AlexModelNode<T, P>* parent,
+      const data_node_type* old_node, model_node_type* parent,
       int fanout_tree_depth,
       const std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes,
       int start_bucketID = 0, int extra_duplication_factor = 0) {
@@ -1580,13 +1608,13 @@ class Alex {
   data_node_type* split_upwards(
       T key, int stop_propagation_level,
       const std::vector<TraversalNode>& traversal_path, bool reuse_model,
-      AlexModelNode<T, P>** new_parent, bool verbose = false) {
+      model_node_type** new_parent, bool verbose = false) {
     assert(stop_propagation_level >= root_node_->level_);
     std::vector<AlexNode<T, P>*> to_delete;  // nodes that need to be deleted
 
     // Split the data node into two new data nodes
     const TraversalNode& parent_path_node = traversal_path.back();
-    AlexModelNode<T, P>* parent = parent_path_node.node;
+    model_node_type* parent = parent_path_node.node;
     auto leaf = static_cast<data_node_type*>(
         parent->children_[parent_path_node.bucketID]);
     int leaf_repeats = 1 << (leaf->duplication_factor_);
@@ -1680,12 +1708,12 @@ class Alex {
     while (traversal_path[path_idx].node->level_ > stop_propagation_level) {
       // Decide which half to double
       const TraversalNode& path_node = traversal_path[path_idx];
-      AlexModelNode<T, P>* cur_node = path_node.node;
+      model_node_type* cur_node = path_node.node;
       stats_.num_model_node_splits++;
       stats_.num_model_node_split_pointers += cur_node->num_children_;
       bool double_left_half = path_node.bucketID < cur_node->num_children_ / 2;
-      AlexModelNode<T, P>* left_split = nullptr;
-      AlexModelNode<T, P>* right_split = nullptr;
+      model_node_type* left_split = nullptr;
+      model_node_type* right_split = nullptr;
 
       // If one of the resulting halves will only have one child pointer, we
       // should "pull up" that child
@@ -1699,19 +1727,19 @@ class Alex {
         // pull up right child if all children in the right half are the same
         pull_up_right_child = true;
         left_split =
-            new AlexModelNode<T, P>(static_cast<short>(cur_node->level_));
+            new (model_node_allocator().allocate(1)) model_node_type(cur_node->level_, allocator_);
       } else if (!double_left_half &&
                  (1 << left_half_first_child->duplication_factor_) ==
                      cur_node->num_children_ / 2) {
         // pull up left child if all children in the left half are the same
         pull_up_left_child = true;
         right_split =
-            new AlexModelNode<T, P>(static_cast<short>(cur_node->level_));
+            new (model_node_allocator().allocate(1)) model_node_type(cur_node->level_, allocator_);
       } else {
         left_split =
-            new AlexModelNode<T, P>(static_cast<short>(cur_node->level_));
+            new (model_node_allocator().allocate(1)) model_node_type(cur_node->level_, allocator_);
         right_split =
-            new AlexModelNode<T, P>(static_cast<short>(cur_node->level_));
+            new (model_node_allocator().allocate(1)) model_node_type(cur_node->level_, allocator_);
       }
 
       // Do the split
@@ -1724,7 +1752,7 @@ class Alex {
           *new_parent = left_split;
         }
         left_split->num_children_ = cur_node->num_children_;
-        left_split->children_ = new AlexNode<T, P>*[left_split->num_children_];
+        left_split->children_ = new (pointer_allocator().allocate(left_split->num_children_)) AlexNode<T, P>*[left_split->num_children_];
         left_split->model_.a_ = cur_node->model_.a_ * 2;
         left_split->model_.b_ = cur_node->model_.b_ * 2;
         int cur = 0;
@@ -1745,7 +1773,7 @@ class Alex {
         } else {
           right_split->num_children_ = cur_node->num_children_ / 2;
           right_split->children_ =
-              new AlexNode<T, P>*[right_split->num_children_];
+              new (pointer_allocator().allocate(right_split->num_children_)) AlexNode<T, P>*[right_split->num_children_];
           right_split->model_.a_ = cur_node->model_.a_;
           right_split->model_.b_ =
               cur_node->model_.b_ - cur_node->num_children_ / 2;
@@ -1785,7 +1813,7 @@ class Alex {
         } else {
           left_split->num_children_ = cur_node->num_children_ / 2;
           left_split->children_ =
-              new AlexNode<T, P>*[left_split->num_children_];
+              new (pointer_allocator().allocate(left_split->num_children_)) AlexNode<T, P>*[left_split->num_children_];
           left_split->model_.a_ = cur_node->model_.a_;
           left_split->model_.b_ = cur_node->model_.b_;
           int j = 0;
@@ -1798,7 +1826,7 @@ class Alex {
 
         right_split->num_children_ = cur_node->num_children_;
         right_split->children_ =
-            new AlexNode<T, P>*[right_split->num_children_];
+            new (pointer_allocator().allocate(right_split->num_children_)) AlexNode<T, P>*[right_split->num_children_];
         right_split->model_.a_ = cur_node->model_.a_ * 2;
         right_split->model_.b_ =
             (cur_node->model_.b_ - cur_node->num_children_ / 2) * 2;
@@ -1861,7 +1889,7 @@ class Alex {
 
     // Insert into the top node
     const TraversalNode& top_path_node = traversal_path[path_idx];
-    AlexModelNode<T, P>* top_node = top_path_node.node;
+    model_node_type* top_node = top_path_node.node;
     assert(top_node->level_ == stop_propagation_level);
     if (path_idx == static_cast<int>(traversal_path.size()) - 1) {
       *new_parent = top_node;
@@ -1907,7 +1935,7 @@ class Alex {
     }
 
     for (auto node : to_delete) {
-      delete node;
+      delete_node(node);
     }
 
     return new_data_node;
@@ -1950,7 +1978,7 @@ class Alex {
     }
     int path_pos = static_cast<int>(traversal_path.size()) - 1;
     TraversalNode tn = traversal_path[path_pos];
-    AlexModelNode<T, P>* parent = tn.node;
+    model_node_type* parent = tn.node;
     int bucketID = tn.bucketID;
     int repeats = 1 << leaf->duplication_factor_;
 
@@ -1987,7 +2015,7 @@ class Alex {
           break;  // unable to merge with sibling leaf
         }
         adjacent_leaf->duplication_factor_++;
-        delete leaf;
+        delete_node(leaf);
         leaf = adjacent_leaf;
         repeats = 1 << leaf->duplication_factor_;
       }
@@ -1998,7 +2026,7 @@ class Alex {
         leaf->duplication_factor_ = parent->duplication_factor_;
         repeats = 1 << leaf->duplication_factor_;
         bool is_root_node = (parent == root_node_);
-        delete parent;
+        delete_node(parent);
 
         if (is_root_node) {
           root_node_ = leaf;
@@ -2076,7 +2104,7 @@ class Alex {
       node_stack.pop();
 
       if (!cur->is_leaf_) {
-        auto node = static_cast<AlexModelNode<T, P>*>(cur);
+        auto node = static_cast<model_node_type*>(cur);
         if (!node->validate_structure(true)) {
           std::cout << "[Model node invalid structure]"
                     << " node addr: " << node
@@ -2647,7 +2675,7 @@ class Alex {
     explicit NodeIterator(const self_type* index)
         : index_(index), cur_node_(index->root_node_) {
       if (cur_node_ && !cur_node_->is_leaf_) {
-        auto node = static_cast<AlexModelNode<T, P>*>(cur_node_);
+        auto node = static_cast<model_node_type*>(cur_node_);
         node_stack_.push(node->children_[node->num_children_ - 1]);
         for (int i = node->num_children_ - 2; i >= 0; i--) {
           if (node->children_[i] != node->children_[i + 1]) {
@@ -2669,7 +2697,7 @@ class Alex {
       node_stack_.pop();
 
       if (!cur_node_->is_leaf_) {
-        auto node = static_cast<AlexModelNode<T, P>*>(cur_node_);
+        auto node = static_cast<model_node_type*>(cur_node_);
         node_stack_.push(node->children_[node->num_children_ - 1]);
         for (int i = node->num_children_ - 2; i >= 0; i--) {
           if (node->children_[i] != node->children_[i + 1]) {
