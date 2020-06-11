@@ -200,7 +200,7 @@ class Alex {
   Alex() {
     // Set up root as empty data node
     auto empty_data_node = new AlexDataNode<T, P>();
-    empty_data_node->bulk_load(nullptr, nullptr, 0);
+    empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     create_superroot();
   }
@@ -211,6 +211,20 @@ class Alex {
       delete node_it.current();
     }
     delete superroot_;
+  }
+
+  // Initializes with range [first, last). The range does not need to be
+  // sorted. This creates a temporary copy of the data. If possible, we
+  // recommend directly using bulk_load() instead.
+  template <class InputIterator>
+  explicit Alex(InputIterator first, InputIterator last) {
+    std::vector<V> values;
+    for (auto it = first; it != last; ++it) {
+      values.push_back(*it);
+    }
+    std::sort(values.begin(), values.end(),
+              [](auto const &a, auto const &b) { return a.first < b.first; });
+    bulk_load(values.data(), static_cast<int>(values.size()));
   }
 
   explicit Alex(const Alex<T, P>& other)
@@ -506,11 +520,10 @@ class Alex {
   /*** Bulk loading ***/
 
  public:
-  // keys should be the sorted array of all keys to be bulk loaded.
-  // keys and payloads should have an equal number of elements.
+  // values should be the sorted array of key-payload pairs.
   // The number of elements should be num_keys.
   // The index must be empty when calling this method.
-  void bulk_load(const T keys[], const P payloads[], int num_keys) {
+  void bulk_load(const V values[], int num_keys) {
     if (stats_.num_keys > 0 || num_keys <= 0) {
       return;
     }
@@ -520,23 +533,23 @@ class Alex {
 
     // Build temporary root model, which outputs a CDF in the range [0, 1]
     root_node_ = new TemporaryNode<T, P>(0);
-    T min_key = keys[0];
-    T max_key = keys[num_keys - 1];
+    T min_key = values[0].first;
+    T max_key = values[num_keys - 1].first;
     root_node_->model_.a_ = 1.0 / (max_key - min_key);
     root_node_->model_.b_ = -1.0 * min_key * root_node_->model_.a_;
 
     // Compute cost of root node
     LinearModel<T> root_data_node_model;
-    AlexDataNode<T, P>::build_model(keys, num_keys, &root_data_node_model,
+    AlexDataNode<T, P>::build_model(values, num_keys, &root_data_node_model,
                                     params_.approximate_model_computation);
     DataNodeStats stats;
     root_node_->cost_ = AlexDataNode<T, P>::compute_expected_cost(
-        keys, num_keys, AlexDataNode<T, P>::kInitDensity_,
+        values, num_keys, AlexDataNode<T, P>::kInitDensity_,
         params_.expected_insert_frac, &root_data_node_model,
         params_.approximate_cost_computation, &stats);
 
     // Recursively bulk load
-    bulk_load_node(keys, payloads, num_keys, root_node_, num_keys,
+    bulk_load_node(values, num_keys, root_node_, num_keys,
                    &root_data_node_model);
 
     if (root_node_->is_leaf_) {
@@ -546,8 +559,8 @@ class Alex {
           stats.num_shifts;
     }
 
+    create_superroot();
     update_superroot_key_domain();
-    update_superroot_pointer();
     link_all_data_nodes();
   }
 
@@ -591,7 +604,7 @@ class Alex {
   // node is trained as if it's a model node.
   // data_node_model is what the node's model would be if it were a data node of
   // dense keys.
-  void bulk_load_node(const T keys[], const P payloads[], int num_keys,
+  void bulk_load_node(const V values[], int num_keys,
                       AlexNode<T, P>*& node, int total_keys,
                       const LinearModel<T>* data_node_model = nullptr) {
     // Automatically convert to data node when it is impossible to be better
@@ -602,7 +615,7 @@ class Alex {
       stats_.num_data_nodes++;
       auto data_node = new AlexDataNode<T, P>(
           node->level_, derived_params_.max_data_node_slots);
-      data_node->bulk_load(keys, payloads, num_keys, data_node_model,
+      data_node->bulk_load(values, num_keys, data_node_model,
                            params_.approximate_model_computation);
       data_node->cost_ = node->cost_;
       delete node;
@@ -616,13 +629,13 @@ class Alex {
     std::pair<int, double> best_fanout_stats;
     if (experimental_params_.fanout_selection_method == 0) {
       best_fanout_stats = fanout_tree::find_best_fanout_bottom_up<T, P>(
-          keys, num_keys, node, total_keys, used_fanout_tree_nodes,
+          values, num_keys, node, total_keys, used_fanout_tree_nodes,
           derived_params_.max_fanout, params_.expected_insert_frac,
           params_.approximate_model_computation,
           params_.approximate_cost_computation);
     } else if (experimental_params_.fanout_selection_method == 1) {
       best_fanout_stats = fanout_tree::find_best_fanout_top_down<T, P>(
-          keys, num_keys, node, total_keys, used_fanout_tree_nodes,
+          values, num_keys, node, total_keys, used_fanout_tree_nodes,
           derived_params_.max_fanout, params_.expected_insert_frac,
           params_.approximate_model_computation,
           params_.approximate_cost_computation);
@@ -649,7 +662,7 @@ class Alex {
             1;
         used_fanout_tree_nodes.clear();
         fanout_tree::compute_level<T, P>(
-            keys, num_keys, node, total_keys, used_fanout_tree_nodes,
+            values, num_keys, node, total_keys, used_fanout_tree_nodes,
             best_fanout_tree_depth, params_.expected_insert_frac,
             params_.approximate_model_computation,
             params_.approximate_cost_computation);
@@ -679,7 +692,7 @@ class Alex {
         model_node->children_[cur] = child_node;
         LinearModel<T> child_data_node_model(tree_node.a, tree_node.b);
         bulk_load_node(
-            keys + tree_node.left_boundary, payloads + tree_node.left_boundary,
+            values + tree_node.left_boundary,
             tree_node.right_boundary - tree_node.left_boundary,
             model_node->children_[cur], total_keys, &child_data_node_model);
         model_node->children_[cur]->duplication_factor_ =
@@ -704,7 +717,7 @@ class Alex {
       stats_.num_data_nodes++;
       auto data_node = new AlexDataNode<T, P>(
           node->level_, derived_params_.max_data_node_slots);
-      data_node->bulk_load(keys, payloads, num_keys, data_node_model,
+      data_node->bulk_load(values, num_keys, data_node_model,
                            params_.approximate_model_computation);
       data_node->cost_ = node->cost_;
       delete node;
@@ -2096,6 +2109,151 @@ class Alex {
   /*** Iterators ***/
 
  public:
+//  class Iterator {
+//   public:
+//    AlexDataNode<T,P>* cur_leaf_ = nullptr;  // current data node
+//    int cur_idx_;  // current position in key/data_slots of data node
+//    int cur_bitmap_idx_;  // current position in bitmap
+//    uint64_t cur_bitmap_data_;  // caches the relevant data in the current bitmap position
+//
+//    Iterator () {}
+//
+//    Iterator (AlexDataNode<T,P>* leaf, int idx) : cur_leaf_(leaf), cur_idx_(idx) {
+//      initialize();
+//    }
+//
+//    Iterator(const Iterator& other)
+//        : cur_leaf_(other.cur_leaf_),
+//          cur_idx_(other.cur_idx_),
+//          cur_bitmap_idx_(other.cur_bitmap_idx_),
+//          cur_bitmap_data_(other.cur_bitmap_data_) {}
+//
+//    Iterator(const ReverseIterator& other)
+//        : cur_leaf_(other.cur_leaf_), cur_idx_(other.cur_idx_) {
+//      initialize();
+//    }
+//
+//    Iterator& operator = (const Iterator& other) {
+//      if (this != &other) {
+//        cur_idx_ = other.cur_idx_;
+//        cur_leaf_ = other.cur_leaf_;
+//        cur_bitmap_idx_ = other.cur_bitmap_idx_;
+//        cur_bitmap_data_ = other.cur_bitmap_data_;
+//      }
+//      return *this;
+//    }
+//
+//    Iterator& operator++() {
+////      while (cur_bitmap_data_ == 0) {
+////        cur_bitmap_idx_++;
+////        if (cur_bitmap_idx_ >= cur_leaf_->bitmap_size_) {
+////          cur_leaf_ = cur_leaf_->next_leaf_;
+////          cur_idx_ = 0;
+////          if (cur_leaf_ == nullptr) {
+////            return *this;
+////          }
+////          cur_bitmap_idx_ = 0;
+////        }
+////        cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
+////      }
+////      uint64_t bit = extract_rightmost_one(cur_bitmap_data_);
+////      cur_idx_ = get_offset(cur_bitmap_idx_, bit);
+////      cur_bitmap_data_ = remove_rightmost_one(cur_bitmap_data_);
+//      advance();
+//      return *this;
+//    }
+//
+//    Iterator operator ++ (int) {
+//      Iterator tmp = *this;
+////      while (cur_bitmap_data_ == 0) {
+////        cur_bitmap_idx_++;
+////        if (cur_bitmap_idx_ >= cur_leaf_->bitmap_size_) {
+////          cur_leaf_ = cur_leaf_->next_leaf_;
+////          cur_idx_ = 0;
+////          if (cur_leaf_ == nullptr) {
+////            return tmp;
+////          }
+////          cur_bitmap_idx_ = 0;
+////        }
+////        cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
+////      }
+////      uint64_t bit = extract_rightmost_one(cur_bitmap_data_);
+////      cur_idx_ = get_offset(cur_bitmap_idx_, bit);
+////      cur_bitmap_data_ = remove_rightmost_one(cur_bitmap_data_);
+//      advance();
+//      return tmp;
+//    }
+//
+//#if ALEX_DATA_NODE_SEP_ARRAYS
+//    V operator * () const {
+//      return std::make_pair(cur_leaf_->key_slots_[cur_idx_], cur_leaf_->payload_slots_[cur_idx_]);
+//    }
+//#else
+//    // If data node stores key-payload pairs contiguously, return reference to V
+//        V& operator * () const {
+//            return cur_leaf_->data_slots_[cur_idx_];
+//        }
+//#endif
+//
+//    const T& key () const {
+//      return cur_leaf_->get_key(cur_idx_);
+//    }
+//
+//    P& payload () const {
+//      return cur_leaf_->get_payload(cur_idx_);
+//    }
+//
+//    bool is_end() const {
+//      return cur_leaf_ == nullptr;
+//    }
+//
+//    bool operator == (const Iterator & rhs) const {
+//      return cur_idx_ == rhs.cur_idx_ && cur_leaf_ == rhs.cur_leaf_;
+//    }
+//
+//    bool operator != (const Iterator & rhs) const {
+//      return !(*this == rhs);
+//    };
+//
+//   private:
+//    void initialize() {
+//      if (!cur_leaf_) return;
+//      assert(cur_idx_ >= 0);
+//      if (cur_idx_ >= cur_leaf_->data_capacity_) {
+//        cur_leaf_ = cur_leaf_->next_leaf_;
+//        cur_idx_ = 0;
+//        if (!cur_leaf_) return;
+//      }
+//
+//      cur_bitmap_idx_ = cur_idx_ >> 6;
+//      cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
+//
+//      // Zero out extra bits
+//      int bit_pos = cur_idx_ - (cur_bitmap_idx_ << 6);
+//      cur_bitmap_data_ &= ~((1ULL << bit_pos) - 1);
+//
+//      (*this)++;
+//    }
+//
+//    forceinline void advance() {
+//      while (cur_bitmap_data_ == 0) {
+//        cur_bitmap_idx_++;
+//        if (cur_bitmap_idx_ >= cur_leaf_->bitmap_size_) {
+//          cur_leaf_ = cur_leaf_->next_leaf_;
+//          cur_idx_ = 0;
+//          if (cur_leaf_ == nullptr) {
+//            return;
+//          }
+//          cur_bitmap_idx_ = 0;
+//        }
+//        cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
+//      }
+//      uint64_t bit = extract_rightmost_one(cur_bitmap_data_);
+//      cur_idx_ = get_offset(cur_bitmap_idx_, bit);
+//      cur_bitmap_data_ = remove_rightmost_one(cur_bitmap_data_);
+//    }
+//  };
+
   class Iterator {
    public:
     AlexDataNode<T, P>* cur_leaf_ = nullptr;  // current data node
@@ -2188,7 +2346,7 @@ class Alex {
       advance();
     }
 
-    inline void advance() {
+    forceinline void advance() {
       while (cur_bitmap_data_ == 0) {
         cur_bitmap_idx_++;
         if (cur_bitmap_idx_ >= cur_leaf_->bitmap_size_) {
@@ -2310,7 +2468,7 @@ class Alex {
       advance();
     }
 
-    inline void advance() {
+    forceinline void advance() {
       while (cur_bitmap_data_ == 0) {
         cur_bitmap_idx_++;
         if (cur_bitmap_idx_ >= cur_leaf_->bitmap_size_) {
@@ -2423,7 +2581,7 @@ class Alex {
       advance();
     }
 
-    inline void advance() {
+    forceinline void advance() {
       while (cur_bitmap_data_ == 0) {
         cur_bitmap_idx_--;
         if (cur_bitmap_idx_ < 0) {
@@ -2548,7 +2706,7 @@ class Alex {
       advance();
     }
 
-    inline void advance() {
+    forceinline void advance() {
       while (cur_bitmap_data_ == 0) {
         cur_bitmap_idx_--;
         if (cur_bitmap_idx_ < 0) {

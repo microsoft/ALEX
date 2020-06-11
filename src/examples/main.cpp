@@ -14,19 +14,18 @@ int main(int, char**) {
   // Create some synthetic data: keys are dense integers between 0 and 99, and
   // payloads are random values
   const int num_keys = 100;
-  KEY_TYPE keys[num_keys];
-  PAYLOAD_TYPE payloads[num_keys];
+  std::pair<KEY_TYPE, PAYLOAD_TYPE> values[num_keys];
   std::mt19937_64 gen(std::random_device{}());
   std::uniform_int_distribution<PAYLOAD_TYPE> dis;
   for (int i = 0; i < num_keys; i++) {
-    keys[i] = i;
-    payloads[i] = dis(gen);
+    values[i].first = i;
+    values[i].second = dis(gen);
   }
 
   alex::Alex<KEY_TYPE, PAYLOAD_TYPE> index;
 
   // Bulk load the keys [0, 100)
-  index.bulk_load(keys, payloads, num_keys);
+  index.bulk_load(values, num_keys);
 
   // Insert the keys [100, 200). Now there are 200 keys.
   for (int i = num_keys; i < 2 * num_keys; i++) {

@@ -671,12 +671,12 @@ class AlexDataNode : public AlexNode<T, P> {
   // array of keys
   // Assumes existing_model is trained on the dense array of keys
   static double compute_expected_cost(
-      const T* keys, int num_keys, double density, double expected_insert_frac,
+      const V* values, int num_keys, double density, double expected_insert_frac,
       const LinearModel<T>* existing_model = nullptr, bool use_sampling = false,
       DataNodeStats* stats = nullptr) {
     if (use_sampling) {
       return compute_expected_cost_sampling(
-          keys, num_keys, density, expected_insert_frac, existing_model, stats);
+          values, num_keys, density, expected_insert_frac, existing_model, stats);
     }
 
     if (num_keys == 0) {
@@ -689,7 +689,7 @@ class AlexDataNode : public AlexNode<T, P> {
     // Compute what the node's model would be
     LinearModel<T> model;
     if (existing_model == nullptr) {
-      build_model(keys, num_keys, &model);
+      build_model(values, num_keys, &model);
     } else {
       model.a_ = existing_model->a_;
       model.b_ = existing_model->b_;
@@ -702,11 +702,11 @@ class AlexDataNode : public AlexNode<T, P> {
     double expected_avg_shifts = 0;
     if (expected_insert_frac == 0) {
       ExpectedSearchIterationsAccumulator acc;
-      build_node_implicit(keys, num_keys, data_capacity, &acc, &model);
+      build_node_implicit(values, num_keys, data_capacity, &acc, &model);
       expected_avg_exp_search_iterations = acc.get_stat();
     } else {
       ExpectedIterationsAndShiftsAccumulator acc(data_capacity);
-      build_node_implicit(keys, num_keys, data_capacity, &acc, &model);
+      build_node_implicit(values, num_keys, data_capacity, &acc, &model);
       expected_avg_exp_search_iterations =
           acc.get_expected_num_search_iterations();
       expected_avg_shifts = acc.get_expected_num_shifts();
@@ -724,14 +724,14 @@ class AlexDataNode : public AlexNode<T, P> {
 
   // Helper function for compute_expected_cost
   // Implicitly build the data node in order to collect the stats
-  static void build_node_implicit(const T* keys, int num_keys,
+  static void build_node_implicit(const V* values, int num_keys,
                                   int data_capacity, StatAccumulator* acc,
                                   const LinearModel<T>* model) {
     int last_position = -1;
     int keys_remaining = num_keys;
     for (int i = 0; i < num_keys; i++) {
       int predicted_position =
-          std::max(0, std::min(data_capacity - 1, model->predict(keys[i])));
+          std::max(0, std::min(data_capacity - 1, model->predict(values[i].first)));
       int actual_position =
           std::max<int>(predicted_position, last_position + 1);
       int positions_remaining = data_capacity - actual_position;
@@ -739,7 +739,7 @@ class AlexDataNode : public AlexNode<T, P> {
         actual_position = data_capacity - keys_remaining;
         for (int j = i; j < num_keys; j++) {
           predicted_position =
-              std::max(0, std::min(data_capacity - 1, model->predict(keys[j])));
+              std::max(0, std::min(data_capacity - 1, model->predict(values[j].first)));
           acc->accumulate(actual_position, predicted_position);
           actual_position++;
         }
@@ -757,7 +757,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // Uses progressive sampling: keep increasing the sample size until the
   // computed stats stop changing drastically
   static double compute_expected_cost_sampling(
-      const T* keys, int num_keys, double density, double expected_insert_frac,
+      const V* values, int num_keys, double density, double expected_insert_frac,
       const LinearModel<T>* existing_model = nullptr,
       DataNodeStats* stats = nullptr) {
     const static int min_sample_size = 25;
@@ -782,14 +782,14 @@ class AlexDataNode : public AlexNode<T, P> {
 
     // If the number of keys is sufficiently small, we do not sample
     if (num_keys < exact_computation_size_threshold) {
-      return compute_expected_cost(keys, num_keys, density,
+      return compute_expected_cost(values, num_keys, density,
                                    expected_insert_frac, existing_model, false,
                                    stats);
     }
 
     LinearModel<T> model;  // trained for full dense array
     if (existing_model == nullptr) {
-      build_model(keys, num_keys, &model);
+      build_model(values, num_keys, &model);
     } else {
       model.a_ = existing_model->a_;
       model.b_ = existing_model->b_;
@@ -835,13 +835,13 @@ class AlexDataNode : public AlexNode<T, P> {
       // Compute stats using the sample
       if (expected_insert_frac == 0) {
         ExpectedSearchIterationsAccumulator acc;
-        build_node_implicit_sampling(keys, num_keys, sample_num_keys,
+        build_node_implicit_sampling(values, num_keys, sample_num_keys,
                                      sample_data_capacity, step_size, &acc,
                                      &sample_model);
         sample_stats.push_back({std::log2(sample_num_keys), acc.get_stat(), 0});
       } else {
         ExpectedIterationsAndShiftsAccumulator acc(sample_data_capacity);
-        build_node_implicit_sampling(keys, num_keys, sample_num_keys,
+        build_node_implicit_sampling(values, num_keys, sample_num_keys,
                                      sample_data_capacity, step_size, &acc,
                                      &sample_model);
         sample_stats.push_back({std::log2(sample_num_keys),
@@ -920,7 +920,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // sample_num_keys and sample_data_capacity refer to a data node that is
   // created only over the sample
   // sample_model is trained for the sampled data node
-  static void build_node_implicit_sampling(const T* keys, int num_keys,
+  static void build_node_implicit_sampling(const V* values, int num_keys,
                                            int sample_num_keys,
                                            int sample_data_capacity,
                                            int step_size, StatAccumulator* ent,
@@ -930,7 +930,7 @@ class AlexDataNode : public AlexNode<T, P> {
     for (int i = 0; i < num_keys; i += step_size) {
       int predicted_position = std::max(
           0,
-          std::min(sample_data_capacity - 1, sample_model->predict(keys[i])));
+          std::min(sample_data_capacity - 1, sample_model->predict(values[i].first)));
       int actual_position =
           std::max<int>(predicted_position, last_position + 1);
       int positions_remaining = sample_data_capacity - actual_position;
@@ -939,7 +939,7 @@ class AlexDataNode : public AlexNode<T, P> {
         for (int j = i; j < num_keys; j += step_size) {
           predicted_position =
               std::max(0, std::min(sample_data_capacity - 1,
-                                   sample_model->predict(keys[j])));
+                                   sample_model->predict(values[j].first)));
           ent->accumulate(actual_position, predicted_position);
           actual_position++;
         }
@@ -1060,7 +1060,7 @@ class AlexDataNode : public AlexNode<T, P> {
   }
 
   // Assumes pretrained_model is trained on dense array of keys
-  void bulk_load(const T keys[], const P payloads[], int num_keys,
+  void bulk_load(const V values[], int num_keys,
                  const LinearModel<T>* pretrained_model = nullptr,
                  bool train_with_sample = false) {
     initialize(num_keys, kInitDensity_);
@@ -1079,7 +1079,7 @@ class AlexDataNode : public AlexNode<T, P> {
       this->model_.a_ = pretrained_model->a_;
       this->model_.b_ = pretrained_model->b_;
     } else {
-      build_model(keys, num_keys, &(this->model_), train_with_sample);
+      build_model(values, num_keys, &(this->model_), train_with_sample);
     }
     this->model_.expand(static_cast<double>(data_capacity_) / num_keys);
 
@@ -1087,7 +1087,7 @@ class AlexDataNode : public AlexNode<T, P> {
     int last_position = -1;
     int keys_remaining = num_keys;
     for (int i = 0; i < num_keys; i++) {
-      int position = this->model_.predict(keys[i]);
+      int position = this->model_.predict(values[i].first);
       position = std::max<int>(position, last_position + 1);
 
       int positions_remaining = data_capacity_ - position;
@@ -1095,14 +1095,14 @@ class AlexDataNode : public AlexNode<T, P> {
         // fill the rest of the store contiguously
         int pos = data_capacity_ - keys_remaining;
         for (int j = last_position + 1; j < pos; j++) {
-          ALEX_DATA_NODE_KEY_AT(j) = keys[i];
+          ALEX_DATA_NODE_KEY_AT(j) = values[i].first;
         }
         for (int j = i; j < num_keys; j++) {
 #if ALEX_DATA_NODE_SEP_ARRAYS
-          key_slots_[pos] = keys[j];
-          payload_slots_[pos] = payloads[j];
+          key_slots_[pos] = values[j].first;
+          payload_slots_[pos] = values[j].second;
 #else
-          data_slots_[pos] = std::make_pair(keys[j], payloads[j]);
+          data_slots_[pos] = values[j];
 #endif
           set_bit(pos);
           pos++;
@@ -1112,14 +1112,14 @@ class AlexDataNode : public AlexNode<T, P> {
       }
 
       for (int j = last_position + 1; j < position; j++) {
-        ALEX_DATA_NODE_KEY_AT(j) = keys[i];
+        ALEX_DATA_NODE_KEY_AT(j) = values[i].first;
       }
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
-      key_slots_[position] = keys[i];
-      payload_slots_[position] = payloads[i];
+      key_slots_[position] = values[i].first;
+      payload_slots_[position] = values[i].second;
 #else
-      data_slots_[position] = std::make_pair(keys[i], payloads[i]);
+      data_slots_[position] = values[i];
 #endif
       set_bit(position);
 
@@ -1136,7 +1136,7 @@ class AlexDataNode : public AlexNode<T, P> {
                                              static_cast<double>(num_keys + 1)),
                                     static_cast<double>(data_capacity_));
     contraction_threshold_ = data_capacity_ * kMinDensity_;
-    max_key_ = keys[num_keys - 1];
+    max_key_ = values[num_keys - 1].first;
   }
 
   // Bulk load using the keys between the left and right positions in
@@ -1245,17 +1245,17 @@ class AlexDataNode : public AlexNode<T, P> {
     contraction_threshold_ = data_capacity_ * kMinDensity_;
   }
 
-  static void build_model(const T* keys, int num_keys, LinearModel<T>* model,
+  static void build_model(const V* values, int num_keys, LinearModel<T>* model,
                           bool use_sampling = false) {
     if (use_sampling) {
-      build_model_sampling(keys, num_keys, model);
+      build_model_sampling(values, num_keys, model);
       return;
     }
 
     auto builder = model->builder();
 
     for (int i = 0; i < num_keys; i++) {
-      builder->add(keys[i], i);
+      builder->add(values[i].first, i);
     }
 
     builder->build();
@@ -1264,7 +1264,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // Uses progressive non-random uniform sampling to build the model
   // Progressively increases sample size until model parameters are relatively
   // stable
-  static void build_model_sampling(const T* keys, int num_keys,
+  static void build_model_sampling(const V* values, int num_keys,
                                    LinearModel<T>* model,
                                    bool verbose = false) {
     const static int sample_size_lower_bound = 10;
@@ -1278,7 +1278,7 @@ class AlexDataNode : public AlexNode<T, P> {
 
     // If the number of keys is sufficiently small, we do not sample
     if (num_keys <= sample_size_lower_bound * sample_size_multiplier) {
-      build_model(keys, num_keys, model, false);
+      build_model(values, num_keys, model, false);
       return;
     }
 
@@ -1293,7 +1293,7 @@ class AlexDataNode : public AlexNode<T, P> {
     // Run with initial step size
     auto builder = model->builder();
     for (int i = 0; i < num_keys; i += step_size) {
-      builder->add(keys[i], i);
+      builder->add(values[i].first, i);
     }
     builder->build();
     double prev_a = model->a_;
@@ -1313,7 +1313,7 @@ class AlexDataNode : public AlexNode<T, P> {
         i += step_size;
         for (int j = 1; (j < sample_size_multiplier) && (i < num_keys);
              j++, i += step_size) {
-          builder->add(keys[i], i);
+          builder->add(values[i].first, i);
         }
       }
       builder->build();
@@ -1340,13 +1340,13 @@ class AlexDataNode : public AlexNode<T, P> {
   // Unused function: builds a spline model by connecting the smallest and
   // largest points instead of using
   // a linear regression
-  static void build_spline(const T* keys, int num_keys,
+  static void build_spline(const V* values, int num_keys,
                            const LinearModel<T>* model) {
     int y_max = num_keys - 1;
     int y_min = 0;
     model->a_ =
-        static_cast<double>(y_max - y_min) / (keys[y_max] - keys[y_min]);
-    model->b_ = -1.0 * keys[y_min] * model->a_;
+        static_cast<double>(y_max - y_min) / (values[y_max].first - values[y_min].first);
+    model->b_ = -1.0 * values[y_min].first * model->a_;
   }
 
   /*** Lookup ***/

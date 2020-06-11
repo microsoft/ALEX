@@ -4,7 +4,7 @@
 #include "gtest/gtest.h"
 
 #define private public
-#include "../src/core/alex.h"
+#include "alex.h"
 
 using namespace alex;
 
@@ -13,70 +13,78 @@ namespace test {
 TEST(Alex, TestBulkLoad) {
   Alex<int, int> index;
 
-  int keys[500];
-  int payload[500];
+  Alex<int, int>::V values[500];
   for (int i = 0; i < 500; i++) {
-    keys[i] = rand() % 5000;
-    payload[i] = i;
+    values[i].first = rand() % 5000;
+    values[i].second = i;
   }
 
-  std::sort(keys, keys + 500);
-  index.bulk_load(keys, payload, 500);
+  std::sort(values, values + 500, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  index.bulk_load(values, 500);
 
   for (int i = 0; i < 500; i++) {
-    auto it = index.find(keys[i]);
+    auto it = index.find(values[i].first);
     EXPECT_TRUE(!it.is_end());
-    EXPECT_EQ(keys[i], it.key());
+    EXPECT_EQ(values[i].first, it.key());
   }
 }
 
 TEST(Alex, TestConstructors) {
   Alex<int, int> index;
 
-  int keys[500];
-  int payload[500];
+  Alex<int, int>::V values[500];
   for (int i = 0; i < 500; i++) {
-    keys[i] = rand() % 5000;
-    payload[i] = i;
+    values[i].first = rand() % 5000;
+    values[i].second = i;
   }
 
-  std::sort(keys, keys + 500);
-  index.bulk_load(keys, payload, 500);
+  std::sort(values, values + 500, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  index.bulk_load(values, 500);
 
   Alex<int, int> index2(index);  // Copy constructor
   Alex<int, int> index3;
   index3 = index;  // Assignment
+  Alex<int, int> index4(std::begin(values), std::end(values));
 
   EXPECT_NE(index.root_node_, index2.root_node_);
   EXPECT_NE(index.root_node_, index3.root_node_);
 
   for (int i = 0; i < 500; i++) {
-    auto it2 = index2.find(keys[i]);
+    auto it2 = index2.find(values[i].first);
     EXPECT_TRUE(!it2.is_end());
-    EXPECT_EQ(keys[i], it2.key());
+    EXPECT_EQ(values[i].first, it2.key());
 
-    auto it3 = index3.find(keys[i]);
+    auto it3 = index3.find(values[i].first);
     EXPECT_TRUE(!it3.is_end());
-    EXPECT_EQ(keys[i], it3.key());
+    EXPECT_EQ(values[i].first, it3.key());
+
+    auto it4 = index4.find(values[i].first);
+    EXPECT_TRUE(!it4.is_end());
+    EXPECT_EQ(values[i].first, it4.key());
   }
 }
 
 TEST(Alex, TestIterators) {
   Alex<int, int> index;
 
-  int keys[500];
-  int payload[500];
+  Alex<int, int>::V values[500];
   for (int i = 0; i < 250; i++) {
-    keys[i] = i;
-    payload[i] = i;
+    values[i].first = i;
+    values[i].second = i;
   }
   for (int i = 250; i < 500; i++) {
-    keys[i] = 5 * i;
-    payload[i] = i;
+    values[i].first = 5 * i;
+    values[i].second = i;
   }
 
-  std::sort(keys, keys + 500);
-  index.bulk_load(keys, payload, 500);
+  std::sort(values, values + 500, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  index.bulk_load(values, 500);
 
   // Iterator from beginning to end
   int num_keys = 0;
@@ -107,7 +115,7 @@ TEST(Alex, TestIterators) {
   EXPECT_EQ(500, num_keys);
 
   // Convert iterator to reverse iterator
-  auto it = index.find(keys[250]);
+  auto it = index.find(values[250].first);
   auto rit = Alex<int, int>::ReverseIterator(it);
   num_keys = 0;
   for (; it != index.end(); ++it) {
@@ -119,7 +127,7 @@ TEST(Alex, TestIterators) {
   EXPECT_EQ(501, num_keys);
 
   // Convert const iterator to const reverse iterator
-  typename Alex<int, int>::ConstIterator cit = index.find(keys[250]);
+  typename Alex<int, int>::ConstIterator cit = index.find(values[250].first);
   auto crit = Alex<int, int>::ConstReverseIterator(cit);
   num_keys = 0;
   for (; cit != index.cend(); ++cit) {
@@ -134,26 +142,27 @@ TEST(Alex, TestIterators) {
 TEST(Alex, TestFind) {
   Alex<int, int> index;
 
-  int keys[500];
-  int payload[500];
+  Alex<int, int>::V values[500];
   // even numbers from 0 to 998 inclusive
   for (int i = 0; i < 500; i++) {
-    keys[i] = i * 2;
-    payload[i] = i;
+    values[i].first = i * 2;
+    values[i].second = i;
   }
 
-  std::sort(keys, keys + 500);
-  index.bulk_load(keys, payload, 500);
+  std::sort(values, values + 500, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  index.bulk_load(values, 500);
 
   // Find existent keys
   for (int i = 0; i < 500; i++) {
-    auto it = index.find(keys[i]);
+    auto it = index.find(values[i].first);
     EXPECT_TRUE(!it.is_end());
-    EXPECT_EQ(keys[i], it.key());
+    EXPECT_EQ(values[i].first, it.key());
 
-    int* p = index.get_payload(keys[i]);
+    int* p = index.get_payload(values[i].first);
     EXPECT_TRUE(p);
-    EXPECT_EQ(payload[i], *p);
+    EXPECT_EQ(values[i].second, *p);
   }
 
   // Find non-existent keys
@@ -169,18 +178,19 @@ TEST(Alex, TestFind) {
 TEST(Alex, TestLowerUpperBound) {
   Alex<int, int> index;
 
-  int keys[100];
-  int payload[100];
+  Alex<int, int>::V values[100];
   // 10 each of 0, 10, ..., 90
   for (int i = 0; i < 100; i += 10) {
     for (int j = 0; j < 10; j++) {
-      keys[i + j] = i;
-      payload[i + j] = 0;
+      values[i + j].first = i;
+      values[i + j].second = 0;
     }
   }
 
-  std::sort(keys, keys + 100);
-  index.bulk_load(keys, payload, 100);
+  std::sort(values, values + 100, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  index.bulk_load(values, 100);
 
   // Search for existent keys
   for (int i = 0; i < 100; i += 10) {
@@ -215,31 +225,32 @@ TEST(Alex, TestLowerUpperBound) {
 TEST(Alex, TestFindLastNoGreaterThan) {
   Alex<int, int> index;
 
-  int keys[500];
-  int payload[500];
+  Alex<int, int>::V values[500];
   // even numbers from 0 to 998 inclusive
   for (int i = 0; i < 500; i++) {
-    keys[i] = i * 2;
-    payload[i] = i;
+    values[i].first = i * 2;
+    values[i].second = i;
   }
 
-  std::sort(keys, keys + 500);
-  index.bulk_load(keys, payload, 500);
+  std::sort(values, values + 500, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  index.bulk_load(values, 500);
 
   // Existent keys
   for (int i = 0; i < 500; i++) {
-    auto it = index.find_last_no_greater_than(keys[i]);
+    auto it = index.find_last_no_greater_than(values[i].first);
     EXPECT_TRUE(!it.is_end());
-    EXPECT_EQ(keys[i], it.key());
+    EXPECT_EQ(values[i].first, it.key());
 
-    int* p = index.get_payload_last_no_greater_than(keys[i]);
+    int* p = index.get_payload_last_no_greater_than(values[i].first);
     EXPECT_TRUE(p);
-    EXPECT_EQ(payload[i], *p);
+    EXPECT_EQ(values[i].second, *p);
   }
 
   // Non-existent keys
   for (int i = 0; i < 500; i++) {
-    int key = keys[i] + 1;
+    int key = values[i].first + 1;
     auto it = index.find_last_no_greater_than(key);
     EXPECT_TRUE(!it.is_end());
     EXPECT_LE(it.key(), key);
@@ -250,27 +261,28 @@ TEST(Alex, TestFindLastNoGreaterThan) {
 
     int* p = index.get_payload_last_no_greater_than(key);
     EXPECT_TRUE(p);
-    EXPECT_EQ(payload[i], *p);
+    EXPECT_EQ(values[i].second, *p);
   }
 
   // Non-existent key smaller than min
   auto it = index.find_last_no_greater_than(-1);
   EXPECT_TRUE(!it.is_end());
-  EXPECT_EQ(keys[0], it.key());
+  EXPECT_EQ(values[0].first, it.key());
 }
 
 TEST(Alex, TestReadModifyWrite) {
   Alex<int, int> index;
 
-  int keys[100];
-  int payload[100];
+  Alex<int, int>::V values[100];
   for (int i = 0; i < 100; i++) {
-    keys[i] = i;
-    payload[i] = 0;
+    values[i].first = i;
+    values[i].second = 0;
   }
 
-  std::sort(keys, keys + 100);
-  index.bulk_load(keys, payload, 100);
+  std::sort(values, values + 100, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  index.bulk_load(values, 100);
 
   auto it = index.find(50);
   EXPECT_TRUE(!it.is_end());
@@ -288,15 +300,16 @@ TEST(Alex, TestReadModifyWrite) {
 TEST(Alex, TestSequentialInserts) {
   Alex<int, int> index;
 
-  int keys[50];
-  int payload[50];
+  Alex<int, int>::V values[50];
   for (int i = 0; i < 50; i++) {
-    keys[i] = i;
-    payload[i] = i;
+    values[i].first = i;
+    values[i].second = i;
   }
 
-  std::sort(keys, keys + 50);
-  index.bulk_load(keys, payload, 50);
+  std::sort(values, values + 50, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  index.bulk_load(values, 50);
 
   for (int i = 50; i < 200; i++) {
     index.insert(i, i);
@@ -312,15 +325,16 @@ TEST(Alex, TestSequentialInserts) {
 TEST(Alex, TestOrderedInserts) {
   Alex<int, int> index;
 
-  int keys[100];
-  int payload[100];
+  Alex<int, int>::V values[100];
   for (int i = 0; i < 100; i++) {
-    keys[i] = 2 * i;
-    payload[i] = i;
+    values[i].first = 2 * i;
+    values[i].second = i;
   }
 
-  std::sort(keys, keys + 100);
-  index.bulk_load(keys, payload, 100);
+  std::sort(values, values + 100, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  index.bulk_load(values, 100);
 
   for (int i = 0; i < 100; i++) {
     index.insert(2 * i + 1, i);
@@ -337,68 +351,69 @@ TEST(Alex, TestOrderedInserts) {
 TEST(Alex, TestRandomInserts) {
   Alex<int, int> index;
 
-  int keys[200];
-  int payload[200];
+  Alex<int, int>::V values[200];
   for (int i = 0; i < 200; i++) {
-    keys[i] = rand() % 500;
-    payload[i] = i;
+    values[i].first = rand() % 500;
+    values[i].second = i;
   }
 
-  std::sort(keys, keys + 25);
-  index.bulk_load(keys, payload, 25);
+  std::sort(values, values + 25, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  index.bulk_load(values, 25);
 
   for (int i = 25; i < 200; i++) {
-    index.insert(keys[i], payload[i]);
+    index.insert(values[i].first, values[i].second);
   }
 
   // Check that getting the key is correct.
   for (int i = 0; i < 200; i++) {
-    auto it = index.find(keys[i]);
+    auto it = index.find(values[i].first);
     EXPECT_TRUE(!it.is_end());
-    EXPECT_EQ(keys[i], it.key());
+    EXPECT_EQ(values[i].first, it.key());
   }
 }
 
 TEST(Alex, TestInsertFromEmpty) {
   Alex<int, int> index;
 
-  int keys[200];
-  int payload[200];
+  Alex<int, int>::V values[200];
   for (int i = 0; i < 200; i++) {
-    keys[i] = rand() % 500;
-    payload[i] = i;
+    values[i].first = rand() % 500;
+    values[i].second = i;
   }
 
   for (int i = 0; i < 200; i++) {
-    index.insert(keys[i], payload[i]);
+    index.insert(values[i].first, values[i].second);
   }
 
   // Check that getting the key is correct.
   for (int i = 0; i < 200; i++) {
-    auto it = index.find(keys[i]);
+    auto it = index.find(values[i].first);
     EXPECT_TRUE(!it.is_end());
-    EXPECT_EQ(keys[i], it.key());
+    EXPECT_EQ(values[i].first, it.key());
   }
 }
 
 TEST(Alex, TestRandomErases) {
   Alex<int, int> index;
 
-  int keys[200];
-  int payload[200];
+  Alex<int, int>::V values[200];
   for (int i = 0; i < 200; i++) {
-    keys[i] = rand() % 500;
-    payload[i] = i;
+    values[i].first = rand() % 500;
+    values[i].second = i;
   }
 
-  std::sort(keys, keys + 200);
-  index.bulk_load(keys, payload, 200);
+  std::sort(values, values + 200, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  index.bulk_load(values, 200);
 
   // try to erase a nonexistent key
   EXPECT_EQ(index.erase_one(1000), 0);
 
   for (int i = 0; i < 200; i++) {
-    int num_erased = index.erase_one(keys[i]);
+    int num_erased = index.erase_one(values[i].first);
     EXPECT_EQ(num_erased, 1);
   }
 
@@ -408,15 +423,16 @@ TEST(Alex, TestRandomErases) {
 TEST(Alex, TestRangeScan) {
   Alex<int, int> index;
 
-  int keys[200];
-  int payload[200];
+  Alex<int, int>::V values[200];
   for (int i = 0; i < 200; i++) {
-    keys[i] = i;
-    payload[i] = i;
+    values[i].first = i;
+    values[i].second = i;
   }
 
-  std::sort(keys, keys + 200);
-  index.bulk_load(keys, payload, 200);
+  std::sort(values, values + 200, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  index.bulk_load(values, 200);
 
   std::vector<int> results;
   int sum = 0;

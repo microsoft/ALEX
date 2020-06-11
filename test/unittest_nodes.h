@@ -6,7 +6,7 @@
 #include "gtest/gtest.h"
 
 #define private public
-#include "../src/core/alex_nodes.h"
+#include "alex_nodes.h"
 
 using namespace alex;
 
@@ -17,11 +17,10 @@ namespace test {
 TEST(DataNode, TestBinarySearch) {
   AlexDataNode<int, int> node;
 
-  int keys[100];
-  int payload[100];
+  AlexDataNode<int, int>::V values[100];
   for (int i = 0; i < 100; i++) {
-    keys[i] = int(0.2 * i) * 2;
-    payload[i] = 0;
+    values[i].first = int(0.2 * i) * 2;
+    values[i].second = 0;
   }
 
   std::vector<int> keys_to_search;
@@ -29,8 +28,10 @@ TEST(DataNode, TestBinarySearch) {
     keys_to_search.push_back(i);
   }
 
-  std::sort(keys, keys + 100);
-  node.bulk_load(keys, payload, 100);
+  std::sort(values, values + 100, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  node.bulk_load(values, 100);
 
   for (int key : keys_to_search) {
     int lower_bound_pos =
@@ -56,11 +57,10 @@ TEST(DataNode, TestBinarySearch) {
 TEST(DataNode, TestExponentialSearch) {
   AlexDataNode<int, int> node;
 
-  int keys[100];
-  int payload[100];
+  AlexDataNode<int, int>::V values[100];
   for (int i = 0; i < 100; i++) {
-    keys[i] = int(0.2 * i) * 2;
-    payload[i] = 0;
+    values[i].first = int(0.2 * i) * 2;
+    values[i].second = 0;
   }
 
   std::vector<int> keys_to_search;
@@ -68,8 +68,10 @@ TEST(DataNode, TestExponentialSearch) {
     keys_to_search.push_back(i);
   }
 
-  std::sort(keys, keys + 100);
-  node.bulk_load(keys, payload, 100);
+  std::sort(values, values + 100, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  node.bulk_load(values, 100);
 
   for (int key : keys_to_search) {
     for (int m = 0; m < node.data_capacity_; m++) {
@@ -95,15 +97,16 @@ TEST(DataNode, TestExponentialSearch) {
 TEST(DataNode, TestNumKeysInRange) {
   AlexDataNode<int, int> node;
 
-  int keys[100];
-  int payload[100];
+  AlexDataNode<int, int>::V values[100];
   for (int i = 0; i < 100; i++) {
-    keys[i] = 2 * i;
-    payload[i] = rand();
+    values[i].first = 2 * i;
+    values[i].second = rand();
   }
 
-  std::sort(keys, keys + 100);
-  node.bulk_load(keys, payload, 100);
+  std::sort(values, values + 100, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  node.bulk_load(values, 100);
 
   int num_keys = node.num_keys_in_range(0, node.data_capacity_);
   EXPECT_EQ(num_keys, 100);
@@ -117,15 +120,16 @@ TEST(DataNode, TestNumKeysInRange) {
 TEST(DataNode, TestNextFilledPosition) {
   AlexDataNode<int, int> node;
 
-  int keys[100];
-  int payload[100];
+  AlexDataNode<int, int>::V values[100];
   for (int i = 0; i < 100; i++) {
-    keys[i] = 2 * i;
-    payload[i] = rand();
+    values[i].first = 2 * i;
+    values[i].second = rand();
   }
 
-  std::sort(keys, keys + 100);
-  node.bulk_load(keys, payload, 100);
+  std::sort(values, values + 100, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  node.bulk_load(values, 100);
 
   for (int i = 0; i < node.data_capacity_; i++) {
     int next_filled_pos = node.get_next_filled_position(i, true);
@@ -256,29 +260,30 @@ TEST(DataNode, TestCheckExists) {
 TEST(DataNode, TestExpansion) {
   AlexDataNode<int, int> node;
 
-  int keys[100];
-  int payload[100];
+  AlexDataNode<int, int>::V values[100];
   for (int i = 0; i < 100; i++) {
-    keys[i] = rand() % 500;
-    payload[i] = rand();
+    values[i].first = rand() % 500;
+    values[i].second = rand();
   }
 
-  std::sort(keys, keys + 100);
-  node.bulk_load(keys, payload, 100);
+  std::sort(values, values + 100, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  node.bulk_load(values, 100);
 
   node.resize(0.5, true);
 
   for (int i = 0; i < 100; i++) {
-    int pos = node.find_key(keys[i]);
-    EXPECT_EQ(keys[i], node.get_key(pos));
+    int pos = node.find_key(values[i].first);
+    EXPECT_EQ(values[i].first, node.get_key(pos));
     EXPECT_TRUE(node.check_exists(pos));
   }
 
   node.resize(0.9, true);
 
   for (int i = 0; i < 100; i++) {
-    int pos = node.find_key(keys[i]);
-    EXPECT_EQ(keys[i], node.get_key(pos));
+    int pos = node.find_key(values[i].first);
+    EXPECT_EQ(values[i].first, node.get_key(pos));
     EXPECT_TRUE(node.check_exists(pos));
   }
 }
@@ -286,15 +291,16 @@ TEST(DataNode, TestExpansion) {
 TEST(DataNode, TestFindInsertPosition) {
   AlexDataNode<int, int> node;
 
-  int keys[100];
-  int payload[100];
+  AlexDataNode<int, int>::V values[100];
   for (int i = 0; i < 100; i++) {
-    keys[i] = 2 * i;
-    payload[i] = rand();
+    values[i].first = 2 * i;
+    values[i].second = rand();
   }
 
-  std::sort(keys, keys + 100);
-  node.bulk_load(keys, payload, 100);
+  std::sort(values, values + 100, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  node.bulk_load(values, 100);
 
   for (int key = 0; key < node.data_capacity_; key++) {
     int insert_pos = node.find_insert_position(key);
@@ -310,15 +316,16 @@ TEST(DataNode, TestFindInsertPosition) {
 TEST(DataNode, TestIterator) {
   AlexDataNode<int, int> node;
 
-  int keys[100];
-  int payload[100];
+  AlexDataNode<int, int>::V values[100];
   for (int i = 0; i < 100; i++) {
-    keys[i] = 2 * i;
-    payload[i] = rand();
+    values[i].first = 2 * i;
+    values[i].second = rand();
   }
 
-  std::sort(keys, keys + 100);
-  node.bulk_load(keys, payload, 100);
+  std::sort(values, values + 100, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  node.bulk_load(values, 100);
 
   std::vector<int> results;
   AlexDataNode<int, int>::const_iterator_type it(&node, 0);
@@ -331,15 +338,16 @@ TEST(DataNode, TestIterator) {
 TEST(DataNode, TestIteratorWithDuplicates) {
   AlexDataNode<int, int> node;
 
-  int keys[100];
-  int payload[100];
+  AlexDataNode<int, int>::V values[100];
   for (int i = 0; i < 100; i++) {
-    keys[i] = i / 2;
-    payload[i] = rand();
+    values[i].first = i / 2;
+    values[i].second = rand();
   }
 
-  std::sort(keys, keys + 100);
-  node.bulk_load(keys, payload, 100);
+  std::sort(values, values + 100, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  node.bulk_load(values, 100);
 
   EXPECT_TRUE(node.find_upper(10) == node.find_lower(11));
 
@@ -355,15 +363,16 @@ TEST(DataNode, TestIteratorWithDuplicates) {
 TEST(DataNode, TestBulkLoadFromExisting) {
   AlexDataNode<int, int> node;
 
-  int keys[100];
-  int payload[100];
+  AlexDataNode<int, int>::V values[100];
   for (int i = 0; i < 100; i++) {
-    keys[i] = 2 * i;
-    payload[i] = rand();
+    values[i].first = 2 * i;
+    values[i].second = rand();
   }
 
-  std::sort(keys, keys + 100);
-  node.bulk_load(keys, payload, 100);
+  std::sort(values, values + 100, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  node.bulk_load(values, 100);
 
   AlexDataNode<int, int> new_node;
   new_node.bulk_load_from_existing(&node, 0, node.data_capacity_);
@@ -379,24 +388,25 @@ TEST(DataNode, TestBulkLoadFromExisting) {
 TEST(DataNode, TestInserts) {
   AlexDataNode<int, int> node;
 
-  int keys[200];
-  int payload[200];
+  AlexDataNode<int, int>::V values[200];
   for (int i = 0; i < 200; i++) {
-    keys[i] = i;
-    payload[i] = i;
+    values[i].first = i;
+    values[i].second = i;
   }
-  std::random_shuffle(keys, keys + 200);
+  std::random_shuffle(values, values + 200);
 
-  std::sort(keys, keys + 25);
-  node.bulk_load(keys, payload, 25);
+  std::sort(values, values + 25, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  node.bulk_load(values, 25);
 
   for (int i = 25; i < 200; i++) {
-    node.insert(keys[i], payload[i]);
+    node.insert(values[i].first, values[i].second);
   }
 
   for (int i = 0; i < 200; i++) {
-    int pos = node.find_key(keys[i]);
-    EXPECT_EQ(keys[i], node.get_key(pos));
+    int pos = node.find_key(values[i].first);
+    EXPECT_EQ(values[i].first, node.get_key(pos));
     EXPECT_TRUE(node.check_exists(pos));
   }
 }
@@ -404,24 +414,25 @@ TEST(DataNode, TestInserts) {
 TEST(DataNode, TestInsertsWithDuplicates) {
   AlexDataNode<int, int> node;
 
-  int keys[200];
-  int payload[200];
+  AlexDataNode<int, int>::V values[200];
   for (int i = 0; i < 200; i++) {
-    keys[i] = i;
-    payload[i] = i;
+    values[i].first = i;
+    values[i].second = i;
   }
 
-  std::sort(keys, keys + 200);
-  node.bulk_load(keys, payload, 200);
+  std::sort(values, values + 200, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  node.bulk_load(values, 200);
 
-  std::random_shuffle(keys, keys + 200);
+  std::random_shuffle(values, values + 200);
   for (int i = 0; i < 200; i++) {
-    node.insert(keys[i], payload[i]);
+    node.insert(values[i].first, values[i].second);
   }
 
   for (int i = 0; i < 200; i++) {
-    int pos = node.find_key(keys[i]);
-    EXPECT_EQ(keys[i], node.get_key(pos));
+    int pos = node.find_key(values[i].first);
+    EXPECT_EQ(values[i].first, node.get_key(pos));
     EXPECT_TRUE(node.check_exists(pos));
   }
 }
@@ -429,26 +440,27 @@ TEST(DataNode, TestInsertsWithDuplicates) {
 TEST(DataNode, TestEraseOne) {
   AlexDataNode<int, int> node;
 
-  int keys[200];
-  int payload[200];
+  AlexDataNode<int, int>::V values[200];
   for (int i = 0; i < 200; i++) {
-    keys[i] = rand() % 500;
-    payload[i] = i;
+    values[i].first = rand() % 500;
+    values[i].second = i;
   }
 
-  std::sort(keys, keys + 200);
-  node.bulk_load(keys, payload, 200);
+  std::sort(values, values + 200, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  node.bulk_load(values, 200);
 
   for (int i = 0; i < 150; i++) {
-    int num_erased = node.erase_one(keys[i]);
+    int num_erased = node.erase_one(values[i].first);
     EXPECT_EQ(num_erased, 1);
   }
 
   for (int i = 150; i < 200; i++) {
-    int pos = node.find_key(keys[i]);
-    EXPECT_EQ(keys[i], node.get_key(pos));
+    int pos = node.find_key(values[i].first);
+    EXPECT_EQ(values[i].first, node.get_key(pos));
     EXPECT_TRUE(node.check_exists(pos));
-    node.erase_one(keys[i]);
+    node.erase_one(values[i].first);
   }
 
   EXPECT_TRUE(node.num_keys_ == 0);
@@ -457,15 +469,16 @@ TEST(DataNode, TestEraseOne) {
 TEST(DataNode, TestErase) {
   AlexDataNode<int, int> node;
 
-  int keys[200];
-  int payload[200];
+  AlexDataNode<int, int>::V values[200];
   for (int i = 0; i < 200; i++) {
-    keys[i] = i / 2;
-    payload[i] = i;
+    values[i].first = i / 2;
+    values[i].second = i;
   }
 
-  std::sort(keys, keys + 200);
-  node.bulk_load(keys, payload, 200);
+  std::sort(values, values + 200, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  node.bulk_load(values, 200);
 
   for (int i = 0; i < 75; i++) {
     int num_erased = node.erase(i);
@@ -485,15 +498,16 @@ TEST(DataNode, TestErase) {
 TEST(DataNode, TestEraseRange) {
   AlexDataNode<int, int> node;
 
-  int keys[200];
-  int payload[200];
+  AlexDataNode<int, int>::V values[200];
   for (int i = 0; i < 200; i++) {
-    keys[i] = i;
-    payload[i] = i;
+    values[i].first = i;
+    values[i].second = i;
   }
 
-  std::sort(keys, keys + 200);
-  node.bulk_load(keys, payload, 200);
+  std::sort(values, values + 200, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
+  node.bulk_load(values, 200);
 
   int num_erased = node.erase_range(50, 100);
   EXPECT_EQ(num_erased, 50);
@@ -516,17 +530,19 @@ TEST(DataNode, TestEraseRange) {
 
 TEST(DataNode, TestBuildIndexWithSample) {
   const int num_keys = 20000;
-  int keys[num_keys];
+  AlexDataNode<int, int>::V values[num_keys];
   for (int i = 0; i < num_keys; i++) {
-    keys[i] = rand() % 50000;
+    values[i].first = rand() % 50000;
   }
-  std::sort(keys, keys + num_keys);
+  std::sort(values, values + num_keys, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
 
   LinearModel<int> model;
   LinearModel<int> model_using_sample;
 
-  AlexDataNode<int, int>::build_model(keys, num_keys, &model, false);
-  AlexDataNode<int, int>::build_model(keys, num_keys, &model_using_sample,
+  AlexDataNode<int, int>::build_model(values, num_keys, &model, false);
+  AlexDataNode<int, int>::build_model(values, num_keys, &model_using_sample,
                                       true);
 
   double rel_diff_in_a =
@@ -539,14 +555,16 @@ TEST(DataNode, TestBuildIndexWithSample) {
 
 TEST(DataNode, TestComputeCostWithSample) {
   const int num_keys = 20000;
-  int keys[num_keys];
+  AlexDataNode<int, int>::V values[num_keys];
   for (int i = 0; i < num_keys; i++) {
-    keys[i] = rand() % 50000;
+    values[i].first = rand() % 50000;
   }
-  std::sort(keys, keys + num_keys);
+  std::sort(values, values + num_keys, [](auto const &a, auto const &b) {
+    return a.first < b.first;
+  });
 
   LinearModel<int> model;
-  AlexDataNode<int, int>::build_model(keys, num_keys, &model);
+  AlexDataNode<int, int>::build_model(values, num_keys, &model);
   double density = 0.7;
   double expected_insert_frac = 0.5;
   ExpectedIterationsAndShiftsAccumulator ent;
@@ -555,8 +573,8 @@ TEST(DataNode, TestComputeCostWithSample) {
   DataNodeStats stats;
   DataNodeStats stats_using_sample;
   AlexDataNode<int, int>::compute_expected_cost(
-      keys, num_keys, density, expected_insert_frac, &model, false, &stats);
-  AlexDataNode<int, int>::compute_expected_cost(keys, num_keys, density,
+      values, num_keys, density, expected_insert_frac, &model, false, &stats);
+  AlexDataNode<int, int>::compute_expected_cost(values, num_keys, density,
                                                 expected_insert_frac, &model,
                                                 true, &stats_using_sample);
 
