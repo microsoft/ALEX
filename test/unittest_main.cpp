@@ -6,6 +6,8 @@
 #define private public
 #include "unittest_nodes.h"
 #include "unittest_alex.h"
+#include "unittest_alex_map.h"
+#include "unittest_alex_multimap.h"
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);

@@ -200,8 +200,8 @@ class Alex {
   // factor.
   static const int kOutOfDomainToleranceFactor = 2;
 
-  Compare key_less_;
-  Alloc allocator_;
+  Compare key_less_ = Compare();
+  Alloc allocator_ = Alloc();
 
   /*** Constructors and setters ***/
 
@@ -2129,8 +2129,7 @@ class Alex {
   }
 
   // True if there are no elements
-  bool empty() const
-  {
+  bool empty() const {
     return (size() == 0);
   }
 
