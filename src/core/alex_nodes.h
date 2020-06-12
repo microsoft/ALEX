@@ -2072,6 +2072,12 @@ class AlexDataNode : public AlexNode<T, P> {
     if (pos == data_capacity_ || !key_equal(ALEX_DATA_NODE_KEY_AT(pos), key)) return 0;
 
     // Erase key at pos
+    erase_one_at(pos);
+    return 1;
+  }
+
+  // Erase the key at the given position
+  void erase_one_at(int pos) {
     T next_key;
     if (pos == data_capacity_ - 1) {
       next_key = kEndSentinel_;
@@ -2094,7 +2100,6 @@ class AlexDataNode : public AlexNode<T, P> {
       resize(kMaxDensity_);  // contract
       num_resizes_++;
     }
-    return 1;
   }
 
   // Erase all keys with the input value

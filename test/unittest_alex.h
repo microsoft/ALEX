@@ -29,6 +29,10 @@ TEST(Alex, TestBulkLoad) {
     EXPECT_TRUE(!it.is_end());
     EXPECT_EQ(values[i].first, it.key());
   }
+
+  EXPECT_EQ(index.get_stats().num_keys, 500);
+  index.clear();
+  EXPECT_EQ(index.get_stats().num_keys, 0);
 }
 
 TEST(Alex, TestConstructors) {
@@ -175,6 +179,7 @@ TEST(Alex, TestFind) {
   }
 }
 
+// Also tests count and equal_range
 TEST(Alex, TestLowerUpperBound) {
   Alex<int, int> index;
 
@@ -204,6 +209,15 @@ TEST(Alex, TestLowerUpperBound) {
       EXPECT_TRUE(!it_ub.is_end());
       EXPECT_EQ(i + 10, it_ub.key());
     }
+
+    // Count
+    size_t count = index.count(i);
+    EXPECT_EQ(count, 10);
+
+    // Equal range
+    auto it_pair = index.equal_range(i);
+    EXPECT_TRUE(it_pair.first == it_lb);
+    EXPECT_TRUE(it_pair.second == it_ub);
   }
 
   // Search for non-existent keys
@@ -219,6 +233,14 @@ TEST(Alex, TestLowerUpperBound) {
       EXPECT_EQ(i + 5, it_lb.key());
       EXPECT_EQ(i + 5, it_ub.key());
     }
+
+    // Count
+    EXPECT_EQ(index.count(i), 0);
+
+    // Equal range
+    auto it_pair = index.equal_range(i);
+    EXPECT_TRUE(it_pair.first == it_lb);
+    EXPECT_TRUE(it_lb == it_ub);
   }
 }
 
@@ -409,12 +431,20 @@ TEST(Alex, TestRandomErases) {
   });
   index.bulk_load(values, 200);
 
-  // try to erase a nonexistent key
+  // Try to erase a nonexistent key
   EXPECT_EQ(index.erase_one(1000), 0);
 
-  for (int i = 0; i < 200; i++) {
+  // Erase with key
+  for (int i = 0; i < 100; i++) {
     int num_erased = index.erase_one(values[i].first);
     EXPECT_EQ(num_erased, 1);
+  }
+
+  // Erase with iterator
+  for (int i = 100; i < 200; i++) {
+    auto it = index.lower_bound(values[i].first);
+    EXPECT_TRUE(!it.is_end());
+    index.erase(it);
   }
 
   EXPECT_EQ(index.stats_.num_keys, 0);

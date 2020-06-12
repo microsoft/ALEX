@@ -49,7 +49,7 @@
 namespace alex {
 
 template <class T, class P, class Compare = AlexCompare, class Alloc = std::allocator<std::pair<T,P>>,
-    bool allow_duplicates = false>
+    bool allow_duplicates = true>
 class Alex {
   static_assert(std::is_arithmetic<T>::value, "ALEX key type must be numeric.");
 
@@ -573,7 +573,17 @@ class Alex {
     }
   }
 
-  /*** Allocators ***/
+  /*** Allocators and comparators ***/
+
+ public:
+  Alloc get_allocator() const {
+    return allocator_;
+  }
+
+  Compare key_comp() const
+  {
+    return key_less_;
+  }
 
  private:
   typename model_node_type::alloc_type model_node_allocator() {
@@ -598,6 +608,12 @@ class Alex {
       model_node_allocator().destroy(static_cast<model_node_type*>(node));
       model_node_allocator().deallocate(static_cast<model_node_type*>(node), 1);
     }
+  }
+
+  // True if a == b
+  template <class K>
+  forceinline bool key_equal(const T& a, const K& b) const {
+    return !key_less_(a, b) && !key_less_(b, a);
   }
 
   /*** Bulk loading ***/
@@ -877,6 +893,16 @@ class Alex {
     }
   }
 
+  size_t count(T key) {
+    ConstIterator it = lower_bound(key);
+    size_t num_equal = 0;
+    while (!it.is_end() && key_equal(it.key(), key)) {
+      num_equal++;
+      ++it;
+    }
+    return num_equal;
+  }
+
   // Returns an iterator to the first key no less than the input value
   typename self_type::Iterator lower_bound(T key) {
     stats_.num_lookups++;
@@ -909,6 +935,14 @@ class Alex {
     int idx = leaf->find_upper(key);
     return ConstIterator(leaf, idx);  // automatically handles the case where
                                       // idx == leaf->data_capacity
+  }
+
+  std::pair<Iterator, Iterator> equal_range(T key) {
+    return std::pair<Iterator, Iterator>(lower_bound(key), upper_bound(key));
+  }
+
+  std::pair<ConstIterator, ConstIterator> equal_range(T key) const {
+    return std::pair<ConstIterator, ConstIterator>(lower_bound(key), upper_bound(key));
   }
 
   // Directly returns a pointer to the payload found through find(key)
@@ -981,7 +1015,7 @@ class Alex {
     return it;
   }
 
-  typename self_type::ConstIterator cbegin() {
+  typename self_type::ConstIterator cbegin() const {
     AlexNode<T, P>* cur = root_node_;
 
     while (!cur->is_leaf_) {
@@ -990,7 +1024,7 @@ class Alex {
     return ConstIterator(static_cast<data_node_type*>(cur), 0);
   }
 
-  typename self_type::ConstIterator cend() {
+  typename self_type::ConstIterator cend() const {
     ConstIterator it = ConstIterator();
     it.cur_leaf_ = nullptr;
     it.cur_idx_ = 0;
@@ -1015,7 +1049,7 @@ class Alex {
     return it;
   }
 
-  typename self_type::ConstReverseIterator crbegin() {
+  typename self_type::ConstReverseIterator crbegin() const {
     AlexNode<T, P>* cur = root_node_;
 
     while (!cur->is_leaf_) {
@@ -1026,7 +1060,7 @@ class Alex {
     return ConstReverseIterator(data_node, data_node->data_capacity_ - 1);
   }
 
-  typename self_type::ConstReverseIterator crend() {
+  typename self_type::ConstReverseIterator crend() const {
     ConstReverseIterator it = ConstReverseIterator();
     it.cur_leaf_ = nullptr;
     it.cur_idx_ = 0;
@@ -1036,6 +1070,17 @@ class Alex {
   /*** Insert ***/
 
  public:
+  void insert(V& value) {
+    insert(value.first, value.second);
+  }
+
+  template <class InputIterator>
+  void insert(InputIterator first, InputIterator last) {
+    for (auto it = first; it != last; ++it) {
+      insert(*it);
+    }
+  }
+
   // This will NOT do an update of an existing key.
   // To perform an update or read-modify-write, do a lookup and modify the
   // payload's value.
@@ -1966,6 +2011,32 @@ class Alex {
     return num_erased;
   }
 
+  // Erases element pointed to by iterator
+  void erase(Iterator it) {
+    if (it.is_end()) {
+      return;
+    }
+    T key = it.key();
+    it.cur_leaf_->erase_one_at(it.cur_idx_);
+    stats_.num_keys--;
+    if (it.cur_leaf_->num_keys_ == 0) {
+      merge(it.cur_leaf_, key);
+    }
+  }
+
+  // Removes all elements
+  void clear() {
+    for (NodeIterator node_it = NodeIterator(this); !node_it.is_end();
+         node_it.next()) {
+      delete_node(node_it.current());
+    }
+    auto empty_data_node = new (data_node_allocator().allocate(1)) data_node_type(key_less_, allocator_);
+    empty_data_node->bulk_load(nullptr, 0);
+    root_node_ = empty_data_node;
+    create_superroot();
+    stats_.num_keys = 0;
+  }
+
  private:
   // Try to merge empty leaf, which can be traversed to by looking up key
   // This may cause the parent node to merge up into its own parent
@@ -2052,6 +2123,22 @@ class Alex {
   /*** Stats ***/
 
  public:
+  // Number of elements
+  size_t size() const {
+    return static_cast<size_t>(stats_.num_keys);
+  }
+
+  // True if there are no elements
+  bool empty() const
+  {
+    return (size() == 0);
+  }
+
+  // This is just a function required by the STL standard. ALEX can hold more items.
+  size_t max_size() const {
+    return size_t(-1);
+  }
+
   // Size in bytes of all the keys, payloads, and bitmaps stored in this index
   long long data_size() {
     long long size = 0;
