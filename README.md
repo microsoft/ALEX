@@ -1,6 +1,19 @@
+# Introduction
 
-# Usage
+ALEX is a ML-enhanced range index, similar in functionality to a B+ Tree.
+Our implementation is a near drop-in replacement for std::map or std::multimap.
+You can learned more about ALEX in our [SIGMOD 2020 paper](https://dl.acm.org/doi/pdf/10.1145/3318464.3389711).
 
+### Table of Contents
+**[Getting Started](#getting-started)**<br>
+**[Design Overview](#design-overview)**<br>
+**[API Documentation](#api-documentation)**<br>
+**[Contributing](#contributing)**<br>
+
+# Getting Started
+ALEX can be used as a header-only library.
+All relevant header files are found in [src/core](src/core).
+In this repository, we include a [short example program](src/examples/main.cpp) and [unit tests](test), which you can compile and run:
 ```
 # Build using CMake, which creates a new build directory
 ./build.sh
@@ -12,8 +25,7 @@
 ./build/test_alex
 ```
 
-# Simple benchmark
-We provide a simple benchmark that measures the throughput of running point lookups and inserts on ALEX.
+We also provide a simple benchmark that measures the throughput of running point lookups and inserts on ALEX.
 To run on a synthetic dataset with 1000 normally-distributed keys:
 ```
 ./build/benchmark \
@@ -45,6 +57,37 @@ Your keys will need to be in either binary format or text format (one key per li
 If the data type of your keys is not `double`, you will need to modify `#define KEY_TYPE double` to
 `#define KEY_TYPE [your data type]` in [src/benchmark/main.cpp](src/benchmark/main.cpp).
 
+# Design Overview
+Like the B+ Tree, ALEX is a data structure that indexes sorted data and supports workloads that contain a mix of point lookups, short range queries, inserts, updates, and deletes.
+Internally, ALEX uses a collection of linear regressions, organized hierarchically into a tree, to model the distribution of keys.
+ALEX uses this model to efficiently search for data records by their key.
+ALEX also automatically adapts its internal models and tree structure to efficiently support writes.
+
+ALEX is inspired by the [original learned index from Kraska et al.](https://dl.acm.org/doi/pdf/10.1145/3183713.3196909).
+However, that work only supports reads (i.e., point lookups and range queries), while ALEX also efficiently supports write (i.e., inserts, updates, and deletes).
+
+In [our paper](https://dl.acm.org/doi/pdf/10.1145/3318464.3389711), we show that ALEX outperfroms alternatives in both speed and size:
+- On read-only workloads, ALEX beats the [original learned index from Kraska et al.](https://dl.acm.org/doi/pdf/10.1145/3183713.3196909) by
+  up to 2.2X on performance with up to 15X smaller index size.
+- Across the spectrum of read-write workloads, ALEX beats
+  B+ Trees (implemented by [STX B+ Tree](https://panthema.net/2007/stx-btree/)) by up to 4.1X while never performing worse, with
+  up to 2000X smaller index size.
+
+You can find many more details about ALEX [here](https://dl.acm.org/doi/pdf/10.1145/3318464.3389711).
+
+### Limitations and Future Research Directions
+ALEX currently operates in memory, single threaded, and on numerical keys.
+We are considering ways to add support for persistence, concurrency, and string keys to ALEX. 
+
+In terms of performance, ALEX has a couple known limitations:
+- The premise of ALEX is to model the key distribution using a collection of linear regressions.
+Therefore, ALEX performs poorly when the key distribution is difficult to model with linear regressions, i.e., when the key distribution is highly nonlinear at small scales.
+A possible future research direction is to use a broader class of modeling techniques (e.g., also consider polynomial regression models).
+- ALEX can have poor performance in the presence of extreme outlier keys, which can cause the key domain and ALEX's tree depth to become unnecessarily large
+(see Section 5.1 of [our paper](https://dl.acm.org/doi/pdf/10.1145/3318464.3389711)).
+A possible future research direction is to add special logic for handling extreme outliers, or to have a modeling strategy that is robust to sparse key spaces.
+
+# API Documentation
 
 # Contributing
 
