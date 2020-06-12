@@ -4,7 +4,7 @@ project(alex)
 set(CMAKE_CXX_STANDARD 14)
 
 if(MSVC)
-    set(CMAKE_CXX_FLAGS "/O2 /arch:AVX2")
+    set(CMAKE_CXX_FLAGS "/O2 /arch:AVX2 /EHsc")
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     set(CMAKE_CXX_FLAGS "-O3 -xHost")
 else()
