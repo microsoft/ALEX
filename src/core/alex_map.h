@@ -128,11 +128,11 @@ class AlexMap {
   /*** Element access ***/
 
  public:
-  P& operator[] (T key) {
+  P& operator[] (const T& key) {
     return alex_.insert(key, P()).first.payload();
   }
 
-  P& at(T key) {
+  P& at(const T& key) {
     P* payload = alex_.get_payload(key);
     if (payload == nullptr) {
       throw std::out_of_range("AlexMap::at: input does not match any key.");
@@ -141,7 +141,7 @@ class AlexMap {
     }
   }
 
-  const P& at(T key) const {
+  const P& at(const T& key) const {
     P* payload = alex_.get_payload(key);
     if (payload == nullptr) {
       throw std::out_of_range("AlexMap::at: input does not match any key.");
@@ -159,41 +159,41 @@ class AlexMap {
   // right-most key
   // If you instead want an iterator to the left-most key with the input value,
   // use lower_bound()
-  iterator find(T key) {
+  iterator find(const T& key) {
     return alex_.find(key);
   }
 
-  const_iterator find(T key) const {
+  const_iterator find(const T& key) const {
     return alex_.find(key);
   }
 
-  size_t count(T key) {
+  size_t count(const T& key) {
     return alex_.size(key);
   }
 
   // Returns an iterator to the first key no less than the input value
-  iterator lower_bound(T key) {
+  iterator lower_bound(const T& key) {
     return alex_.lower_bound(key);
   }
 
-  const_iterator lower_bound(T key) const {
+  const_iterator lower_bound(const T& key) const {
     return alex_.lower_bound(key);
   }
 
   // Returns an iterator to the first key greater than the input value
-  iterator upper_bound(T key) {
+  iterator upper_bound(const T& key) {
     return alex_.upper_bound(key);
   }
 
-  const_iterator upper_bound(T key) const {
+  const_iterator upper_bound(const T& key) const {
     return alex_.upper_bound(key);
   }
 
-  std::pair<iterator, iterator> equal_range(T key) {
+  std::pair<iterator, iterator> equal_range(const T& key) {
     return alex_.equal_range(key);
   }
 
-  std::pair<const_iterator, const_iterator> equal_range(T key) const {
+  std::pair<const_iterator, const_iterator> equal_range(const T& key) const {
     return alex_.equal_range(key);
   }
 
@@ -232,7 +232,7 @@ class AlexMap {
   /*** Insert ***/
 
  public:
-  std::pair<iterator, bool> insert(V& value) {
+  std::pair<iterator, bool> insert(const V& value) {
     return alex_.insert(value);
   }
 
@@ -244,7 +244,7 @@ class AlexMap {
   // This will NOT do an update of an existing key.
   // To perform an update or read-modify-write, do a lookup and modify the
   // payload's value.
-  std::pair<iterator, bool> insert(T key, P payload) {
+  std::pair<iterator, bool> insert(const T& key, const P& payload) {
     return alex_.insert(key, payload);
   }
 
@@ -252,7 +252,7 @@ class AlexMap {
 
  public:
   // Erases all keys with a certain key value
-  int erase(T key) {
+  int erase(const T& key) {
     return alex_.erase(key);
   }
 

@@ -98,7 +98,7 @@ class AlexModelNode : public AlexNode<T, P> {
   }
 
   // Given a key, traverses to the child node responsible for that key
-  inline AlexNode<T, P>* get_child_node(T key) {
+  inline AlexNode<T, P>* get_child_node(const T& key) {
     int bucketID = this->model_.predict(key);
     bucketID = std::min<int>(std::max<int>(bucketID, 0), num_children_ - 1);
     return children_[bucketID];
@@ -1422,7 +1422,7 @@ class AlexDataNode : public AlexNode<T, P> {
   /*** Lookup ***/
 
   // Predicts the position of a key using the model
-  inline int predict_position(T key) const {
+  inline int predict_position(const T& key) const {
     int position = this->model_.predict(key);
     position = std::max<int>(std::min<int>(position, data_capacity_ - 1), 0);
     return position;
@@ -1430,7 +1430,7 @@ class AlexDataNode : public AlexNode<T, P> {
 
   // Searches for the last non-gap position equal to key
   // If no positions equal to key, returns -1
-  int find_key(T key) {
+  int find_key(const T& key) {
     num_lookups_++;
     int predicted_pos = predict_position(key);
 
@@ -1447,7 +1447,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // Searches for the first non-gap position no less than key
   // Returns position in range [0, data_capacity]
   // Compare with lower_bound()
-  int find_lower(T key) {
+  int find_lower(const T& key) {
     num_lookups_++;
     int predicted_pos = predict_position(key);
 
@@ -1458,7 +1458,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // Searches for the first non-gap position greater than key
   // Returns position in range [0, data_capacity]
   // Compare with upper_bound()
-  int find_upper(T key) {
+  int find_upper(const T& key) {
     num_lookups_++;
     int predicted_pos = predict_position(key);
 
@@ -1471,7 +1471,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // Second returned value is first valid position (i.e., upper_bound of key).
   // If there are duplicate keys, the insert position will be to the right of
   // all existing keys of the same value.
-  std::pair<int, int> find_insert_position(T key) {
+  std::pair<int, int> find_insert_position(const T& key) {
     int predicted_pos =
         predict_position(key);  // first use model to get prediction
 
@@ -1521,7 +1521,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // Returns position in range [0, data_capacity]
   // Compare with find_upper()
   template <class K>
-  int upper_bound(K key) {
+  int upper_bound(const K& key) {
     num_lookups_++;
     int position = predict_position(key);
     return exponential_search_upper_bound(position, key);
@@ -1530,7 +1530,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // Searches for the first position greater than key, starting from position m
   // Returns position in range [0, data_capacity]
   template <class K>
-  inline int exponential_search_upper_bound(int m, K key) {
+  inline int exponential_search_upper_bound(int m, const K& key) {
     // Continue doubling the bound until it contains the upper bound. Then use
     // binary search.
     int bound = 1;
@@ -1559,7 +1559,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // https://stackoverflow.com/questions/6443569/implementation-of-c-lower-bound
   // Returns position in range [l, r]
   template <class K>
-  inline int binary_search_upper_bound(int l, int r, K key) const {
+  inline int binary_search_upper_bound(int l, int r, const K& key) const {
     while (l < r) {
       int mid = l + (r - l) / 2;
       if (key_lessequal(ALEX_DATA_NODE_KEY_AT(mid), key)) {
@@ -1576,7 +1576,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // Returns position in range [0, data_capacity]
   // Compare with find_lower()
   template <class K>
-  int lower_bound(K key) {
+  int lower_bound(const K& key) {
     num_lookups_++;
     int position = predict_position(key);
     return exponential_search_lower_bound(position, key);
@@ -1585,7 +1585,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // Searches for the first position no less than key, starting from position m
   // Returns position in range [0, data_capacity]
   template <class K>
-  inline int exponential_search_lower_bound(int m, K key) {
+  inline int exponential_search_lower_bound(int m, const K& key) {
     // Continue doubling the bound until it contains the lower bound. Then use
     // binary search.
     int bound = 1;
@@ -1614,7 +1614,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // https://stackoverflow.com/questions/6443569/implementation-of-c-lower-bound
   // Returns position in range [l, r]
   template <class K>
-  inline int binary_search_lower_bound(int l, int r, K key) const {
+  inline int binary_search_lower_bound(int l, int r, const K& key) const {
     while (l < r) {
       int mid = l + (r - l) / 2;
       if (key_greaterequal(ALEX_DATA_NODE_KEY_AT(mid), key)) {
@@ -1652,7 +1652,7 @@ class AlexDataNode : public AlexNode<T, P> {
   //
   // Second value in returned pair is position of inserted key, or of the already-existing key.
   // -1 if no insertion.
-  std::pair<int, int> insert(T key, P payload) {
+  std::pair<int, int> insert(const T& key, const P& payload) {
     // Periodically check for catastrophe
     if (num_inserts_ % 64 == 0 && catastrophic_cost()) {
       return { 2, -1 };
@@ -1847,7 +1847,7 @@ class AlexDataNode : public AlexNode<T, P> {
   }
 
   // Insert key into pos. The caller must guarantee that pos is a gap.
-  void insert_element_at(T key, P payload, int pos) {
+  void insert_element_at(const T& key, P payload, int pos) {
 #if ALEX_DATA_NODE_SEP_ARRAYS
     key_slots_[pos] = key;
     payload_slots_[pos] = payload;
@@ -1866,7 +1866,7 @@ class AlexDataNode : public AlexNode<T, P> {
 
   // Insert key into pos, shifting as necessary in the range [left, right)
   // Returns the actual position of insertion
-  int insert_using_shifts(T key, P payload, int pos) {
+  int insert_using_shifts(const T& key, P payload, int pos) {
     // Find the closest gap
     int gap_pos = closest_gap(pos);
     set_bit(gap_pos);
@@ -2079,7 +2079,7 @@ class AlexDataNode : public AlexNode<T, P> {
 
   // Erase the left-most key with the input value
   // Returns the number of keys erased (0 or 1)
-  int erase_one(T key) {
+  int erase_one(const T& key) {
     int pos = find_lower(key);
 
     if (pos == data_capacity_ || !key_equal(ALEX_DATA_NODE_KEY_AT(pos), key)) return 0;
@@ -2118,7 +2118,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // Erase all keys with the input value
   // Returns the number of keys erased (there may be multiple keys with the same
   // value)
-  int erase(T key) {
+  int erase(const T& key) {
     int pos = upper_bound(key);
 
     if (pos == 0 || !key_equal(ALEX_DATA_NODE_KEY_AT(pos - 1), key)) return 0;
@@ -2271,7 +2271,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // Check that a key exists in the key/data_slots
   // If validate_bitmap is true, confirm that the corresponding position in the
   // bitmap is correctly set to 1
-  bool key_exists(T key, bool validate_bitmap) const {
+  bool key_exists(const T& key, bool validate_bitmap) const {
     for (int i = 0; i < data_capacity_ - 1; i++) {
       if (key_equal(ALEX_DATA_NODE_KEY_AT(i), key) &&
           (!validate_bitmap || check_exists(i))) {

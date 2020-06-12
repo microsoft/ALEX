@@ -871,7 +871,7 @@ class Alex {
   // right-most key
   // If you instead want an iterator to the left-most key with the input value,
   // use lower_bound()
-  typename self_type::Iterator find(T key) {
+  typename self_type::Iterator find(const T& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     int idx = leaf->find_key(key);
@@ -882,7 +882,7 @@ class Alex {
     }
   }
 
-  typename self_type::ConstIterator find(T key) const {
+  typename self_type::ConstIterator find(const T& key) const {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     int idx = leaf->find_key(key);
@@ -893,7 +893,7 @@ class Alex {
     }
   }
 
-  size_t count(T key) {
+  size_t count(const T& key) {
     ConstIterator it = lower_bound(key);
     size_t num_equal = 0;
     while (!it.is_end() && key_equal(it.key(), key)) {
@@ -904,7 +904,7 @@ class Alex {
   }
 
   // Returns an iterator to the first key no less than the input value
-  typename self_type::Iterator lower_bound(T key) {
+  typename self_type::Iterator lower_bound(const T& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     int idx = leaf->find_lower(key);
@@ -912,7 +912,7 @@ class Alex {
                                  // leaf->data_capacity
   }
 
-  typename self_type::ConstIterator lower_bound(T key) const {
+  typename self_type::ConstIterator lower_bound(const T& key) const {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     int idx = leaf->find_lower(key);
@@ -921,7 +921,7 @@ class Alex {
   }
 
   // Returns an iterator to the first key greater than the input value
-  typename self_type::Iterator upper_bound(T key) {
+  typename self_type::Iterator upper_bound(const T& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     int idx = leaf->find_upper(key);
@@ -929,7 +929,7 @@ class Alex {
                                  // leaf->data_capacity
   }
 
-  typename self_type::ConstIterator upper_bound(T key) const {
+  typename self_type::ConstIterator upper_bound(const T& key) const {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     int idx = leaf->find_upper(key);
@@ -937,18 +937,18 @@ class Alex {
                                       // idx == leaf->data_capacity
   }
 
-  std::pair<Iterator, Iterator> equal_range(T key) {
+  std::pair<Iterator, Iterator> equal_range(const T& key) {
     return std::pair<Iterator, Iterator>(lower_bound(key), upper_bound(key));
   }
 
-  std::pair<ConstIterator, ConstIterator> equal_range(T key) const {
+  std::pair<ConstIterator, ConstIterator> equal_range(const T& key) const {
     return std::pair<ConstIterator, ConstIterator>(lower_bound(key), upper_bound(key));
   }
 
   // Directly returns a pointer to the payload found through find(key)
   // This avoids the overhead of creating an iterator
   // Returns null pointer if there is no exact match of the key
-  P* get_payload(T key) {
+  P* get_payload(const T& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     int idx = leaf->find_key(key);
@@ -961,7 +961,7 @@ class Alex {
 
   // Looks for the last key no greater than the input value
   // Conceptually, this is equal to the last key before upper_bound()
-  typename self_type::Iterator find_last_no_greater_than(T key) {
+  typename self_type::Iterator find_last_no_greater_than(const T& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     int idx = leaf->upper_bound(key) - 1;
@@ -982,7 +982,7 @@ class Alex {
   // Directly returns a pointer to the payload found through
   // find_last_no_greater_than(key)
   // This avoids the overhead of creating an iterator
-  P* get_payload_last_no_greater_than(T key) {
+  P* get_payload_last_no_greater_than(const T& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     int idx = leaf->upper_bound(key) - 1;
@@ -1070,7 +1070,7 @@ class Alex {
   /*** Insert ***/
 
  public:
-  std::pair<Iterator, bool> insert(V& value) {
+  std::pair<Iterator, bool> insert(const V& value) {
     return insert(value.first, value.second);
   }
 
@@ -1086,7 +1086,7 @@ class Alex {
   // payload's value.
   // Returns iterator to inserted element, and whether the insert happened or not.
   // Insert does not happen if duplicates are not allowed and duplicate is found.
-  std::pair<Iterator, bool> insert(T key, P payload) {
+  std::pair<Iterator, bool> insert(const T& key, const P& payload) {
     // If enough keys fall outside the key domain, expand the root to expand the
     // key domain
     if (key > istats_.key_domain_max_) {
@@ -2001,7 +2001,7 @@ class Alex {
 
  public:
   // Erases the left-most key with the given key value
-  int erase_one(T key) {
+  int erase_one(const T& key) {
     data_node_type* leaf = get_leaf(key);
     int num_erased = leaf->erase_one(key);
     stats_.num_keys -= num_erased;
@@ -2012,7 +2012,7 @@ class Alex {
   }
 
   // Erases all keys with a certain key value
-  int erase(T key) {
+  int erase(const T& key) {
     data_node_type* leaf = get_leaf(key);
     int num_erased = leaf->erase(key);
     stats_.num_keys -= num_erased;
