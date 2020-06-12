@@ -394,14 +394,14 @@ TEST(DataNode, TestInserts) {
     values[i].first = i;
     values[i].second = i;
   }
-  std::random_shuffle(values, values + 200);
+  std::shuffle(values, values + 200, std::default_random_engine {});
 
-  std::sort(values, values + 25, [](auto const &a, auto const &b) {
+  std::sort(values, values + 100, [](auto const &a, auto const &b) {
     return a.first < b.first;
   });
-  node.bulk_load(values, 25);
+  node.bulk_load(values, 100);
 
-  for (int i = 25; i < 200; i++) {
+  for (int i = 100; i < 200; i++) {
     node.insert(values[i].first, values[i].second);
   }
 
@@ -426,7 +426,7 @@ TEST(DataNode, TestInsertsWithDuplicates) {
   });
   node.bulk_load(values, 200);
 
-  std::random_shuffle(values, values + 200);
+  std::shuffle(values, values + 200, std::default_random_engine {});
   for (int i = 0; i < 200; i++) {
     node.insert(values[i].first, values[i].second);
   }
