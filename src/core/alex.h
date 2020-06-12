@@ -60,7 +60,7 @@ class Alex {
   // ALEX class aliases
   typedef Alex<T,P,Compare,Alloc,allow_duplicates> self_type;
   typedef AlexModelNode<T, P, Alloc> model_node_type;
-  typedef AlexDataNode<T, P, Compare, Alloc> data_node_type;
+  typedef AlexDataNode<T, P, Compare, Alloc, allow_duplicates> data_node_type;
 
   // Forward declaration for iterators
   class Iterator;
@@ -1070,8 +1070,8 @@ class Alex {
   /*** Insert ***/
 
  public:
-  void insert(V& value) {
-    insert(value.first, value.second);
+  std::pair<Iterator, bool> insert(V& value) {
+    return insert(value.first, value.second);
   }
 
   template <class InputIterator>
@@ -1084,9 +1084,9 @@ class Alex {
   // This will NOT do an update of an existing key.
   // To perform an update or read-modify-write, do a lookup and modify the
   // payload's value.
-  void insert(T key, P payload) {
-    stats_.num_inserts++;
-
+  // Returns iterator to inserted element, and whether the insert happened or not.
+  // Insert does not happen if duplicates are not allowed and duplicate is found.
+  std::pair<Iterator, bool> insert(T key, P payload) {
     // If enough keys fall outside the key domain, expand the root to expand the
     // key domain
     if (key > istats_.key_domain_max_) {
@@ -1103,11 +1103,14 @@ class Alex {
 
     data_node_type* leaf = get_leaf(key);
 
-    // Fail means that the insert did not happen
-    // fail is 1 if no insert because node is at max capacity, or there is
-    // significant cost deviation
-    // fail is 2 if no insert because of "catastrophic" cost
-    int fail = leaf->insert(key, payload);
+    // Nonzero fail flag means that the insert did not happen
+    std::pair<int, int> ret = leaf->insert(key, payload);
+    int fail = ret.first;
+    int insert_pos = ret.second;
+    if (fail == -1) {
+      // Duplicate found and duplicates not allowed
+      return { Iterator(leaf, insert_pos), false };
+    }
 
     // If no insert, figure out what to do with the data node to decrease the
     // cost
@@ -1199,10 +1202,18 @@ class Alex {
                 .count();
 
         // Try again to insert the key
-        fail = leaf->insert(key, payload);
+        ret = leaf->insert(key, payload);
+        fail = ret.first;
+        insert_pos = ret.second;
+        if (fail == -1) {
+          // Duplicate found and duplicates not allowed
+          return { Iterator(leaf, insert_pos), false };
+        }
       }
     }
+    stats_.num_inserts++;
     stats_.num_keys++;
+    return { Iterator(leaf, insert_pos), true };
   }
 
  private:

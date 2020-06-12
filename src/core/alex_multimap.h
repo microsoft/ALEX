@@ -207,8 +207,8 @@ class AlexMultimap {
   /*** Insert ***/
 
  public:
-  void insert(V& value) {
-    alex_.insert(value);
+  iterator insert(V& value) {
+    return alex_.insert(value).first;
   }
 
   template <class InputIterator>
@@ -219,8 +219,8 @@ class AlexMultimap {
   // This will NOT do an update of an existing key.
   // To perform an update or read-modify-write, do a lookup and modify the
   // payload's value.
-  void insert(T key, P payload) {
-    alex_.insert(key, payload);
+  iterator insert(T key, P payload) {
+    return alex_.insert(key, payload).first;
   }
 
   /*** Delete ***/

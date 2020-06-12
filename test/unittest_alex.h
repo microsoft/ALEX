@@ -334,7 +334,8 @@ TEST(Alex, TestSequentialInserts) {
   index.bulk_load(values, 50);
 
   for (int i = 50; i < 200; i++) {
-    index.insert(i, i);
+    auto ret = index.insert(i, i);
+    EXPECT_EQ(ret.first.key(), i);
   }
 
   for (int i = 0; i < 200; i++) {
@@ -359,7 +360,8 @@ TEST(Alex, TestOrderedInserts) {
   index.bulk_load(values, 100);
 
   for (int i = 0; i < 100; i++) {
-    index.insert(2 * i + 1, i);
+    auto ret = index.insert(2 * i + 1, i);
+    EXPECT_EQ(ret.first.key(), 2 * i + 1);
   }
 
   // Check that getting the key is correct.
@@ -385,7 +387,8 @@ TEST(Alex, TestRandomInserts) {
   index.bulk_load(values, 25);
 
   for (int i = 25; i < 200; i++) {
-    index.insert(values[i].first, values[i].second);
+    auto ret = index.insert(values[i].first, values[i].second);
+    EXPECT_EQ(ret.first.key(), values[i].first);
   }
 
   // Check that getting the key is correct.
@@ -406,7 +409,8 @@ TEST(Alex, TestInsertFromEmpty) {
   }
 
   for (int i = 0; i < 200; i++) {
-    index.insert(values[i].first, values[i].second);
+    auto ret = index.insert(values[i].first, values[i].second);
+    EXPECT_EQ(ret.first.key(), values[i].first);
   }
 
   // Check that getting the key is correct.

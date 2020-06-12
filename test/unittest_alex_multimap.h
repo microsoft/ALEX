@@ -54,7 +54,8 @@ TEST(AlexMultimap, TestRandomInserts) {
   index.bulk_load(values, 25);
 
   for (int i = 25; i < 200; i++) {
-    index.insert(values[i].first, values[i].second);
+    auto it = index.insert(values[i].first, values[i].second);
+    EXPECT_EQ(it.key(), values[i].first);
   }
 
   // Check that getting the key is correct.

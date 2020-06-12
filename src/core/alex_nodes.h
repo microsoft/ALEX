@@ -280,11 +280,12 @@ class AlexModelNode : public AlexNode<T, P> {
 * - Stats
 * - Debugging
 */
-template <class T, class P, class Compare = AlexCompare, class Alloc = std::allocator<std::pair<T,P>>>
+template <class T, class P, class Compare = AlexCompare, class Alloc = std::allocator<std::pair<T,P>>,
+    bool allow_duplicates = true>
 class AlexDataNode : public AlexNode<T, P> {
  public:
   typedef std::pair<T, P> V;
-  typedef AlexDataNode<T,P,Compare, Alloc> self_type;
+  typedef AlexDataNode<T,P,Compare, Alloc,allow_duplicates> self_type;
   typedef typename Alloc::template rebind<self_type>::other alloc_type;
   typedef typename Alloc::template rebind<T>::other key_alloc_type;
   typedef typename Alloc::template rebind<P>::other payload_alloc_type;
@@ -1465,21 +1466,23 @@ class AlexDataNode : public AlexNode<T, P> {
     return get_next_filled_position(pos, false);
   }
 
-  // Finds position to insert a key
+  // Finds position to insert a key.
+  // First returned value takes prediction into account.
+  // Second returned value is first valid position (i.e., upper_bound of key).
   // If there are duplicate keys, the insert position will be to the right of
-  // all existing keys of the same value
-  int find_insert_position(T key) {
+  // all existing keys of the same value.
+  std::pair<int, int> find_insert_position(T key) {
     int predicted_pos =
         predict_position(key);  // first use model to get prediction
 
     // insert to the right of duplicate keys
     int pos = exponential_search_upper_bound(predicted_pos, key);
     if (predicted_pos <= pos) {
-      return pos;
+      return { pos, pos };
     } else {
       // Place inserted key as close as possible to the predicted position while
       // maintaining correctness
-      return std::min(predicted_pos, get_next_filled_position(pos, true) - 1);
+      return { std::min(predicted_pos, get_next_filled_position(pos, true) - 1), pos };
     }
   }
 
@@ -1640,26 +1643,31 @@ class AlexDataNode : public AlexNode<T, P> {
     return shifts_per_insert() > 100 || expected_avg_shifts_ > 100;
   }
 
-  // Returns 0 if successful insert (possibly with automatic expansion)
-  // Returns 1 if no insert because of significant cost deviation
-  // Returns 2 if no insert because of "catastrophic" cost
-  // Returns 3 if no insert because node is at max capacity
-  int insert(T key, P payload) {
+  // First value in returned pair is fail flag:
+  // 0 if successful insert (possibly with automatic expansion).
+  // 1 if no insert because of significant cost deviation.
+  // 2 if no insert because of "catastrophic" cost.
+  // 3 if no insert because node is at max capacity.
+  // -1 if key already exists and duplicates not allowed.
+  //
+  // Second value in returned pair is position of inserted key, or of the already-existing key.
+  // -1 if no insertion.
+  std::pair<int, int> insert(T key, P payload) {
     // Periodically check for catastrophe
     if (num_inserts_ % 64 == 0 && catastrophic_cost()) {
-      return 2;
+      return { 2, -1 };
     }
 
     // Check if node is full (based on expansion_threshold)
     if (num_keys_ >= expansion_threshold_) {
       if (significant_cost_deviation()) {
-        return 1;
+        return { 1, -1 };
       }
       if (catastrophic_cost()) {
-        return 2;
+        return { 2, -1 };
       }
       if (num_keys_ > max_slots_ * kMinDensity_) {
-        return 3;
+        return { 3, -1 };
       }
       // Expand
       bool keep_left = is_append_mostly_right();
@@ -1669,12 +1677,17 @@ class AlexDataNode : public AlexNode<T, P> {
     }
 
     // Insert
-    int insertion_position = find_insert_position(key);
+    std::pair<int, int> positions = find_insert_position(key);
+    int upper_bound_pos = positions.second;
+    if (!allow_duplicates && upper_bound_pos > 0 && key_equal(ALEX_DATA_NODE_KEY_AT(upper_bound_pos-1), key)) {
+      return { -1, upper_bound_pos - 1 };
+    }
+    int insertion_position = positions.first;
     if (insertion_position < data_capacity_ &&
         !check_exists(insertion_position)) {
       insert_element_at(key, payload, insertion_position);
     } else {
-      insert_using_shifts(key, payload, insertion_position);
+      insertion_position = insert_using_shifts(key, payload, insertion_position);
     }
 
     // Update stats
@@ -1688,7 +1701,7 @@ class AlexDataNode : public AlexNode<T, P> {
       min_key_ = key;
       num_left_out_of_bounds_inserts_++;
     }
-    return 0;
+    return { 0, insertion_position };
   }
 
   // Resize the data node to the target density

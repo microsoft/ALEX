@@ -303,12 +303,13 @@ TEST(DataNode, TestFindInsertPosition) {
   node.bulk_load(values, 100);
 
   for (int key = 0; key < node.data_capacity_; key++) {
-    int insert_pos = node.find_insert_position(key);
-    if (insert_pos > 0) {
-      EXPECT_TRUE(key >= node.get_key(insert_pos - 1));
+    std::pair<int, int> insert_pos = node.find_insert_position(key);
+    int model_based_insert_pos = insert_pos.first;
+    if (model_based_insert_pos > 0) {
+      EXPECT_TRUE(key >= node.get_key(model_based_insert_pos - 1));
     }
-    if (insert_pos < node.data_capacity_) {
-      EXPECT_TRUE(key <= node.get_key(insert_pos));
+    if (model_based_insert_pos < node.data_capacity_) {
+      EXPECT_TRUE(key <= node.get_key(model_based_insert_pos));
     }
   }
 }

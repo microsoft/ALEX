@@ -27,12 +27,16 @@ TEST(AlexMap, TestFind) {
 
   // Find existent keys
   for (int i = 0; i < 500; i++) {
-    if (i % 2 == 0) {
+    // Three different ways of finding
+    if (i % 3 == 0) {
       auto it = index.find(values[i].first);
       EXPECT_TRUE(!it.is_end());
       EXPECT_EQ(values[i].first, it.key());
-    } else {
+    } else if (i % 3 == 1) {
       int& payload = index.at(values[i].first);
+      EXPECT_EQ(values[i].second, payload);
+    } else {
+      int& payload = index[values[i].first];
       EXPECT_EQ(values[i].second, payload);
     }
   }
@@ -59,7 +63,14 @@ TEST(AlexMap, TestRandomInserts) {
   index.bulk_load(values, 25);
 
   for (int i = 25; i < 200; i++) {
-    index.insert(values[i].first, values[i].second);
+    // Two different ways of inserting
+    if (i % 2 == 0) {
+      auto ret = index.insert(values[i].first, values[i].second);
+      EXPECT_EQ(ret.first.key(), values[i].first);
+    } else {
+      index[values[i].first] = values[i].second;
+      EXPECT_EQ(index[values[i].first], values[i].second);
+    }
   }
 
   // Check that getting the key is correct.

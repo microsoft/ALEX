@@ -129,7 +129,7 @@ class AlexMap {
 
  public:
   P& operator[] (T key) {
-    abort();
+    return alex_.insert(key, P()).first.payload();
   }
 
   P& at(T key) {
@@ -232,8 +232,8 @@ class AlexMap {
   /*** Insert ***/
 
  public:
-  void insert(V& value) {
-    alex_.insert(value);
+  std::pair<iterator, bool> insert(V& value) {
+    return alex_.insert(value);
   }
 
   template <class InputIterator>
@@ -244,8 +244,8 @@ class AlexMap {
   // This will NOT do an update of an existing key.
   // To perform an update or read-modify-write, do a lookup and modify the
   // payload's value.
-  void insert(T key, P payload) {
-    alex_.insert(key, payload);
+  std::pair<iterator, bool> insert(T key, P payload) {
+    return alex_.insert(key, payload);
   }
 
   /*** Delete ***/
