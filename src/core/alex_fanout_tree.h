@@ -111,8 +111,8 @@ static double merge_nodes_upwards(
 // Assumes node has already been trained to produce a CDF value in the range [0,
 // 1).
 template <class T, class P, class Compare = std::less<T>>
-double compute_level(const std::pair<T,P> values[], int num_keys, const AlexNode<T, P>* node,
-                     int total_keys,
+double compute_level(const std::pair<T, P> values[], int num_keys,
+                     const AlexNode<T, P>* node, int total_keys,
                      std::vector<FTNode>& used_fanout_tree_nodes, int level,
                      double expected_insert_frac = 0,
                      bool approximate_model_computation = true,
@@ -131,8 +131,10 @@ double compute_level(const std::pair<T,P> values[], int num_keys, const AlexNode
             ? num_keys
             : static_cast<int>(
                   std::lower_bound(values, values + num_keys, ((i + 1) - b) / a,
-                                   [key_less](auto const &a, auto const &b) { return key_less(a.first, b); }) -
-                      values);
+                                   [key_less](auto const& a, auto const& b) {
+                                     return key_less(a.first, b);
+                                   }) -
+                  values);
     if (left_boundary == right_boundary) {
       used_fanout_tree_nodes.push_back(
           {level, i, 0, left_boundary, right_boundary, true, 0, 0, 0, 0, 0});
@@ -172,8 +174,8 @@ double compute_level(const std::pair<T,P> values[], int num_keys, const AlexNode
 // tree.
 template <class T, class P, class Compare = std::less<T>>
 std::pair<int, double> find_best_fanout_bottom_up(
-    const std::pair<T,P> values[], int num_keys, const AlexNode<T, P>* node, int total_keys,
-    std::vector<FTNode>& used_fanout_tree_nodes, int max_fanout,
+    const std::pair<T, P> values[], int num_keys, const AlexNode<T, P>* node,
+    int total_keys, std::vector<FTNode>& used_fanout_tree_nodes, int max_fanout,
     double expected_insert_frac = 0, bool approximate_model_computation = true,
     bool approximate_cost_computation = false, Compare key_less = Compare()) {
   // Repeatedly add levels to the fanout tree until the overall cost of each
@@ -188,10 +190,10 @@ std::pair<int, double> find_best_fanout_bottom_up(
   for (int fanout = 2, fanout_tree_level = 1; fanout <= max_fanout;
        fanout *= 2, fanout_tree_level++) {
     std::vector<FTNode> new_level;
-    double cost = compute_level<T,P,Compare>(values, num_keys, node, total_keys, new_level,
-                                fanout_tree_level, expected_insert_frac,
-                                approximate_model_computation,
-                                approximate_cost_computation, key_less);
+    double cost = compute_level<T, P, Compare>(
+        values, num_keys, node, total_keys, new_level, fanout_tree_level,
+        expected_insert_frac, approximate_model_computation,
+        approximate_cost_computation, key_less);
     fanout_costs.push_back(cost);
     if (fanout_costs.size() >= 3 &&
         fanout_costs[fanout_costs.size() - 1] >
@@ -226,8 +228,8 @@ std::pair<int, double> find_best_fanout_bottom_up(
 // tree.
 template <class T, class P, class Compare = std::less<T>>
 std::pair<int, double> find_best_fanout_top_down(
-    const std::pair<T,P> values[], int num_keys, const AlexNode<T, P>* node, int total_keys,
-    std::vector<FTNode>& used_fanout_tree_nodes, int max_fanout,
+    const std::pair<T, P> values[], int num_keys, const AlexNode<T, P>* node,
+    int total_keys, std::vector<FTNode>& used_fanout_tree_nodes, int max_fanout,
     double expected_insert_frac = 0, bool approximate_model_computation = true,
     bool approximate_cost_computation = false, Compare key_less = Compare()) {
   // Grow the fanout tree top-down breadth-first, each node independently
@@ -258,8 +260,10 @@ std::pair<int, double> find_best_fanout_top_down(
           std::lower_bound(values + tree_node.left_boundary,
                            values + tree_node.right_boundary,
                            ((2 * tree_node.node_id + 1) - b) / a,
-                           [key_less](auto const &a, auto const &b) { return key_less(a.first, b); }) -
-              values);
+                           [key_less](auto const& a, auto const& b) {
+                             return key_less(a.first, b);
+                           }) -
+          values);
       double node_split_cost = 0;
       int num_node_keys = tree_node.right_boundary - tree_node.left_boundary;
       int boundaries[] = {tree_node.left_boundary, middle_boundary,

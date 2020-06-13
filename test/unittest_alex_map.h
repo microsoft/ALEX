@@ -20,9 +20,8 @@ TEST(AlexMap, TestFind) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 500, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 500,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 500);
 
   // Find existent keys
@@ -33,10 +32,10 @@ TEST(AlexMap, TestFind) {
       EXPECT_TRUE(!it.is_end());
       EXPECT_EQ(values[i].first, it.key());
     } else if (i % 3 == 1) {
-      int& payload = index.at(values[i].first);
+      int &payload = index.at(values[i].first);
       EXPECT_EQ(values[i].second, payload);
     } else {
-      int& payload = index[values[i].first];
+      int &payload = index[values[i].first];
       EXPECT_EQ(values[i].second, payload);
     }
   }
@@ -57,9 +56,8 @@ TEST(AlexMap, TestRandomInserts) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 25, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 25,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 25);
 
   for (int i = 25; i < 200; i++) {
@@ -90,9 +88,8 @@ TEST(AlexMap, TestRandomErases) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 200, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 200,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 200);
 
   // Try to erase a nonexistent key
@@ -123,9 +120,8 @@ TEST(AlexMap, TestRangeScan) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 200, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 200,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 200);
 
   std::vector<int> results;

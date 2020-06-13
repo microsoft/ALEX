@@ -66,9 +66,8 @@ int main(int argc, char* argv[]) {
 
   // Create ALEX and bulk load
   alex::Alex<KEY_TYPE, PAYLOAD_TYPE> index;
-  std::sort(values, values + init_num_keys, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + init_num_keys,
+            [](auto const& a, auto const& b) { return a.first < b.first; });
   index.bulk_load(values, init_num_keys);
 
   // Run workload

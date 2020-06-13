@@ -19,9 +19,8 @@ TEST(Alex, TestBulkLoad) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 500, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 500,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 500);
 
   for (int i = 0; i < 500; i++) {
@@ -44,9 +43,8 @@ TEST(Alex, TestConstructors) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 500, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 500,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 500);
 
   Alex<int, int> index2(index);  // Copy constructor
@@ -85,9 +83,8 @@ TEST(Alex, TestIterators) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 500, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 500,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 500);
 
   // Iterator from beginning to end
@@ -153,9 +150,8 @@ TEST(Alex, TestFind) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 500, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 500,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 500);
 
   // Find existent keys
@@ -164,7 +160,7 @@ TEST(Alex, TestFind) {
     EXPECT_TRUE(!it.is_end());
     EXPECT_EQ(values[i].first, it.key());
 
-    int* p = index.get_payload(values[i].first);
+    int *p = index.get_payload(values[i].first);
     EXPECT_TRUE(p);
     EXPECT_EQ(values[i].second, *p);
   }
@@ -174,7 +170,7 @@ TEST(Alex, TestFind) {
     auto it = index.find(i);
     EXPECT_TRUE(it.is_end());
 
-    int* p = index.get_payload(i);
+    int *p = index.get_payload(i);
     EXPECT_TRUE(!p);
   }
 }
@@ -192,9 +188,8 @@ TEST(Alex, TestLowerUpperBound) {
     }
   }
 
-  std::sort(values, values + 100, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 100,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 100);
 
   // Search for existent keys
@@ -254,9 +249,8 @@ TEST(Alex, TestFindLastNoGreaterThan) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 500, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 500,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 500);
 
   // Existent keys
@@ -265,7 +259,7 @@ TEST(Alex, TestFindLastNoGreaterThan) {
     EXPECT_TRUE(!it.is_end());
     EXPECT_EQ(values[i].first, it.key());
 
-    int* p = index.get_payload_last_no_greater_than(values[i].first);
+    int *p = index.get_payload_last_no_greater_than(values[i].first);
     EXPECT_TRUE(p);
     EXPECT_EQ(values[i].second, *p);
   }
@@ -281,7 +275,7 @@ TEST(Alex, TestFindLastNoGreaterThan) {
       EXPECT_GT(it.key(), key);
     }
 
-    int* p = index.get_payload_last_no_greater_than(key);
+    int *p = index.get_payload_last_no_greater_than(key);
     EXPECT_TRUE(p);
     EXPECT_EQ(values[i].second, *p);
   }
@@ -301,9 +295,8 @@ TEST(Alex, TestReadModifyWrite) {
     values[i].second = 0;
   }
 
-  std::sort(values, values + 100, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 100,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 100);
 
   auto it = index.find(50);
@@ -328,9 +321,8 @@ TEST(Alex, TestSequentialInserts) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 50, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 50,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 50);
 
   for (int i = 50; i < 200; i++) {
@@ -354,9 +346,8 @@ TEST(Alex, TestOrderedInserts) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 100, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 100,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 100);
 
   for (int i = 0; i < 100; i++) {
@@ -381,9 +372,8 @@ TEST(Alex, TestRandomInserts) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 25, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 25,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 25);
 
   for (int i = 25; i < 200; i++) {
@@ -430,9 +420,8 @@ TEST(Alex, TestRandomErases) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 200, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 200,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 200);
 
   // Try to erase a nonexistent key
@@ -463,9 +452,8 @@ TEST(Alex, TestRangeScan) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 200, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 200,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 200);
 
   std::vector<int> results;

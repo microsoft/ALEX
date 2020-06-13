@@ -30,8 +30,8 @@
 #include <bitset>
 #include <cassert>
 #ifdef _WIN32
-#include <limits.h>
 #include <intrin.h>
+#include <limits.h>
 typedef unsigned __int32 uint32_t;
 #else
 #include <stdint.h>
@@ -148,8 +148,10 @@ class LinearModelBuilder {
 
 struct AlexCompare {
   template <class T1, class T2>
-  bool operator() (const T1& x, const T2& y) const {
-    static_assert(std::is_arithmetic<T1>::value && std::is_arithmetic<T2>::value, "Comparison types must be numeric.");
+  bool operator()(const T1& x, const T2& y) const {
+    static_assert(
+        std::is_arithmetic<T1>::value && std::is_arithmetic<T2>::value,
+        "Comparison types must be numeric.");
     return x < y;
   }
 };
@@ -254,8 +256,7 @@ class ExpectedShiftsAccumulator : public StatAccumulator {
   // Therefore, we track n^2/4.
   void accumulate(int actual_position, int) override {
     if (actual_position > last_position_ + 1) {
-      int dense_region_length =
-          last_position_ - dense_region_start_idx_ + 1;
+      int dense_region_length = last_position_ - dense_region_start_idx_ + 1;
       num_expected_shifts_ += (dense_region_length * dense_region_length) / 4;
       dense_region_start_idx_ = actual_position;
     }
@@ -266,8 +267,7 @@ class ExpectedShiftsAccumulator : public StatAccumulator {
   double get_stat() override {
     if (count_ == 0) return 0;
     // first need to accumulate statistics for current packed region
-    int dense_region_length =
-        last_position_ - dense_region_start_idx_ + 1;
+    int dense_region_length = last_position_ - dense_region_start_idx_ + 1;
     long long cur_num_expected_shifts =
         num_expected_shifts_ + (dense_region_length * dense_region_length) / 4;
     return cur_num_expected_shifts / static_cast<double>(count_);
@@ -300,8 +300,7 @@ class ExpectedIterationsAndShiftsAccumulator : public StatAccumulator {
         std::log2(std::abs(predicted_position - actual_position) + 1);
 
     if (actual_position > last_position_ + 1) {
-      int dense_region_length =
-          last_position_ - dense_region_start_idx_ + 1;
+      int dense_region_length = last_position_ - dense_region_start_idx_ + 1;
       num_expected_shifts_ += (dense_region_length * dense_region_length) / 4;
       dense_region_start_idx_ = actual_position;
     }
@@ -322,8 +321,7 @@ class ExpectedIterationsAndShiftsAccumulator : public StatAccumulator {
 
   double get_expected_num_shifts() {
     if (count_ == 0) return 0;
-    int dense_region_length =
-        last_position_ - dense_region_start_idx_ + 1;
+    int dense_region_length = last_position_ - dense_region_start_idx_ + 1;
     long long cur_num_expected_shifts =
         num_expected_shifts_ + (dense_region_length * dense_region_length) / 4;
     return cur_num_expected_shifts / static_cast<double>(count_);
@@ -373,24 +371,23 @@ class CPUID {
  public:
   explicit CPUID(unsigned i, unsigned j) {
 #ifdef _WIN32
-    __cpuid((int *)regs, (int)i, (int)j);
+    __cpuid((int*)regs, (int)i, (int)j);
 #else
-    asm volatile
-    ("cpuid" : "=a" (regs[0]), "=b" (regs[1]), "=c" (regs[2]), "=d" (regs[3])
-    : "a" (i), "c" (j));
-    // ECX is set to zero for CPUID function 4
+    asm volatile("cpuid"
+                 : "=a"(regs[0]), "=b"(regs[1]), "=c"(regs[2]), "=d"(regs[3])
+                 : "a"(i), "c"(j));
+// ECX is set to zero for CPUID function 4
 #endif
   }
 
-  const uint32_t &EAX() const {return regs[0];}
-  const uint32_t &EBX() const {return regs[1];}
-  const uint32_t &ECX() const {return regs[2];}
-  const uint32_t &EDX() const {return regs[3];}
+  const uint32_t& EAX() const { return regs[0]; }
+  const uint32_t& EBX() const { return regs[1]; }
+  const uint32_t& ECX() const { return regs[2]; }
+  const uint32_t& EDX() const { return regs[3]; }
 };
 
 // https://en.wikipedia.org/wiki/CPUID
 bool cpu_supports_bmi() {
   return static_cast<bool>(CPUID(7, 0).EBX() & (1 << 3));
 }
-
 }

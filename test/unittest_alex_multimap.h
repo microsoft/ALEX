@@ -20,9 +20,8 @@ TEST(AlexMultimap, TestFind) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 500, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 500,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 500);
 
   // Find existent keys
@@ -48,9 +47,8 @@ TEST(AlexMultimap, TestRandomInserts) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 25, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 25,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 25);
 
   for (int i = 25; i < 200; i++) {
@@ -75,9 +73,8 @@ TEST(AlexMultimap, TestRandomErases) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 200, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 200,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 200);
 
   // Try to erase a nonexistent key
@@ -108,9 +105,8 @@ TEST(AlexMultimap, TestRangeScan) {
     values[i].second = i;
   }
 
-  std::sort(values, values + 200, [](auto const &a, auto const &b) {
-    return a.first < b.first;
-  });
+  std::sort(values, values + 200,
+            [](auto const &a, auto const &b) { return a.first < b.first; });
   index.bulk_load(values, 200);
 
   std::vector<int> results;

@@ -15,7 +15,8 @@
 
 namespace alex {
 
-template <class T, class P, class Compare = AlexCompare, class Alloc = std::allocator<std::pair<T,P>>>
+template <class T, class P, class Compare = AlexCompare,
+          class Alloc = std::allocator<std::pair<T, P>>>
 class AlexMap {
   static_assert(std::is_arithmetic<T>::value, "ALEX key type must be numeric.");
 
@@ -24,8 +25,8 @@ class AlexMap {
   typedef std::pair<T, P> V;
 
   // ALEX class aliases
-  typedef AlexMap<T,P,Compare,Alloc> self_type;
-  typedef Alex<T,P,Compare,Alloc,false> alex_impl;
+  typedef AlexMap<T, P, Compare, Alloc> self_type;
+  typedef Alex<T, P, Compare, Alloc, false> alex_impl;
   typedef typename alex_impl::Iterator iterator;
   typedef typename alex_impl::ConstIterator const_iterator;
   typedef typename alex_impl::ReverseIterator reverse_iterator;
@@ -39,7 +40,8 @@ class AlexMap {
  public:
   AlexMap() : alex_() {}
 
-  AlexMap(const Compare& comp, const Alloc& alloc = Alloc()) : alex_(comp, alloc) {}
+  AlexMap(const Compare& comp, const Alloc& alloc = Alloc())
+      : alex_(comp, alloc) {}
 
   AlexMap(const Alloc& alloc) : alex_(alloc) {}
 
@@ -50,16 +52,18 @@ class AlexMap {
   // recommend directly using bulk_load() instead.
   template <class InputIterator>
   explicit AlexMap(InputIterator first, InputIterator last, const Compare& comp,
-                const Alloc& alloc = Alloc()) : alex_(first, last, comp, alloc) {}
+                   const Alloc& alloc = Alloc())
+      : alex_(first, last, comp, alloc) {}
 
   // Initializes with range [first, last). The range does not need to be
   // sorted. This creates a temporary copy of the data. If possible, we
   // recommend directly using bulk_load() instead.
   template <class InputIterator>
-  explicit AlexMap(InputIterator first, InputIterator last, const Alloc& alloc = Alloc()) : alex_(first, last, alloc) {}
+  explicit AlexMap(InputIterator first, InputIterator last,
+                   const Alloc& alloc = Alloc())
+      : alex_(first, last, alloc) {}
 
-  explicit AlexMap(const self_type& other)
-      : alex_(other.alex_) {}
+  explicit AlexMap(const self_type& other) : alex_(other.alex_) {}
 
   AlexMap& operator=(const self_type& other) {
     if (this != &other) {
@@ -68,10 +72,7 @@ class AlexMap {
     return *this;
   }
 
-  void swap(const self_type& other)
-  {
-    alex_.swap(other.alex_);
-  }
+  void swap(const self_type& other) { alex_.swap(other.alex_); }
 
  public:
   // When bulk loading, Alex can use provided knowledge of the expected fraction
@@ -106,13 +107,9 @@ class AlexMap {
   /*** Allocators and comparators ***/
 
  public:
-  Alloc get_allocator() const {
-    return alex_.get_allocator();
-  }
+  Alloc get_allocator() const { return alex_.get_allocator(); }
 
-  Compare key_comp() const {
-    return alex_.key_comp();
-  }
+  Compare key_comp() const { return alex_.key_comp(); }
 
   /*** Bulk loading ***/
 
@@ -127,9 +124,7 @@ class AlexMap {
   /*** Element access ***/
 
  public:
-  P& operator[] (const T& key) {
-    return alex_.insert(key, P()).first.payload();
-  }
+  P& operator[](const T& key) { return alex_.insert(key, P()).first.payload(); }
 
   P& at(const T& key) {
     P* payload = alex_.get_payload(key);
@@ -158,31 +153,21 @@ class AlexMap {
   // right-most key
   // If you instead want an iterator to the left-most key with the input value,
   // use lower_bound()
-  iterator find(const T& key) {
-    return alex_.find(key);
-  }
+  iterator find(const T& key) { return alex_.find(key); }
 
-  const_iterator find(const T& key) const {
-    return alex_.find(key);
-  }
+  const_iterator find(const T& key) const { return alex_.find(key); }
 
-  size_t count(const T& key) {
-    return alex_.size(key);
-  }
+  size_t count(const T& key) { return alex_.size(key); }
 
   // Returns an iterator to the first key no less than the input value
-  iterator lower_bound(const T& key) {
-    return alex_.lower_bound(key);
-  }
+  iterator lower_bound(const T& key) { return alex_.lower_bound(key); }
 
   const_iterator lower_bound(const T& key) const {
     return alex_.lower_bound(key);
   }
 
   // Returns an iterator to the first key greater than the input value
-  iterator upper_bound(const T& key) {
-    return alex_.upper_bound(key);
-  }
+  iterator upper_bound(const T& key) { return alex_.upper_bound(key); }
 
   const_iterator upper_bound(const T& key) const {
     return alex_.upper_bound(key);
@@ -196,37 +181,21 @@ class AlexMap {
     return alex_.equal_range(key);
   }
 
-  iterator begin() {
-    return alex_.begin();
-  }
+  iterator begin() { return alex_.begin(); }
 
-  iterator end() {
-    return alex_.end();
-  }
+  iterator end() { return alex_.end(); }
 
-  const_iterator cbegin() const {
-    return alex_.cbegin();
-  }
+  const_iterator cbegin() const { return alex_.cbegin(); }
 
-  const_iterator cend() const {
-    return alex_.cend();
-  }
+  const_iterator cend() const { return alex_.cend(); }
 
-  reverse_iterator rbegin() {
-    return alex_.rbegin();
-  }
+  reverse_iterator rbegin() { return alex_.rbegin(); }
 
-  reverse_iterator rend() {
-    return alex_.rend();
-  }
+  reverse_iterator rend() { return alex_.rend(); }
 
-  const_reverse_iterator crbegin() const {
-    return alex_.crbegin();
-  }
+  const_reverse_iterator crbegin() const { return alex_.crbegin(); }
 
-  const_reverse_iterator crend() const {
-    return alex_.crend();
-  }
+  const_reverse_iterator crend() const { return alex_.crend(); }
 
   /*** Insert ***/
 
@@ -251,40 +220,28 @@ class AlexMap {
 
  public:
   // Erases all keys with a certain key value
-  int erase(const T& key) {
-    return alex_.erase(key);
-  }
+  int erase(const T& key) { return alex_.erase(key); }
 
   // Erases element pointed to by iterator
-  void erase(iterator it) {
-    alex_.erase(it);
-  }
+  void erase(iterator it) { alex_.erase(it); }
 
   // Removes all elements
-  void clear() {
-    alex_.clear();
-  }
+  void clear() { alex_.clear(); }
 
   /*** Stats ***/
 
  public:
   // Number of elements
-  size_t size() const {
-    return alex_.size();
-  }
+  size_t size() const { return alex_.size(); }
 
   // True if there are no elements
-  bool empty() const {
-    return alex_.empty();
-  }
+  bool empty() const { return alex_.empty(); }
 
-  // This is just a function required by the STL standard. ALEX can hold more items.
-  size_t max_size() const {
-    return alex_.max_size();
-  }
+  // This is just a function required by the STL standard. ALEX can hold more
+  // items.
+  size_t max_size() const { return alex_.max_size(); }
 
   // Return a const reference to the current statistics
   const struct alex_impl::Stats& get_stats() const { return alex_.stats_; }
-
 };
 }
