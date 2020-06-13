@@ -107,12 +107,11 @@ class AlexMap {
 
  public:
   Alloc get_allocator() const {
-    return alex_.allocator_;
+    return alex_.get_allocator();
   }
 
-  Compare key_comp() const
-  {
-    return alex_.key_less_;
+  Compare key_comp() const {
+    return alex_.key_comp();
   }
 
   /*** Bulk loading ***/

@@ -2,7 +2,7 @@
 
 ALEX is a ML-enhanced range index, similar in functionality to a B+ Tree.
 Our implementation is a near drop-in replacement for std::map or std::multimap.
-You can learned more about ALEX in our [SIGMOD 2020 paper](https://dl.acm.org/doi/pdf/10.1145/3318464.3389711).
+You can learn more about ALEX in our [SIGMOD 2020 paper](https://dl.acm.org/doi/pdf/10.1145/3318464.3389711).
 
 ### Table of Contents
 **[Getting Started](#getting-started)**<br>
@@ -13,7 +13,13 @@ You can learned more about ALEX in our [SIGMOD 2020 paper](https://dl.acm.org/do
 # Getting Started
 ALEX can be used as a header-only library.
 All relevant header files are found in [src/core](src/core).
-In this repository, we include a [short example program](src/examples/main.cpp) and [unit tests](test), which you can compile and run:
+In this repository, we include three programs that you can compile and run:
+- An [example program](src/examples/main.cpp) of how to use ALEX.
+- A [simple benchmark](src/benchmark/main.cpp) that measures the throughput of running point lookups and inserts on ALEX (explained in detail below).
+- [Unit tests](test/unittest_main.cpp).
+
+On Windows, simply load this repository into Visual Studio as a CMake project.
+On Linux/Mac, use the following commands:
 ```
 # Build using CMake, which creates a new build directory
 ./build.sh
@@ -25,8 +31,7 @@ In this repository, we include a [short example program](src/examples/main.cpp) 
 ./build/test_alex
 ```
 
-We also provide a simple benchmark that measures the throughput of running point lookups and inserts on ALEX.
-To run on a synthetic dataset with 1000 normally-distributed keys:
+To run the benchmark on a synthetic dataset with 1000 normally-distributed keys:
 ```
 ./build/benchmark \
 --keys_file=resources/sample_keys.bin \
@@ -88,6 +93,20 @@ A possible future research direction is to use a broader class of modeling techn
 A possible future research direction is to add special logic for handling extreme outliers, or to have a modeling strategy that is robust to sparse key spaces.
 
 # API Documentation
+We provide three user-facing implementations of ALEX:
+1. [AlexMap](https://github.com/microsoft/ALEX/blob/master/src/core/alex_map.h) is a near drop-in replacement for [std::map](http://www.cplusplus.com/reference/map/map/).
+2. [AlexMultiMap](https://github.com/microsoft/ALEX/blob/master/src/core/alex_multimap.h) is a near drop-in replacement for [std::multimap](http://www.cplusplus.com/reference/map/multimap/).
+3. [Alex](https://github.com/microsoft/ALEX/blob/master/src/core/alex.h) is the internal implementation that supports both AlexMap and AlexMultimap. It exposes slightly more functionality.
+
+ALEX has a few important differences to its standard library equivalents:
+- Keys and payloads (i.e., the mapped type) are stored separately, so dereferencing an iterator returns a copy of the key/payload pair, not return a reference.
+Our iterators have methods to directly return references to the key or payload individually.
+- The iterators are of type ForwardIterator, instead of BidirectionalIterator.
+Therefore, iterators do not support decrementing.
+- The internal comparison object (passed as Compare in the class template) must support comparisons between arbitrary numerical types, instead of just the key type.
+This is because our models output double-precision floating point numbers, so we must compare the key type against doubles.
+
+Detailed API documentation can be found [in our wiki](https://github.com/microsoft/ALEX/wiki/API-Documentation).
 
 # Contributing
 
@@ -98,6 +117,8 @@ the rights to use your contribution. For details, visit https://cla.opensource.m
 When you submit a pull request, a CLA bot will automatically determine whether you need to provide
 a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
 provided by the bot. You will only need to do this once across all repos using our CLA.
+
+This project follows the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html).
 
 This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
 For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or

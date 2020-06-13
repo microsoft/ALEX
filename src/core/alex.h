@@ -580,8 +580,7 @@ class Alex {
     return allocator_;
   }
 
-  Compare key_comp() const
-  {
+  Compare key_comp() const {
     return key_less_;
   }
 
