@@ -2629,6 +2629,7 @@ class Alex {
         }
         cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
       }
+      assert(cpu_supports_bmi());
       int bit_pos = static_cast<int>(63 - _lzcnt_u64(cur_bitmap_data_));
       cur_idx_ = (cur_bitmap_idx_ << 6) + bit_pos;
       cur_bitmap_data_ &= ~(1ULL << bit_pos);
@@ -2754,6 +2755,7 @@ class Alex {
         }
         cur_bitmap_data_ = cur_leaf_->bitmap_[cur_bitmap_idx_];
       }
+      assert(cpu_supports_bmi());
       int bit_pos = static_cast<int>(63 - _lzcnt_u64(cur_bitmap_data_));
       cur_idx_ = (cur_bitmap_idx_ << 6) + bit_pos;
       cur_bitmap_data_ &= ~(1ULL << bit_pos);
