@@ -180,7 +180,6 @@ inline int count_ones(uint64_t value) {
 // word_id is the word id of the bit in a bitmap
 // bit is the word that contains the bit
 inline int get_offset(int word_id, uint64_t bit) {
-  assert(count_ones(bit) == 1);
   return (word_id << 6) + count_ones(bit - 1);
 }
 
@@ -371,7 +370,7 @@ class CPUID {
  public:
   explicit CPUID(unsigned i, unsigned j) {
 #ifdef _WIN32
-    __cpuid((int*)regs, (int)i, (int)j);
+    __cpuidex((int*)regs, (int)i, (int)j);
 #else
     asm volatile("cpuid"
                  : "=a"(regs[0]), "=b"(regs[1]), "=c"(regs[2]), "=d"(regs[3])
