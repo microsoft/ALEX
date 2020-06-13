@@ -140,6 +140,24 @@ TEST(Alex, TestIterators) {
   EXPECT_EQ(501, num_keys);
 }
 
+TEST(Alex, TestConst) {
+  Alex<int, int>::V values[500];
+  // even numbers from 0 to 998 inclusive
+  for (int i = 0; i < 500; i++) {
+    values[i].first = i * 2;
+    values[i].second = i;
+  }
+
+  const Alex<int, int> index(std::begin(values), std::end(values));
+
+  // Find existent keys
+  for (int i = 0; i < 500; i++) {
+    auto it = index.find(values[i].first);
+    EXPECT_TRUE(!it.is_end());
+    EXPECT_EQ(values[i].first, it.key());
+  }
+}
+
 TEST(Alex, TestFind) {
   Alex<int, int> index;
 

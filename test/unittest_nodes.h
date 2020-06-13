@@ -519,7 +519,7 @@ TEST(DataNode, TestBuildIndexWithSample) {
   const int num_keys = 20000;
   AlexDataNode<int, int>::V values[num_keys];
   for (int i = 0; i < num_keys; i++) {
-    values[i].first = rand() % 50000;
+    values[i].first = rand() % 50000 + 10000;
   }
   std::sort(values, values + num_keys,
             [](auto const &a, auto const &b) { return a.first < b.first; });
