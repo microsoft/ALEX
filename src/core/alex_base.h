@@ -375,7 +375,6 @@ class CPUID {
     asm volatile("cpuid"
                  : "=a"(regs[0]), "=b"(regs[1]), "=c"(regs[2]), "=d"(regs[3])
                  : "a"(i), "c"(j));
-// ECX is set to zero for CPUID function 4
 #endif
   }
 
@@ -385,7 +384,7 @@ class CPUID {
   const uint32_t& EDX() const { return regs[3]; }
 };
 
-// https://en.wikipedia.org/wiki/CPUID
+// https://en.wikipedia.org/wiki/CPUID#EAX=7,_ECX=0:_Extended_Features
 bool cpu_supports_bmi() {
   return static_cast<bool>(CPUID(7, 0).EBX() & (1 << 3));
 }

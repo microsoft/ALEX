@@ -53,6 +53,7 @@ template <class T, class P, class Compare = AlexCompare,
           bool allow_duplicates = true>
 class Alex {
   static_assert(std::is_arithmetic<T>::value, "ALEX key type must be numeric.");
+  static_assert(std::is_same<Compare,AlexCompare>::value, "Must use AlexCompare.");
 
  public:
   // Value type, returned by dereferencing an iterator

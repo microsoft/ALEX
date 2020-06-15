@@ -103,8 +103,9 @@ ALEX has a few important differences to its standard library equivalents:
 Our iterators have methods to directly return references to the key or payload individually.
 - The iterators are of type ForwardIterator, instead of BidirectionalIterator.
 Therefore, iterators do not support decrementing.
-- The internal comparison object (passed as Compare in the class template) must support comparisons between arbitrary numerical types, instead of just the key type.
-This is because our models output double-precision floating point numbers, so we must compare the key type against doubles.
+- Currently, we only support numerical key types.
+We do not support arbitrary user-defined key types.
+As a result, you should not change the default comparison function in the class template.
 
 Detailed API documentation can be found [in our wiki](https://github.com/microsoft/ALEX/wiki/API-Documentation).
 
