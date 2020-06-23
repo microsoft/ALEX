@@ -53,7 +53,8 @@ template <class T, class P, class Compare = AlexCompare,
           bool allow_duplicates = true>
 class Alex {
   static_assert(std::is_arithmetic<T>::value, "ALEX key type must be numeric.");
-  static_assert(std::is_same<Compare,AlexCompare>::value, "Must use AlexCompare.");
+  static_assert(std::is_same<Compare, AlexCompare>::value,
+                "Must use AlexCompare.");
 
  public:
   // Value type, returned by dereferencing an iterator
@@ -1330,6 +1331,9 @@ class Alex {
   // a new root node.
   void expand_root(bool expand_left) {
     auto root = static_cast<model_node_type*>(root_node_);
+
+    // Find the new bounds of the key domain.
+    // Need to be careful to avoid overflows in the key type.
     T domain_size = istats_.key_domain_max_ - istats_.key_domain_min_;
     int expansion_factor;
     T new_domain_min = istats_.key_domain_min_;
@@ -1340,7 +1344,13 @@ class Alex {
           static_cast<double>(istats_.key_domain_min_ - get_min_key());
       expansion_factor = pow_2_round_up(static_cast<int>(
           std::ceil((key_difference + domain_size) / domain_size)));
-      new_domain_min -= domain_size * (expansion_factor - 1);
+      T expandable_domain =
+          istats_.key_domain_min_ - std::numeric_limits<T>::lowest();
+      if (expandable_domain / domain_size < (expansion_factor - 1)) {
+        new_domain_min = std::numeric_limits<T>::lowest();
+      } else {
+        new_domain_min -= domain_size * (expansion_factor - 1);
+      }
       istats_.num_keys_at_last_left_domain_resize = stats_.num_keys;
       istats_.num_inserts_below_key_domain = 0;
       outermost_node = first_data_node();
@@ -1349,16 +1359,21 @@ class Alex {
           static_cast<double>(get_max_key() - istats_.key_domain_max_);
       expansion_factor = pow_2_round_up(static_cast<int>(
           std::ceil((key_difference + domain_size) / domain_size)));
-      new_domain_max += domain_size * (expansion_factor - 1);
+      T expandable_domain =
+          std::numeric_limits<T>::max() - istats_.key_domain_max_;
+      if (expandable_domain / domain_size < (expansion_factor - 1)) {
+        new_domain_max = std::numeric_limits<T>::max();
+      } else {
+        new_domain_max += domain_size * (expansion_factor - 1);
+      }
       istats_.num_keys_at_last_right_domain_resize = stats_.num_keys;
       istats_.num_inserts_above_key_domain = 0;
       outermost_node = last_data_node();
     }
-    T new_domain_size = new_domain_max - new_domain_min;
 
     // Modify the root node appropriately
-    int new_nodes_start;
-    int new_nodes_end;
+    int new_nodes_start;  // index of first pointer to a new node
+    int new_nodes_end;    // exclusive
     if (root->num_children_ * expansion_factor <= derived_params_.max_fanout) {
       // Expand root node
       stats_.num_model_node_expansions++;
@@ -1388,9 +1403,12 @@ class Alex {
       // Create new root node
       auto new_root = new (model_node_allocator().allocate(1))
           model_node_type(static_cast<short>(root->level_ - 1), allocator_);
-      new_root->model_.a_ =
-          static_cast<double>(expansion_factor) / new_domain_size;
-      new_root->model_.b_ = -1.0 * new_domain_min * new_root->model_.a_;
+      new_root->model_.a_ = root->model_.a_;
+      if (expand_left) {
+        new_root->model_.b_ = root->model_.b_ + expansion_factor - 1;
+      } else {
+        new_root->model_.b_ = root->model_.b_;
+      }
       new_root->num_children_ = expansion_factor;
       new_root->children_ = new (pointer_allocator().allocate(expansion_factor))
           AlexNode<T, P>*[expansion_factor];
@@ -1406,6 +1424,17 @@ class Alex {
       update_superroot_pointer();
       root = new_root;
     }
+    // Determine if new nodes represent a range outside the key type's domain.
+    // This happens when we're preventing overflows.
+    int in_bounds_new_nodes_start = new_nodes_start;
+    int in_bounds_new_nodes_end = new_nodes_end;
+    if (expand_left) {
+      in_bounds_new_nodes_start =
+          std::max(new_nodes_start, root->model_.predict(new_domain_min));
+    } else {
+      in_bounds_new_nodes_end =
+          std::min(new_nodes_end, root->model_.predict(new_domain_max) + 1);
+    }
 
     // Fill newly created child pointers of the root node with new data nodes.
     // To minimize empty new data nodes, we create a new data node per n child
@@ -1416,34 +1445,66 @@ class Alex {
     assert(root->num_children_ % n == 0);
     auto new_node_duplication_factor =
         static_cast<uint8_t>(log_2_round_down(n));
-    double right_boundary_value =
-        new_domain_min +
-        (static_cast<double>(new_nodes_start) / root->num_children_) *
-            new_domain_size;
-    int right_boundary = new_nodes_start == 0 ? 0 : outermost_node->lower_bound(
-                                                        right_boundary_value);
-    data_node_type* prev = nullptr;
-    for (int i = new_nodes_start; i < new_nodes_end; i += n) {
-      int left_boundary = right_boundary;
-      right_boundary_value =
-          new_domain_min +
-          (static_cast<double>(i + n) / root->num_children_) * new_domain_size;
-      right_boundary = i + n == root->num_children_
-                           ? outermost_node->data_capacity_
-                           : outermost_node->lower_bound(right_boundary_value);
-      data_node_type* new_node = bulk_load_leaf_node_from_existing(
-          outermost_node, left_boundary, right_boundary, true);
-      new_node->level_ = static_cast<short>(root->level_ + 1);
-      new_node->duplication_factor_ = new_node_duplication_factor;
-      if (prev) {
-        prev->next_leaf_ = new_node;
+    if (expand_left) {
+      T left_boundary_value = istats_.key_domain_min_;
+      int left_boundary = outermost_node->lower_bound(left_boundary_value);
+      data_node_type* next = outermost_node;
+      for (int i = new_nodes_end; i > new_nodes_start; i -= n) {
+        if (i <= in_bounds_new_nodes_start) {
+          // Do not initialize nodes that fall outside the key type's domain
+          break;
+        }
+        int right_boundary = left_boundary;
+        if (i - n <= in_bounds_new_nodes_start) {
+          left_boundary = 0;
+        } else {
+          left_boundary_value -= domain_size;
+          left_boundary = outermost_node->lower_bound(left_boundary_value);
+        }
+        data_node_type* new_node = bulk_load_leaf_node_from_existing(
+            outermost_node, left_boundary, right_boundary, true);
+        new_node->level_ = static_cast<short>(root->level_ + 1);
+        new_node->duplication_factor_ = new_node_duplication_factor;
+        if (next) {
+          next->prev_leaf_ = new_node;
+        }
+        new_node->next_leaf_ = next;
+        next = new_node;
+        for (int j = i - 1; j >= i - n; j--) {
+          root->children_[j] = new_node;
+        }
       }
-      new_node->prev_leaf_ = prev;
-      prev = new_node;
-      for (int j = i; j < i + n; j++) {
-        root->children_[j] = new_node;
+    } else {
+      T right_boundary_value = istats_.key_domain_max_;
+      int right_boundary = outermost_node->lower_bound(right_boundary_value);
+      data_node_type* prev = nullptr;
+      for (int i = new_nodes_start; i < new_nodes_end; i += n) {
+        if (i >= in_bounds_new_nodes_end) {
+          // Do not initialize nodes that fall outside the key type's domain
+          break;
+        }
+        int left_boundary = right_boundary;
+        if (i + n >= in_bounds_new_nodes_end) {
+          right_boundary = outermost_node->data_capacity_;
+        } else {
+          right_boundary_value += domain_size;
+          right_boundary = outermost_node->lower_bound(right_boundary_value);
+        }
+        data_node_type* new_node = bulk_load_leaf_node_from_existing(
+            outermost_node, left_boundary, right_boundary, true);
+        new_node->level_ = static_cast<short>(root->level_ + 1);
+        new_node->duplication_factor_ = new_node_duplication_factor;
+        if (prev) {
+          prev->next_leaf_ = new_node;
+        }
+        new_node->prev_leaf_ = prev;
+        prev = new_node;
+        for (int j = i; j < i + n; j++) {
+          root->children_[j] = new_node;
+        }
       }
     }
+
     // Connect leaf nodes and remove reassigned keys from outermost pre-existing
     // node.
     if (expand_left) {
