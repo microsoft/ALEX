@@ -1497,7 +1497,7 @@ class AlexDataNode : public AlexNode<T, P> {
 
     // insert to the right of duplicate keys
     int pos = exponential_search_upper_bound(predicted_pos, key);
-    if (predicted_pos <= pos) {
+    if (predicted_pos <= pos || check_exists(pos)) {
       return {pos, pos};
     } else {
       // Place inserted key as close as possible to the predicted position while
