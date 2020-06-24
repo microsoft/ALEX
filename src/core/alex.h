@@ -431,32 +431,7 @@ class Alex {
             if (leaf->prev_leaf_ && leaf->prev_leaf_->last_key() >= key) {
               if (traversal_path) {
                 // Correct the traversal path
-                int repeats = 1 << leaf->duplication_factor_;
-                TraversalNode& tn = traversal_path->back();
-                model_node_type* parent = tn.node;
-                // First bucket whose pointer is to leaf
-                int start_bucketID = tn.bucketID - (tn.bucketID % repeats);
-                if (start_bucketID == 0) {
-                  // Traverse back up the traversal path to make correction
-                  while (start_bucketID == 0) {
-                    traversal_path->pop_back();
-                    repeats = 1 << parent->duplication_factor_;
-                    tn = traversal_path->back();
-                    parent = tn.node;
-                    start_bucketID = tn.bucketID - (tn.bucketID % repeats);
-                  }
-                  int correct_bucketID = start_bucketID - 1;
-                  tn.bucketID = correct_bucketID;
-                  cur = parent->children_[correct_bucketID];
-                  while (!cur->is_leaf_) {
-                    node = static_cast<model_node_type*>(cur);
-                    traversal_path->push_back({node, node->num_children_ - 1});
-                    cur = node->children_[node->num_children_ - 1];
-                  }
-                  assert(cur == leaf->prev_leaf_);
-                } else {
-                  tn.bucketID = start_bucketID - 1;
-                }
+                correct_traversal_path(leaf, *traversal_path, true);
               }
               return leaf->prev_leaf_;
             }
@@ -464,34 +439,7 @@ class Alex {
             if (leaf->next_leaf_ && leaf->next_leaf_->first_key() <= key) {
               if (traversal_path) {
                 // Correct the traversal path
-                int repeats = 1 << leaf->duplication_factor_;
-                TraversalNode& tn = traversal_path->back();
-                model_node_type* parent = tn.node;
-                // First bucket whose pointer is not to leaf
-                int end_bucketID =
-                    tn.bucketID - (tn.bucketID % repeats) + repeats;
-                if (end_bucketID == parent->num_children_) {
-                  // Traverse back up the traversal path to make correction
-                  while (end_bucketID == parent->num_children_) {
-                    traversal_path->pop_back();
-                    repeats = 1 << parent->duplication_factor_;
-                    tn = traversal_path->back();
-                    parent = tn.node;
-                    end_bucketID =
-                        tn.bucketID - (tn.bucketID % repeats) + repeats;
-                  }
-                  int correct_bucketID = end_bucketID;
-                  tn.bucketID = correct_bucketID;
-                  cur = parent->children_[correct_bucketID];
-                  while (!cur->is_leaf_) {
-                    node = static_cast<model_node_type*>(cur);
-                    traversal_path->push_back({node, 0});
-                    cur = node->children_[0];
-                  }
-                  assert(cur == leaf->next_leaf_);
-                } else {
-                  tn.bucketID = end_bucketID;
-                }
+                correct_traversal_path(leaf, *traversal_path, false);
               }
               return leaf->next_leaf_;
             }
@@ -526,6 +474,68 @@ class Alex {
 #endif
 
  private:
+  // Make a correction to the traversal path to instead point to the leaf node
+  // that is to the left or right of the current leaf node.
+  inline void correct_traversal_path(data_node_type* leaf,
+                                     std::vector<TraversalNode>& traversal_path,
+                                     bool left) const {
+    if (left) {
+      int repeats = 1 << leaf->duplication_factor_;
+      TraversalNode& tn = traversal_path.back();
+      model_node_type* parent = tn.node;
+      // First bucket whose pointer is to leaf
+      int start_bucketID = tn.bucketID - (tn.bucketID % repeats);
+      if (start_bucketID == 0) {
+        // Traverse back up the traversal path to make correction
+        while (start_bucketID == 0) {
+          traversal_path.pop_back();
+          repeats = 1 << parent->duplication_factor_;
+          tn = traversal_path.back();
+          parent = tn.node;
+          start_bucketID = tn.bucketID - (tn.bucketID % repeats);
+        }
+        int correct_bucketID = start_bucketID - 1;
+        tn.bucketID = correct_bucketID;
+        AlexNode<T, P>* cur = parent->children_[correct_bucketID];
+        while (!cur->is_leaf_) {
+          auto node = static_cast<model_node_type*>(cur);
+          traversal_path.push_back({node, node->num_children_ - 1});
+          cur = node->children_[node->num_children_ - 1];
+        }
+        assert(cur == leaf->prev_leaf_);
+      } else {
+        tn.bucketID = start_bucketID - 1;
+      }
+    } else {
+      int repeats = 1 << leaf->duplication_factor_;
+      TraversalNode& tn = traversal_path.back();
+      model_node_type* parent = tn.node;
+      // First bucket whose pointer is not to leaf
+      int end_bucketID = tn.bucketID - (tn.bucketID % repeats) + repeats;
+      if (end_bucketID == parent->num_children_) {
+        // Traverse back up the traversal path to make correction
+        while (end_bucketID == parent->num_children_) {
+          traversal_path.pop_back();
+          repeats = 1 << parent->duplication_factor_;
+          tn = traversal_path.back();
+          parent = tn.node;
+          end_bucketID = tn.bucketID - (tn.bucketID % repeats) + repeats;
+        }
+        int correct_bucketID = end_bucketID;
+        tn.bucketID = correct_bucketID;
+        AlexNode<T, P>* cur = parent->children_[correct_bucketID];
+        while (!cur->is_leaf_) {
+          auto node = static_cast<model_node_type*>(cur);
+          traversal_path.push_back({node, 0});
+          cur = node->children_[0];
+        }
+        assert(cur == leaf->next_leaf_);
+      } else {
+        tn.bucketID = end_bucketID;
+      }
+    }
+  }
+
   // Return left-most data node
   data_node_type* first_data_node() const {
     AlexNode<T, P>* cur = root_node_;
@@ -2168,7 +2178,18 @@ class Alex {
   void merge(data_node_type* leaf, T key) {
     // first save the complete path down to data node
     std::vector<TraversalNode> traversal_path;
-    get_leaf(key, &traversal_path);
+    auto leaf_dup = get_leaf(key, &traversal_path);
+    // We might need to correct the traversal path in edge cases
+    if (leaf_dup != leaf) {
+      if (leaf_dup->prev_leaf_ == leaf) {
+        correct_traversal_path(leaf, traversal_path, true);
+      } else if (leaf_dup->next_leaf_ == leaf) {
+        correct_traversal_path(leaf, traversal_path, false);
+      } else {
+        assert(false);
+        return;
+      }
+    }
     if (traversal_path.size() == 1) {
       return;
     }
@@ -2203,15 +2224,28 @@ class Alex {
         }
 
         // check if adjacent node is a sibling
-        if (leaf->duplication_factor_ == adjacent_leaf->duplication_factor_) {
-          for (int i = start_bucketID; i < end_bucketID; i++) {
-            parent->children_[i] = adjacent_leaf;
+        if (leaf->duplication_factor_ != adjacent_leaf->duplication_factor_) {
+          break;  // unable to merge with sibling leaf
+        }
+
+        // merge with adjacent leaf
+        for (int i = start_bucketID; i < end_bucketID; i++) {
+          parent->children_[i] = adjacent_leaf;
+        }
+        if (adjacent_to_right) {
+          adjacent_leaf->prev_leaf_ = leaf->prev_leaf_;
+          if (leaf->prev_leaf_) {
+            leaf->prev_leaf_->next_leaf_ = adjacent_leaf;
           }
         } else {
-          break;  // unable to merge with sibling leaf
+          adjacent_leaf->next_leaf_ = leaf->next_leaf_;
+          if (leaf->next_leaf_) {
+            leaf->next_leaf_->prev_leaf_ = adjacent_leaf;
+          }
         }
         adjacent_leaf->duplication_factor_++;
         delete_node(leaf);
+        stats_.num_data_nodes--;
         leaf = adjacent_leaf;
         repeats = 1 << leaf->duplication_factor_;
       }
@@ -2223,6 +2257,7 @@ class Alex {
         repeats = 1 << leaf->duplication_factor_;
         bool is_root_node = (parent == root_node_);
         delete_node(parent);
+        stats_.num_model_nodes--;
 
         if (is_root_node) {
           root_node_ = leaf;
