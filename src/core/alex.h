@@ -157,8 +157,8 @@ class Alex {
   struct InternalStats {
     T key_domain_min_ = std::numeric_limits<T>::max();
     T key_domain_max_ = std::numeric_limits<T>::lowest();
-    int num_inserts_above_key_domain = 0;
-    int num_inserts_below_key_domain = 0;
+    int num_keys_above_key_domain = 0;
+    int num_keys_below_key_domain = 0;
     int num_keys_at_last_right_domain_resize = 0;
     int num_keys_at_last_left_domain_resize = 0;
   };
@@ -694,8 +694,8 @@ class Alex {
     istats_.key_domain_max_ = get_max_key();
     istats_.num_keys_at_last_right_domain_resize = stats_.num_keys;
     istats_.num_keys_at_last_left_domain_resize = stats_.num_keys;
-    istats_.num_inserts_above_key_domain = 0;
-    istats_.num_inserts_below_key_domain = 0;
+    istats_.num_keys_above_key_domain = 0;
+    istats_.num_keys_below_key_domain = 0;
     superroot_->model_.a_ =
         1.0 / (istats_.key_domain_max_ - istats_.key_domain_min_);
     superroot_->model_.b_ =
@@ -1108,14 +1108,14 @@ class Alex {
     // If enough keys fall outside the key domain, expand the root to expand the
     // key domain
     if (key > istats_.key_domain_max_) {
-      istats_.num_inserts_above_key_domain++;
+      istats_.num_keys_above_key_domain++;
       if (should_expand_right()) {
-        expand_root(false);  // expand to the right
+        expand_root(key, false);  // expand to the right
       }
     } else if (key < istats_.key_domain_min_) {
-      istats_.num_inserts_below_key_domain++;
+      istats_.num_keys_below_key_domain++;
       if (should_expand_left()) {
-        expand_root(true);  // expand to the left
+        expand_root(key, true);  // expand to the left
       }
     }
 
@@ -1245,26 +1245,26 @@ class Alex {
   // expect from randomness alone.
   bool should_expand_right() const {
     return (!root_node_->is_leaf_ &&
-            ((istats_.num_inserts_above_key_domain >= kMinOutOfDomainKeys &&
-              istats_.num_inserts_above_key_domain >=
+            ((istats_.num_keys_above_key_domain >= kMinOutOfDomainKeys &&
+              istats_.num_keys_above_key_domain >=
                   kOutOfDomainToleranceFactor *
                       (stats_.num_keys /
                            istats_.num_keys_at_last_right_domain_resize -
                        1)) ||
-             istats_.num_inserts_above_key_domain >= kMaxOutOfDomainKeys));
+             istats_.num_keys_above_key_domain >= kMaxOutOfDomainKeys));
   }
 
   // Similar to should_expand_right, but for insertions to the left of the key
   // domain.
   bool should_expand_left() const {
     return (!root_node_->is_leaf_ &&
-            ((istats_.num_inserts_below_key_domain >= kMinOutOfDomainKeys &&
-              istats_.num_inserts_below_key_domain >=
+            ((istats_.num_keys_below_key_domain >= kMinOutOfDomainKeys &&
+              istats_.num_keys_below_key_domain >=
                   kOutOfDomainToleranceFactor *
                       (stats_.num_keys /
                            istats_.num_keys_at_last_left_domain_resize -
                        1)) ||
-             istats_.num_inserts_below_key_domain >= kMaxOutOfDomainKeys));
+             istats_.num_keys_below_key_domain >= kMaxOutOfDomainKeys));
   }
 
   // When splitting upwards, find best internal node to propagate upwards to.
@@ -1329,7 +1329,7 @@ class Alex {
   // Expands the root node (which is a model node).
   // If the root node is at the max node size, then we split the root and create
   // a new root node.
-  void expand_root(bool expand_left) {
+  void expand_root(T key, bool expand_left) {
     auto root = static_cast<model_node_type*>(root_node_);
 
     // Find the new bounds of the key domain.
@@ -1340,8 +1340,8 @@ class Alex {
     T new_domain_max = istats_.key_domain_max_;
     data_node_type* outermost_node;
     if (expand_left) {
-      auto key_difference =
-          static_cast<double>(istats_.key_domain_min_ - get_min_key());
+      auto key_difference = static_cast<double>(istats_.key_domain_min_ -
+                                                std::min(key, get_min_key()));
       expansion_factor = pow_2_round_up(static_cast<int>(
           std::ceil((key_difference + domain_size) / domain_size)));
       T expandable_domain =
@@ -1352,11 +1352,11 @@ class Alex {
         new_domain_min -= domain_size * (expansion_factor - 1);
       }
       istats_.num_keys_at_last_left_domain_resize = stats_.num_keys;
-      istats_.num_inserts_below_key_domain = 0;
+      istats_.num_keys_below_key_domain = 0;
       outermost_node = first_data_node();
     } else {
-      auto key_difference =
-          static_cast<double>(get_max_key() - istats_.key_domain_max_);
+      auto key_difference = static_cast<double>(std::max(key, get_max_key()) -
+                                                istats_.key_domain_max_);
       expansion_factor = pow_2_round_up(static_cast<int>(
           std::ceil((key_difference + domain_size) / domain_size)));
       T expandable_domain =
@@ -1367,9 +1367,10 @@ class Alex {
         new_domain_max += domain_size * (expansion_factor - 1);
       }
       istats_.num_keys_at_last_right_domain_resize = stats_.num_keys;
-      istats_.num_inserts_above_key_domain = 0;
+      istats_.num_keys_above_key_domain = 0;
       outermost_node = last_data_node();
     }
+    assert(expansion_factor > 1);
 
     // Modify the root node appropriately
     int new_nodes_start;  // index of first pointer to a new node
@@ -2095,6 +2096,11 @@ class Alex {
     if (leaf->num_keys_ == 0) {
       merge(leaf, key);
     }
+    if (key > istats_.key_domain_max_) {
+      istats_.num_keys_above_key_domain -= num_erased;
+    } else if (key < istats_.key_domain_min_) {
+      istats_.num_keys_below_key_domain -= num_erased;
+    }
     return num_erased;
   }
 
@@ -2105,6 +2111,11 @@ class Alex {
     stats_.num_keys -= num_erased;
     if (leaf->num_keys_ == 0) {
       merge(leaf, key);
+    }
+    if (key > istats_.key_domain_max_) {
+      istats_.num_keys_above_key_domain -= num_erased;
+    } else if (key < istats_.key_domain_min_) {
+      istats_.num_keys_below_key_domain -= num_erased;
     }
     return num_erased;
   }
@@ -2119,6 +2130,11 @@ class Alex {
     stats_.num_keys--;
     if (it.cur_leaf_->num_keys_ == 0) {
       merge(it.cur_leaf_, key);
+    }
+    if (key > istats_.key_domain_max_) {
+      istats_.num_keys_above_key_domain--;
+    } else if (key < istats_.key_domain_min_) {
+      istats_.num_keys_below_key_domain--;
     }
   }
 
