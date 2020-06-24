@@ -1346,7 +1346,8 @@ class Alex {
           std::ceil((key_difference + domain_size) / domain_size)));
       T expandable_domain =
           istats_.key_domain_min_ - std::numeric_limits<T>::lowest();
-      if (expandable_domain / domain_size < (expansion_factor - 1)) {
+      if (static_cast<int>(expandable_domain / domain_size) <
+          (expansion_factor - 1)) {
         new_domain_min = std::numeric_limits<T>::lowest();
       } else {
         new_domain_min -= domain_size * (expansion_factor - 1);
@@ -1361,7 +1362,8 @@ class Alex {
           std::ceil((key_difference + domain_size) / domain_size)));
       T expandable_domain =
           std::numeric_limits<T>::max() - istats_.key_domain_max_;
-      if (expandable_domain / domain_size < (expansion_factor - 1)) {
+      if (static_cast<int>(expandable_domain / domain_size) <
+          (expansion_factor - 1)) {
         new_domain_max = std::numeric_limits<T>::max();
       } else {
         new_domain_max += domain_size * (expansion_factor - 1);
