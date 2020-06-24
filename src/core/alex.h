@@ -1344,13 +1344,17 @@ class Alex {
                                                 std::min(key, get_min_key()));
       expansion_factor = pow_2_round_up(static_cast<int>(
           std::ceil((key_difference + domain_size) / domain_size)));
-      T expandable_domain =
-          istats_.key_domain_min_ - std::numeric_limits<T>::lowest();
-      if (static_cast<int>(expandable_domain / domain_size) <
-          (expansion_factor - 1)) {
+      // Check for overflow. To avoid overflow on signed types while doing
+      // this check, we do comparisons using half of the relevant quantities.
+      T half_expandable_domain =
+          istats_.key_domain_max_ / 2 - std::numeric_limits<T>::lowest() / 2;
+      T half_expanded_domain_size = expansion_factor / 2 * domain_size;
+      if (half_expandable_domain < half_expanded_domain_size) {
         new_domain_min = std::numeric_limits<T>::lowest();
       } else {
-        new_domain_min -= domain_size * (expansion_factor - 1);
+        new_domain_min = istats_.key_domain_max_;
+        new_domain_min -= half_expanded_domain_size;
+        new_domain_min -= half_expanded_domain_size;
       }
       istats_.num_keys_at_last_left_domain_resize = stats_.num_keys;
       istats_.num_keys_below_key_domain = 0;
@@ -1360,13 +1364,17 @@ class Alex {
                                                 istats_.key_domain_max_);
       expansion_factor = pow_2_round_up(static_cast<int>(
           std::ceil((key_difference + domain_size) / domain_size)));
-      T expandable_domain =
-          std::numeric_limits<T>::max() - istats_.key_domain_max_;
-      if (static_cast<int>(expandable_domain / domain_size) <
-          (expansion_factor - 1)) {
+      // Check for overflow. To avoid overflow on signed types while doing
+      // this check, we do comparisons using half of the relevant quantities.
+      T half_expandable_domain =
+          std::numeric_limits<T>::max() / 2 - istats_.key_domain_min_ / 2;
+      T half_expanded_domain_size = expansion_factor / 2 * domain_size;
+      if (half_expandable_domain < half_expanded_domain_size) {
         new_domain_max = std::numeric_limits<T>::max();
       } else {
-        new_domain_max += domain_size * (expansion_factor - 1);
+        new_domain_max = istats_.key_domain_min_;
+        new_domain_max += half_expanded_domain_size;
+        new_domain_max += half_expanded_domain_size;
       }
       istats_.num_keys_at_last_right_domain_resize = stats_.num_keys;
       istats_.num_keys_above_key_domain = 0;
