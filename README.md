@@ -13,6 +13,8 @@ You can learn more about ALEX in our [SIGMOD 2020 paper](https://dl.acm.org/doi/
 # Getting Started
 ALEX can be used as a header-only library.
 All relevant header files are found in [src/core](src/core).
+You will need to compile your program with at least the C++14 standard (e.g., `-std=c++14`).
+
 In this repository, we include three programs that you can compile and run:
 - An [example program](src/examples/main.cpp) of how to use ALEX.
 - A [simple benchmark](src/benchmark/main.cpp) that measures the throughput of running point lookups and inserts on ALEX (explained in detail below).
@@ -99,7 +101,7 @@ We provide three user-facing implementations of ALEX:
 3. [Alex](https://github.com/microsoft/ALEX/blob/master/src/core/alex.h) is the internal implementation that supports both AlexMap and AlexMultimap. It exposes slightly more functionality.
 
 ALEX has a few important differences to its standard library equivalents:
-- Keys and payloads (i.e., the mapped type) are stored separately, so dereferencing an iterator returns a copy of the key/payload pair, not return a reference.
+- Keys and payloads (i.e., the mapped type) are stored separately, so dereferencing an iterator returns a copy of the key/payload pair, not a reference.
 Our iterators have methods to directly return references to the key or payload individually.
 - The iterators are of type ForwardIterator, instead of BidirectionalIterator.
 Therefore, iterators do not support decrementing.

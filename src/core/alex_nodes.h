@@ -507,7 +507,7 @@ class AlexDataNode : public AlexNode<T, P> {
     for (int i = 0; i < data_capacity_; i++) {
       if (check_exists(i)) return get_key(i);
     }
-    return 0;
+    return std::numeric_limits<T>::max();
   }
 
   // Value of last (i.e., max) key
@@ -515,7 +515,7 @@ class AlexDataNode : public AlexNode<T, P> {
     for (int i = data_capacity_ - 1; i >= 0; i--) {
       if (check_exists(i)) return get_key(i);
     }
-    return 0;
+    return std::numeric_limits<T>::lowest();
   }
 
   // Position in key/data_slots of first (i.e., min) key
@@ -1497,7 +1497,7 @@ class AlexDataNode : public AlexNode<T, P> {
 
     // insert to the right of duplicate keys
     int pos = exponential_search_upper_bound(predicted_pos, key);
-    if (predicted_pos <= pos) {
+    if (predicted_pos <= pos || check_exists(pos)) {
       return {pos, pos};
     } else {
       // Place inserted key as close as possible to the predicted position while
@@ -2291,7 +2291,7 @@ class AlexDataNode : public AlexNode<T, P> {
     for (int i = 0; i < bitmap_size_; i++) {
       num_bitmap_ones += count_ones(bitmap_[i]);
     }
-    if (num_bitmap_ones != num_keys_) {
+    if (static_cast<int>(num_bitmap_ones) != num_keys_) {
       if (verbose) {
         std::cout << "Number of ones in bitmap should match num_keys"
                   << std::endl;
