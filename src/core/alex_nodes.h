@@ -1754,8 +1754,7 @@ class AlexDataNode : public AlexNode<T, P> {
         V[new_data_capacity];
 #endif
 
-    // Retrain model if necessary
-    // Do not retrain if the number of keys is sufficiently small (under 50)
+    // Retrain model if the number of keys is sufficiently small (under 50)
     if (num_keys_ < 50 || force_retrain) {
       const_iterator_type it(this, 0);
       LinearModelBuilder<T> builder(&(this->model_));
