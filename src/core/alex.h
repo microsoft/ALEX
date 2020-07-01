@@ -2436,10 +2436,10 @@ class Alex {
   class Iterator {
    public:
     data_node_type* cur_leaf_ = nullptr;  // current data node
-    int cur_idx_;         // current position in key/data_slots of data node
-    int cur_bitmap_idx_;  // current position in bitmap
-    uint64_t cur_bitmap_data_;  // caches the relevant data in the current
-                                // bitmap position
+    int cur_idx_ = 0;         // current position in key/data_slots of data node
+    int cur_bitmap_idx_ = 0;  // current position in bitmap
+    uint64_t cur_bitmap_data_ = 0;  // caches the relevant data in the current
+                                    // bitmap position
 
     Iterator() {}
 
@@ -2546,10 +2546,10 @@ class Alex {
   class ConstIterator {
    public:
     const data_node_type* cur_leaf_ = nullptr;  // current data node
-    int cur_idx_;         // current position in key/data_slots of data node
-    int cur_bitmap_idx_;  // current position in bitmap
-    uint64_t cur_bitmap_data_;  // caches the relevant data in the current
-                                // bitmap position
+    int cur_idx_ = 0;         // current position in key/data_slots of data node
+    int cur_bitmap_idx_ = 0;  // current position in bitmap
+    uint64_t cur_bitmap_data_ = 0;  // caches the relevant data in the current
+                                    // bitmap position
 
     ConstIterator() {}
 
@@ -2668,10 +2668,10 @@ class Alex {
   class ReverseIterator {
    public:
     data_node_type* cur_leaf_ = nullptr;  // current data node
-    int cur_idx_;         // current position in key/data_slots of data node
-    int cur_bitmap_idx_;  // current position in bitmap
-    uint64_t cur_bitmap_data_;  // caches the relevant data in the current
-                                // bitmap position
+    int cur_idx_ = 0;         // current position in key/data_slots of data node
+    int cur_bitmap_idx_ = 0;  // current position in bitmap
+    uint64_t cur_bitmap_data_ = 0;  // caches the relevant data in the current
+                                    // bitmap position
 
     ReverseIterator() {}
 
@@ -2783,10 +2783,10 @@ class Alex {
   class ConstReverseIterator {
    public:
     const data_node_type* cur_leaf_ = nullptr;  // current data node
-    int cur_idx_;         // current position in key/data_slots of data node
-    int cur_bitmap_idx_;  // current position in bitmap
-    uint64_t cur_bitmap_data_;  // caches the relevant data in the current
-                                // bitmap position
+    int cur_idx_ = 0;         // current position in key/data_slots of data node
+    int cur_bitmap_idx_ = 0;  // current position in bitmap
+    uint64_t cur_bitmap_data_ = 0;  // caches the relevant data in the current
+                                    // bitmap position
 
     ConstReverseIterator() {}
 
