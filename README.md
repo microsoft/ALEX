@@ -73,7 +73,7 @@ ALEX also automatically adapts its internal models and tree structure to efficie
 ALEX is inspired by the [original learned index from Kraska et al.](https://dl.acm.org/doi/pdf/10.1145/3183713.3196909).
 However, that work only supports reads (i.e., point lookups and range queries), while ALEX also efficiently supports write (i.e., inserts, updates, and deletes).
 
-In [our paper](https://dl.acm.org/doi/pdf/10.1145/3318464.3389711), we show that ALEX outperfroms alternatives in both speed and size:
+In [our paper](https://dl.acm.org/doi/pdf/10.1145/3318464.3389711), we show that ALEX outperforms alternatives in both speed and size:
 - On read-only workloads, ALEX beats the [original learned index from Kraska et al.](https://dl.acm.org/doi/pdf/10.1145/3183713.3196909) by
   up to 2.2X on performance with up to 15X smaller index size.
 - Across the spectrum of read-write workloads, ALEX beats
@@ -100,7 +100,7 @@ We provide three user-facing implementations of ALEX:
 2. [AlexMultiMap](https://github.com/microsoft/ALEX/blob/master/src/core/alex_multimap.h) is a near drop-in replacement for [std::multimap](http://www.cplusplus.com/reference/map/multimap/).
 3. [Alex](https://github.com/microsoft/ALEX/blob/master/src/core/alex.h) is the internal implementation that supports both AlexMap and AlexMultimap. It exposes slightly more functionality.
 
-ALEX has a few important differences to its standard library equivalents:
+ALEX has a few important differences compared to its standard library equivalents:
 - Keys and payloads (i.e., the mapped type) are stored separately, so dereferencing an iterator returns a copy of the key/payload pair, not a reference.
 Our iterators have methods to directly return references to the key or payload individually.
 - The iterators are of type ForwardIterator, instead of BidirectionalIterator.
