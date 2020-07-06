@@ -86,7 +86,7 @@ You can find many more details about ALEX [here](https://dl.acm.org/doi/pdf/10.1
 ALEX currently operates in memory, single threaded, and on numerical keys.
 We are considering ways to add support for persistence, concurrency, and string keys to ALEX. 
 
-In terms of performance, ALEX has a couple known limitations:
+In terms of performance, ALEX has a couple of known limitations:
 - The premise of ALEX is to model the key distribution using a collection of linear regressions.
 Therefore, ALEX performs poorly when the key distribution is difficult to model with linear regressions, i.e., when the key distribution is highly nonlinear at small scales.
 A possible future research direction is to use a broader class of modeling techniques (e.g., also consider polynomial regression models).
