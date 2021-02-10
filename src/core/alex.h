@@ -2294,7 +2294,7 @@ class Alex {
   size_t max_size() const { return size_t(-1); }
 
   // Size in bytes of all the keys, payloads, and bitmaps stored in this index
-  long long data_size() {
+  long long data_size() const {
     long long size = 0;
     for (NodeIterator node_it = NodeIterator(this); !node_it.is_end();
          node_it.next()) {
@@ -2308,7 +2308,7 @@ class Alex {
 
   // Size in bytes of all the model nodes (including pointers) and metadata in
   // data nodes
-  long long model_size() {
+  long long model_size() const {
     long long size = 0;
     for (NodeIterator node_it = NodeIterator(this); !node_it.is_end();
          node_it.next()) {
