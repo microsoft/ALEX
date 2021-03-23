@@ -135,6 +135,11 @@ double compute_level(const std::pair<T, P> values[], int num_keys,
                                      return key_less(a.first, b);
                                    }) -
                   values);
+    // Account for off-by-one errors due to floating-point precision issues.
+    if (right_boundary < num_keys &&
+        static_cast<int>(a * values[right_boundary].first + b) <= i) {
+      right_boundary++;
+    }
     if (left_boundary == right_boundary) {
       used_fanout_tree_nodes.push_back(
           {level, i, 0, left_boundary, right_boundary, true, 0, 0, 0, 0, 0});
