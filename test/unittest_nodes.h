@@ -26,8 +26,7 @@ TEST_CASE("TestBinarySearch") {
     keys_to_search.push_back(i);
   }
 
-  std::sort(values, values + 100,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 100);
   node.bulk_load(values, 100);
 
   for (int key : keys_to_search) {
@@ -65,8 +64,7 @@ TEST_CASE("TestExponentialSearch") {
     keys_to_search.push_back(i);
   }
 
-  std::sort(values, values + 100,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 100);
   node.bulk_load(values, 100);
 
   for (int key : keys_to_search) {
@@ -99,8 +97,7 @@ TEST_CASE("TestNumKeysInRange") {
     values[i].second = rand();
   }
 
-  std::sort(values, values + 100,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 100);
   node.bulk_load(values, 100);
 
   int num_keys = node.num_keys_in_range(0, node.data_capacity_);
@@ -121,8 +118,7 @@ TEST_CASE("TestNextFilledPosition") {
     values[i].second = rand();
   }
 
-  std::sort(values, values + 100,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 100);
   node.bulk_load(values, 100);
 
   for (int i = 0; i < node.data_capacity_; i++) {
@@ -260,8 +256,7 @@ TEST_CASE("TestExpansion") {
     values[i].second = rand();
   }
 
-  std::sort(values, values + 100,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 100);
   node.bulk_load(values, 100);
 
   node.resize(0.5, true);
@@ -290,8 +285,7 @@ TEST_CASE("TestFindInsertPosition") {
     values[i].second = rand();
   }
 
-  std::sort(values, values + 100,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 100);
   node.bulk_load(values, 100);
 
   for (int key = 0; key < node.data_capacity_; key++) {
@@ -315,8 +309,7 @@ TEST_CASE("TestIterator") {
     values[i].second = rand();
   }
 
-  std::sort(values, values + 100,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 100);
   node.bulk_load(values, 100);
 
   std::vector<int> results;
@@ -336,8 +329,7 @@ TEST_CASE("TestIteratorWithDuplicates") {
     values[i].second = rand();
   }
 
-  std::sort(values, values + 100,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 100);
   node.bulk_load(values, 100);
 
   CHECK_EQ(node.find_upper(10), node.find_lower(11));
@@ -360,8 +352,7 @@ TEST_CASE("TestBulkLoadFromExisting") {
     values[i].second = rand();
   }
 
-  std::sort(values, values + 100,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 100);
   node.bulk_load(values, 100);
 
   AlexDataNode<int, int> new_node;
@@ -385,8 +376,7 @@ TEST_CASE("TestInserts") {
   }
   std::shuffle(values, values + 200, std::default_random_engine{});
 
-  std::sort(values, values + 100,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 100);
   node.bulk_load(values, 100);
 
   for (int i = 100; i < 200; i++) {
@@ -409,8 +399,7 @@ TEST_CASE("TestInsertsWithDuplicates") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 200,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 200);
   node.bulk_load(values, 200);
 
   std::shuffle(values, values + 200, std::default_random_engine{});
@@ -434,8 +423,7 @@ TEST_CASE("TestEraseOne") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 200,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 200);
   node.bulk_load(values, 200);
 
   for (int i = 0; i < 150; i++) {
@@ -462,8 +450,7 @@ TEST_CASE("TestErase") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 200,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 200);
   node.bulk_load(values, 200);
 
   for (int i = 0; i < 75; i++) {
@@ -490,8 +477,7 @@ TEST_CASE("TestEraseRange") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 200,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 200);
   node.bulk_load(values, 200);
 
   int num_erased = node.erase_range(50, 100);
@@ -519,8 +505,7 @@ TEST_CASE("TestBuildIndexWithSample") {
   for (int i = 0; i < num_keys; i++) {
     values[i].first = rand() % 50000 + 10000;
   }
-  std::sort(values, values + num_keys,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + num_keys);
 
   LinearModel<int> model;
   LinearModel<int> model_using_sample;
@@ -543,8 +528,7 @@ TEST_CASE("TestComputeCostWithSample") {
   for (int i = 0; i < num_keys; i++) {
     values[i].first = rand() % 50000;
   }
-  std::sort(values, values + num_keys,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + num_keys);
 
   LinearModel<int> model;
   AlexDataNode<int, int>::build_model(values, num_keys, &model);

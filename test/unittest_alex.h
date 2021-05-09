@@ -19,8 +19,7 @@ TEST_CASE("TestBulkLoad") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 500,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 500);
   index.bulk_load(values, 500);
 
   for (int i = 0; i < 500; i++) {
@@ -43,8 +42,7 @@ TEST_CASE("TestConstructors") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 500,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 500);
   index.bulk_load(values, 500);
 
   Alex<int, int> index2(index);  // Copy constructor
@@ -83,8 +81,7 @@ TEST_CASE("TestIterators") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 500,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 500);
   index.bulk_load(values, 500);
 
   // Iterator from beginning to end
@@ -168,8 +165,7 @@ TEST_CASE("TestFind") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 500,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 500);
   index.bulk_load(values, 500);
 
   // Find existent keys
@@ -206,8 +202,7 @@ TEST_CASE("TestLowerUpperBound") {
     }
   }
 
-  std::sort(values, values + 100,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 100);
   index.bulk_load(values, 100);
 
   // Search for existent keys
@@ -267,8 +262,7 @@ TEST_CASE("TestFindLastNoGreaterThan") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 500,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 500);
   index.bulk_load(values, 500);
 
   // Existent keys
@@ -313,8 +307,7 @@ TEST_CASE("TestReadModifyWrite") {
     values[i].second = 0;
   }
 
-  std::sort(values, values + 100,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 100);
   index.bulk_load(values, 100);
 
   auto it = index.find(50);
@@ -339,8 +332,7 @@ TEST_CASE("TestSequentialInserts") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 50,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 50);
   index.bulk_load(values, 50);
 
   for (int i = 50; i < 200; i++) {
@@ -364,8 +356,7 @@ TEST_CASE("TestOrderedInserts") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 100,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 100);
   index.bulk_load(values, 100);
 
   for (int i = 0; i < 100; i++) {
@@ -390,8 +381,7 @@ TEST_CASE("TestRandomInserts") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 25,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 25);
   index.bulk_load(values, 25);
 
   for (int i = 25; i < 200; i++) {
@@ -438,8 +428,7 @@ TEST_CASE("TestRandomErases") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 200,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 200);
   index.bulk_load(values, 200);
 
   // Try to erase a nonexistent key
@@ -470,8 +459,7 @@ TEST_CASE("TestRangeScan") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 200,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 200);
   index.bulk_load(values, 200);
 
   std::vector<int> results;

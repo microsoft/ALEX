@@ -20,8 +20,7 @@ TEST_CASE("TestFind") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 500,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 500);
   index.bulk_load(values, 500);
 
   // Find existent keys
@@ -47,8 +46,7 @@ TEST_CASE("TestRandomInserts") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 25,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 25);
   index.bulk_load(values, 25);
 
   for (int i = 25; i < 200; i++) {
@@ -73,8 +71,7 @@ TEST_CASE("TestRandomErases") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 200,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 200);
   index.bulk_load(values, 200);
 
   // Try to erase a nonexistent key
@@ -105,8 +102,7 @@ TEST_CASE("TestRangeScan") {
     values[i].second = i;
   }
 
-  std::sort(values, values + 200,
-            [](auto const &a, auto const &b) { return a.first < b.first; });
+  std::sort(values, values + 200);
   index.bulk_load(values, 200);
 
   std::vector<int> results;
