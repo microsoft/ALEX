@@ -1,20 +1,18 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-#pragma once
-
-#include "gtest/gtest.h"
+#include "doctest.h"
 
 #define private public
 #include "alex_nodes.h"
 
 using namespace alex;
 
-namespace test {
+TEST_SUITE("DataNode") {
 
 /************************* Tests for Data Node *****************************/
 
-TEST(DataNode, TestBinarySearch) {
+TEST_CASE("TestBinarySearch") {
   AlexDataNode<int, int> node;
 
   AlexDataNode<int, int>::V values[100];
@@ -36,24 +34,24 @@ TEST(DataNode, TestBinarySearch) {
     int lower_bound_pos =
         node.binary_search_lower_bound(0, node.data_capacity_, key);
     if (lower_bound_pos > 0) {
-      EXPECT_LT(node.get_key(lower_bound_pos - 1), key);
+      CHECK_LT(node.get_key(lower_bound_pos - 1), key);
     }
     if (lower_bound_pos < node.data_capacity_) {
-      EXPECT_GE(node.get_key(lower_bound_pos), key);
+      CHECK_GE(node.get_key(lower_bound_pos), key);
     }
 
     int upper_bound_pos =
         node.binary_search_upper_bound(0, node.data_capacity_, key);
     if (upper_bound_pos > 0) {
-      EXPECT_LE(node.get_key(upper_bound_pos - 1), key);
+      CHECK_LE(node.get_key(upper_bound_pos - 1), key);
     }
     if (upper_bound_pos < node.data_capacity_) {
-      EXPECT_GT(node.get_key(upper_bound_pos), key);
+      CHECK_GT(node.get_key(upper_bound_pos), key);
     }
   }
 }
 
-TEST(DataNode, TestExponentialSearch) {
+TEST_CASE("TestExponentialSearch") {
   AlexDataNode<int, int> node;
 
   AlexDataNode<int, int>::V values[100];
@@ -75,24 +73,24 @@ TEST(DataNode, TestExponentialSearch) {
     for (int m = 0; m < node.data_capacity_; m++) {
       int lower_bound_pos = node.exponential_search_lower_bound(m, key);
       if (lower_bound_pos > 0) {
-        EXPECT_LT(node.get_key(lower_bound_pos - 1), key);
+        CHECK_LT(node.get_key(lower_bound_pos - 1), key);
       }
       if (lower_bound_pos < node.data_capacity_) {
-        EXPECT_GE(node.get_key(lower_bound_pos), key);
+        CHECK_GE(node.get_key(lower_bound_pos), key);
       }
 
       int upper_bound_pos = node.exponential_search_upper_bound(m, key);
       if (upper_bound_pos > 0) {
-        EXPECT_LE(node.get_key(upper_bound_pos - 1), key);
+        CHECK_LE(node.get_key(upper_bound_pos - 1), key);
       }
       if (upper_bound_pos < node.data_capacity_) {
-        EXPECT_GT(node.get_key(upper_bound_pos), key);
+        CHECK_GT(node.get_key(upper_bound_pos), key);
       }
     }
   }
 }
 
-TEST(DataNode, TestNumKeysInRange) {
+TEST_CASE("TestNumKeysInRange") {
   AlexDataNode<int, int> node;
 
   AlexDataNode<int, int>::V values[100];
@@ -106,15 +104,15 @@ TEST(DataNode, TestNumKeysInRange) {
   node.bulk_load(values, 100);
 
   int num_keys = node.num_keys_in_range(0, node.data_capacity_);
-  EXPECT_EQ(num_keys, 100);
+  CHECK_EQ(num_keys, 100);
 
   int num_keys_first_half = node.num_keys_in_range(0, node.data_capacity_ / 2);
   int num_keys_second_half =
       node.num_keys_in_range(node.data_capacity_ / 2, node.data_capacity_);
-  EXPECT_EQ(num_keys, num_keys_first_half + num_keys_second_half);
+  CHECK_EQ(num_keys, num_keys_first_half + num_keys_second_half);
 }
 
-TEST(DataNode, TestNextFilledPosition) {
+TEST_CASE("TestNextFilledPosition") {
   AlexDataNode<int, int> node;
 
   AlexDataNode<int, int>::V values[100];
@@ -129,17 +127,17 @@ TEST(DataNode, TestNextFilledPosition) {
 
   for (int i = 0; i < node.data_capacity_; i++) {
     int next_filled_pos = node.get_next_filled_position(i, true);
-    EXPECT_LT(i, next_filled_pos);
+    CHECK_LT(i, next_filled_pos);
     if (next_filled_pos < node.data_capacity_) {
-      EXPECT_TRUE(node.check_exists(next_filled_pos));
+      CHECK(node.check_exists(next_filled_pos));
     }
     for (int j = i + 1; j < next_filled_pos; j++) {
-      EXPECT_TRUE(!node.check_exists(j));
+      CHECK(!node.check_exists(j));
     }
   }
 }
 
-TEST(DataNode, TestClosestGap) {
+TEST_CASE("TestClosestGap") {
   auto node = new AlexDataNode<int, int>();
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
@@ -155,13 +153,13 @@ TEST(DataNode, TestClosestGap) {
     node->bitmap_[0] |= (1ULL << i);
   }
 
-  EXPECT_EQ(0, node->closest_gap(1));
-  EXPECT_EQ(0, node->closest_gap(2));
-  EXPECT_EQ(0,
+  CHECK_EQ(0, node->closest_gap(1));
+  CHECK_EQ(0, node->closest_gap(2));
+  CHECK_EQ(0,
             node->closest_gap(3));  // border case, by default choose left gap
-  EXPECT_EQ(6, node->closest_gap(4));
-  EXPECT_EQ(6, node->closest_gap(5));
-  EXPECT_EQ(6, node->closest_gap(7));
+  CHECK_EQ(6, node->closest_gap(4));
+  CHECK_EQ(6, node->closest_gap(5));
+  CHECK_EQ(6, node->closest_gap(7));
   delete node;
 
   // Test with 5 bitmap blocks
@@ -199,14 +197,14 @@ TEST(DataNode, TestClosestGap) {
     node->bitmap_[bitmap_pos] |= (1ULL << bit_pos);
   }
 
-  EXPECT_EQ(49, node->closest_gap(75));    // pos in second block
-  EXPECT_EQ(49, node->closest_gap(130));   // pos in third block
-  EXPECT_EQ(300, node->closest_gap(180));  // pos in third block
-  EXPECT_EQ(300, node->closest_gap(200));  // pos in fourth block
+  CHECK_EQ(49, node->closest_gap(75));    // pos in second block
+  CHECK_EQ(49, node->closest_gap(130));   // pos in third block
+  CHECK_EQ(300, node->closest_gap(180));  // pos in third block
+  CHECK_EQ(300, node->closest_gap(200));  // pos in fourth block
   delete node;
 }
 
-TEST(DataNode, TestInsertUsingShifts) {
+TEST_CASE("TestInsertUsingShifts") {
   AlexDataNode<int, int> node;
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
@@ -225,11 +223,11 @@ TEST(DataNode, TestInsertUsingShifts) {
   node.insert_using_shifts(4, rand(), 4);
   int expected[] = {1, 1, 2, 3, 4, 5, 6, 7};
   for (int i = 0; i < 8; i++) {
-    EXPECT_EQ(expected[i], node.get_key(i));
+    CHECK_EQ(expected[i], node.get_key(i));
   }
 }
 
-TEST(DataNode, TestCheckExists) {
+TEST_CASE("TestCheckExists") {
   AlexDataNode<int, int> node;
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
@@ -249,11 +247,11 @@ TEST(DataNode, TestCheckExists) {
   }
 
   for (int i = 0; i < 8; i++) {
-    EXPECT_EQ(exists[i], node.check_exists(i));
+    CHECK_EQ(exists[i], node.check_exists(i));
   }
 }
 
-TEST(DataNode, TestExpansion) {
+TEST_CASE("TestExpansion") {
   AlexDataNode<int, int> node;
 
   AlexDataNode<int, int>::V values[100];
@@ -270,20 +268,20 @@ TEST(DataNode, TestExpansion) {
 
   for (int i = 0; i < 100; i++) {
     int pos = node.find_key(values[i].first);
-    EXPECT_EQ(values[i].first, node.get_key(pos));
-    EXPECT_TRUE(node.check_exists(pos));
+    CHECK_EQ(values[i].first, node.get_key(pos));
+    CHECK(node.check_exists(pos));
   }
 
   node.resize(0.9, true);
 
   for (int i = 0; i < 100; i++) {
     int pos = node.find_key(values[i].first);
-    EXPECT_EQ(values[i].first, node.get_key(pos));
-    EXPECT_TRUE(node.check_exists(pos));
+    CHECK_EQ(values[i].first, node.get_key(pos));
+    CHECK(node.check_exists(pos));
   }
 }
 
-TEST(DataNode, TestFindInsertPosition) {
+TEST_CASE("TestFindInsertPosition") {
   AlexDataNode<int, int> node;
 
   AlexDataNode<int, int>::V values[100];
@@ -300,15 +298,15 @@ TEST(DataNode, TestFindInsertPosition) {
     std::pair<int, int> insert_pos = node.find_insert_position(key);
     int model_based_insert_pos = insert_pos.first;
     if (model_based_insert_pos > 0) {
-      EXPECT_TRUE(key >= node.get_key(model_based_insert_pos - 1));
+      CHECK_GE(key, node.get_key(model_based_insert_pos - 1));
     }
     if (model_based_insert_pos < node.data_capacity_) {
-      EXPECT_TRUE(key <= node.get_key(model_based_insert_pos));
+      CHECK_LE(key, node.get_key(model_based_insert_pos));
     }
   }
 }
 
-TEST(DataNode, TestIterator) {
+TEST_CASE("TestIterator") {
   AlexDataNode<int, int> node;
 
   AlexDataNode<int, int>::V values[100];
@@ -326,10 +324,10 @@ TEST(DataNode, TestIterator) {
   for (; !it.is_end(); it++) {
     results.push_back(it.key());
   }
-  EXPECT_EQ(100, results.size());
+  CHECK_EQ(100, results.size());
 }
 
-TEST(DataNode, TestIteratorWithDuplicates) {
+TEST_CASE("TestIteratorWithDuplicates") {
   AlexDataNode<int, int> node;
 
   AlexDataNode<int, int>::V values[100];
@@ -342,7 +340,7 @@ TEST(DataNode, TestIteratorWithDuplicates) {
             [](auto const &a, auto const &b) { return a.first < b.first; });
   node.bulk_load(values, 100);
 
-  EXPECT_TRUE(node.find_upper(10) == node.find_lower(11));
+  CHECK_EQ(node.find_upper(10), node.find_lower(11));
 
   std::vector<int> results;
   AlexDataNode<int, int>::const_iterator_type it(&node, node.find_lower(2));
@@ -350,10 +348,10 @@ TEST(DataNode, TestIteratorWithDuplicates) {
   for (; it != end_it; it++) {
     results.push_back(it.key());
   }
-  EXPECT_EQ(4, results.size());
+  CHECK_EQ(4, results.size());
 }
 
-TEST(DataNode, TestBulkLoadFromExisting) {
+TEST_CASE("TestBulkLoadFromExisting") {
   AlexDataNode<int, int> node;
 
   AlexDataNode<int, int>::V values[100];
@@ -372,12 +370,12 @@ TEST(DataNode, TestBulkLoadFromExisting) {
   int key = 50;
   for (int pos = 0; pos < new_node.data_capacity_; pos++) {
     int actual_pos = new_node.exponential_search_upper_bound(pos, key) - 1;
-    EXPECT_EQ(key, new_node.get_key(actual_pos));
-    EXPECT_TRUE(node.check_exists(actual_pos));
+    CHECK_EQ(key, new_node.get_key(actual_pos));
+    CHECK(node.check_exists(actual_pos));
   }
 }
 
-TEST(DataNode, TestInserts) {
+TEST_CASE("TestInserts") {
   AlexDataNode<int, int> node;
 
   AlexDataNode<int, int>::V values[200];
@@ -397,12 +395,12 @@ TEST(DataNode, TestInserts) {
 
   for (int i = 0; i < 200; i++) {
     int pos = node.find_key(values[i].first);
-    EXPECT_EQ(values[i].first, node.get_key(pos));
-    EXPECT_TRUE(node.check_exists(pos));
+    CHECK_EQ(values[i].first, node.get_key(pos));
+    CHECK(node.check_exists(pos));
   }
 }
 
-TEST(DataNode, TestInsertsWithDuplicates) {
+TEST_CASE("TestInsertsWithDuplicates") {
   AlexDataNode<int, int> node;
 
   AlexDataNode<int, int>::V values[200];
@@ -422,12 +420,12 @@ TEST(DataNode, TestInsertsWithDuplicates) {
 
   for (int i = 0; i < 200; i++) {
     int pos = node.find_key(values[i].first);
-    EXPECT_EQ(values[i].first, node.get_key(pos));
-    EXPECT_TRUE(node.check_exists(pos));
+    CHECK_EQ(values[i].first, node.get_key(pos));
+    CHECK(node.check_exists(pos));
   }
 }
 
-TEST(DataNode, TestEraseOne) {
+TEST_CASE("TestEraseOne") {
   AlexDataNode<int, int> node;
 
   AlexDataNode<int, int>::V values[200];
@@ -442,20 +440,20 @@ TEST(DataNode, TestEraseOne) {
 
   for (int i = 0; i < 150; i++) {
     int num_erased = node.erase_one(values[i].first);
-    EXPECT_EQ(num_erased, 1);
+    CHECK_EQ(num_erased, 1);
   }
 
   for (int i = 150; i < 200; i++) {
     int pos = node.find_key(values[i].first);
-    EXPECT_EQ(values[i].first, node.get_key(pos));
-    EXPECT_TRUE(node.check_exists(pos));
+    CHECK_EQ(values[i].first, node.get_key(pos));
+    CHECK(node.check_exists(pos));
     node.erase_one(values[i].first);
   }
 
-  EXPECT_TRUE(node.num_keys_ == 0);
+  CHECK_EQ(node.num_keys_, 0);
 }
 
-TEST(DataNode, TestErase) {
+TEST_CASE("TestErase") {
   AlexDataNode<int, int> node;
 
   AlexDataNode<int, int>::V values[200];
@@ -470,20 +468,20 @@ TEST(DataNode, TestErase) {
 
   for (int i = 0; i < 75; i++) {
     int num_erased = node.erase(i);
-    EXPECT_EQ(num_erased, 2);
+    CHECK_EQ(num_erased, 2);
   }
 
   for (int i = 75; i < 100; i++) {
     int pos = node.find_key(i);
-    EXPECT_EQ(i, node.get_key(pos));
-    EXPECT_TRUE(node.check_exists(pos));
+    CHECK_EQ(i, node.get_key(pos));
+    CHECK(node.check_exists(pos));
     node.erase(i);
   }
 
-  EXPECT_TRUE(node.num_keys_ == 0);
+  CHECK_EQ(node.num_keys_, 0);
 }
 
-TEST(DataNode, TestEraseRange) {
+TEST_CASE("TestEraseRange") {
   AlexDataNode<int, int> node;
 
   AlexDataNode<int, int>::V values[200];
@@ -497,25 +495,25 @@ TEST(DataNode, TestEraseRange) {
   node.bulk_load(values, 200);
 
   int num_erased = node.erase_range(50, 100);
-  EXPECT_EQ(num_erased, 50);
+  CHECK_EQ(num_erased, 50);
 
   num_erased = node.erase_range(-50, 50);
-  EXPECT_EQ(num_erased, 50);
+  CHECK_EQ(num_erased, 50);
 
   num_erased = node.erase_range(150, 300);
-  EXPECT_EQ(num_erased, 50);
+  CHECK_EQ(num_erased, 50);
 
   for (int i = 100; i < 150; i++) {
     int pos = node.find_key(i);
-    EXPECT_EQ(i, node.get_key(pos));
-    EXPECT_TRUE(node.check_exists(pos));
+    CHECK_EQ(i, node.get_key(pos));
+    CHECK(node.check_exists(pos));
     node.erase_range(i, i + 1);
   }
 
-  EXPECT_TRUE(node.num_keys_ == 0);
+  CHECK_EQ(node.num_keys_, 0);
 }
 
-TEST(DataNode, TestBuildIndexWithSample) {
+TEST_CASE("TestBuildIndexWithSample") {
   const int num_keys = 20000;
   AlexDataNode<int, int>::V values[num_keys];
   for (int i = 0; i < num_keys; i++) {
@@ -535,11 +533,11 @@ TEST(DataNode, TestBuildIndexWithSample) {
       std::abs((model.a_ - model_using_sample.a_) / model.a_);
   double rel_diff_in_b =
       std::abs((model.b_ - model_using_sample.b_) / model.b_);
-  EXPECT_LT(rel_diff_in_a, 0.05);
-  EXPECT_LT(rel_diff_in_b, 0.05);
+  CHECK_LT(rel_diff_in_a, 0.05);
+  CHECK_LT(rel_diff_in_b, 0.05);
 }
 
-TEST(DataNode, TestComputeCostWithSample) {
+TEST_CASE("TestComputeCostWithSample") {
   const int num_keys = 20000;
   AlexDataNode<int, int>::V values[num_keys];
   for (int i = 0; i < num_keys; i++) {
@@ -571,7 +569,7 @@ TEST(DataNode, TestComputeCostWithSample) {
       std::abs((exp_iters - exp_iters_sample) / exp_iters);
   double rel_diff_in_shifts_entropy =
       std::abs((exp_shifts - exp_shifts_sample) / exp_shifts);
-  EXPECT_LT(rel_diff_in_search_entropy, 0.5);
-  EXPECT_LT(rel_diff_in_shifts_entropy, 0.5);
+  CHECK_LT(rel_diff_in_search_entropy, 0.5);
+  CHECK_LT(rel_diff_in_shifts_entropy, 0.5);
 }
 };

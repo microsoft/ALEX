@@ -1,16 +1,16 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-#include "gtest/gtest.h"
+#include "doctest.h"
 
 #define private public
 #include "alex.h"
 
 using namespace alex;
 
-namespace test {
+TEST_SUITE("Alex") {
 
-TEST(Alex, TestBulkLoad) {
+TEST_CASE("TestBulkLoad") {
   Alex<int, int> index;
 
   Alex<int, int>::V values[500];
@@ -25,16 +25,16 @@ TEST(Alex, TestBulkLoad) {
 
   for (int i = 0; i < 500; i++) {
     auto it = index.find(values[i].first);
-    EXPECT_TRUE(!it.is_end());
-    EXPECT_EQ(values[i].first, it.key());
+    CHECK(!it.is_end());
+    CHECK_EQ(values[i].first, it.key());
   }
 
-  EXPECT_EQ(index.get_stats().num_keys, 500);
+  CHECK_EQ(index.get_stats().num_keys, 500);
   index.clear();
-  EXPECT_EQ(index.get_stats().num_keys, 0);
+  CHECK_EQ(index.get_stats().num_keys, 0);
 }
 
-TEST(Alex, TestConstructors) {
+TEST_CASE("TestConstructors") {
   Alex<int, int> index;
 
   Alex<int, int>::V values[500];
@@ -52,25 +52,25 @@ TEST(Alex, TestConstructors) {
   index3 = index;  // Assignment
   Alex<int, int> index4(std::begin(values), std::end(values));
 
-  EXPECT_NE(index.root_node_, index2.root_node_);
-  EXPECT_NE(index.root_node_, index3.root_node_);
+  CHECK_NE(index.root_node_, index2.root_node_);
+  CHECK_NE(index.root_node_, index3.root_node_);
 
   for (int i = 0; i < 500; i++) {
     auto it2 = index2.find(values[i].first);
-    EXPECT_TRUE(!it2.is_end());
-    EXPECT_EQ(values[i].first, it2.key());
+    CHECK(!it2.is_end());
+    CHECK_EQ(values[i].first, it2.key());
 
     auto it3 = index3.find(values[i].first);
-    EXPECT_TRUE(!it3.is_end());
-    EXPECT_EQ(values[i].first, it3.key());
+    CHECK(!it3.is_end());
+    CHECK_EQ(values[i].first, it3.key());
 
     auto it4 = index4.find(values[i].first);
-    EXPECT_TRUE(!it4.is_end());
-    EXPECT_EQ(values[i].first, it4.key());
+    CHECK(!it4.is_end());
+    CHECK_EQ(values[i].first, it4.key());
   }
 }
 
-TEST(Alex, TestIterators) {
+TEST_CASE("TestIterators") {
   Alex<int, int> index;
 
   Alex<int, int>::V values[500];
@@ -92,28 +92,28 @@ TEST(Alex, TestIterators) {
   for (auto it = index.begin(); it != index.end(); ++it) {
     num_keys++;
   }
-  EXPECT_EQ(500, num_keys);
+  CHECK_EQ(500, num_keys);
 
   // Const iterator from beginning to end
   num_keys = 0;
   for (auto it = index.cbegin(); it != index.cend(); ++it) {
     num_keys++;
   }
-  EXPECT_EQ(500, num_keys);
+  CHECK_EQ(500, num_keys);
 
   // Reverse iterator from beginning to end
   num_keys = 0;
   for (auto it = index.rbegin(); it != index.rend(); ++it) {
     num_keys++;
   }
-  EXPECT_EQ(500, num_keys);
+  CHECK_EQ(500, num_keys);
 
   // Const reverse iterator from beginning to end
   num_keys = 0;
   for (auto it = index.crbegin(); it != index.crend(); ++it) {
     num_keys++;
   }
-  EXPECT_EQ(500, num_keys);
+  CHECK_EQ(500, num_keys);
 
   // Convert iterator to reverse iterator
   auto it = index.find(values[250].first);
@@ -125,7 +125,7 @@ TEST(Alex, TestIterators) {
   for (; rit != index.rend(); ++rit) {
     num_keys++;
   }
-  EXPECT_EQ(501, num_keys);
+  CHECK_EQ(501, num_keys);
 
   // Convert const iterator to const reverse iterator
   typename Alex<int, int>::ConstIterator cit = index.find(values[250].first);
@@ -137,10 +137,10 @@ TEST(Alex, TestIterators) {
   for (; crit != index.crend(); ++crit) {
     num_keys++;
   }
-  EXPECT_EQ(501, num_keys);
+  CHECK_EQ(501, num_keys);
 }
 
-TEST(Alex, TestConst) {
+TEST_CASE("TestConst") {
   Alex<int, int>::V values[500];
   // even numbers from 0 to 998 inclusive
   for (int i = 0; i < 500; i++) {
@@ -153,12 +153,12 @@ TEST(Alex, TestConst) {
   // Find existent keys
   for (int i = 0; i < 500; i++) {
     auto it = index.find(values[i].first);
-    EXPECT_TRUE(!it.is_end());
-    EXPECT_EQ(values[i].first, it.key());
+    CHECK(!it.is_end());
+    CHECK_EQ(values[i].first, it.key());
   }
 }
 
-TEST(Alex, TestFind) {
+TEST_CASE("TestFind") {
   Alex<int, int> index;
 
   Alex<int, int>::V values[500];
@@ -175,26 +175,26 @@ TEST(Alex, TestFind) {
   // Find existent keys
   for (int i = 0; i < 500; i++) {
     auto it = index.find(values[i].first);
-    EXPECT_TRUE(!it.is_end());
-    EXPECT_EQ(values[i].first, it.key());
+    CHECK(!it.is_end());
+    CHECK_EQ(values[i].first, it.key());
 
     int *p = index.get_payload(values[i].first);
-    EXPECT_TRUE(p);
-    EXPECT_EQ(values[i].second, *p);
+    CHECK(p);
+    CHECK_EQ(values[i].second, *p);
   }
 
   // Find non-existent keys
   for (int i = 1; i < 100; i += 2) {
     auto it = index.find(i);
-    EXPECT_TRUE(it.is_end());
+    CHECK(it.is_end());
 
     int *p = index.get_payload(i);
-    EXPECT_TRUE(!p);
+    CHECK(!p);
   }
 }
 
 // Also tests count and equal_range
-TEST(Alex, TestLowerUpperBound) {
+TEST_CASE("TestLowerUpperBound") {
   Alex<int, int> index;
 
   Alex<int, int>::V values[100];
@@ -214,23 +214,23 @@ TEST(Alex, TestLowerUpperBound) {
   for (int i = 0; i < 100; i += 10) {
     auto it_lb = index.lower_bound(i);
     auto it_ub = index.upper_bound(i);
-    EXPECT_TRUE(!it_lb.is_end());
-    EXPECT_EQ(i, it_lb.key());
+    CHECK(!it_lb.is_end());
+    CHECK_EQ(i, it_lb.key());
     if (i == 90) {
-      EXPECT_TRUE(it_ub.is_end());
+      CHECK(it_ub.is_end());
     } else {
-      EXPECT_TRUE(!it_ub.is_end());
-      EXPECT_EQ(i + 10, it_ub.key());
+      CHECK(!it_ub.is_end());
+      CHECK_EQ(i + 10, it_ub.key());
     }
 
     // Count
     size_t count = index.count(i);
-    EXPECT_EQ(count, 10);
+    CHECK_EQ(count, 10);
 
     // Equal range
     auto it_pair = index.equal_range(i);
-    EXPECT_TRUE(it_pair.first == it_lb);
-    EXPECT_TRUE(it_pair.second == it_ub);
+    CHECK_EQ(it_pair.first, it_lb);
+    CHECK_EQ(it_pair.second, it_ub);
   }
 
   // Search for non-existent keys
@@ -238,26 +238,26 @@ TEST(Alex, TestLowerUpperBound) {
     auto it_lb = index.lower_bound(i);
     auto it_ub = index.upper_bound(i);
     if (i > 90) {
-      EXPECT_TRUE(it_lb.is_end());
-      EXPECT_TRUE(it_ub.is_end());
+      CHECK(it_lb.is_end());
+      CHECK(it_ub.is_end());
     } else {
-      EXPECT_TRUE(!it_lb.is_end());
-      EXPECT_TRUE(!it_ub.is_end());
-      EXPECT_EQ(i + 5, it_lb.key());
-      EXPECT_EQ(i + 5, it_ub.key());
+      CHECK(!it_lb.is_end());
+      CHECK(!it_ub.is_end());
+      CHECK_EQ(i + 5, it_lb.key());
+      CHECK_EQ(i + 5, it_ub.key());
     }
 
     // Count
-    EXPECT_EQ(index.count(i), 0);
+    CHECK_EQ(index.count(i), 0);
 
     // Equal range
     auto it_pair = index.equal_range(i);
-    EXPECT_TRUE(it_pair.first == it_lb);
-    EXPECT_TRUE(it_lb == it_ub);
+    CHECK_EQ(it_pair.first, it_lb);
+    CHECK_EQ(it_lb, it_ub);
   }
 }
 
-TEST(Alex, TestFindLastNoGreaterThan) {
+TEST_CASE("TestFindLastNoGreaterThan") {
   Alex<int, int> index;
 
   Alex<int, int>::V values[500];
@@ -274,37 +274,37 @@ TEST(Alex, TestFindLastNoGreaterThan) {
   // Existent keys
   for (int i = 0; i < 500; i++) {
     auto it = index.find_last_no_greater_than(values[i].first);
-    EXPECT_TRUE(!it.is_end());
-    EXPECT_EQ(values[i].first, it.key());
+    CHECK(!it.is_end());
+    CHECK_EQ(values[i].first, it.key());
 
     int *p = index.get_payload_last_no_greater_than(values[i].first);
-    EXPECT_TRUE(p);
-    EXPECT_EQ(values[i].second, *p);
+    CHECK(p);
+    CHECK_EQ(values[i].second, *p);
   }
 
   // Non-existent keys
   for (int i = 0; i < 500; i++) {
     int key = values[i].first + 1;
     auto it = index.find_last_no_greater_than(key);
-    EXPECT_TRUE(!it.is_end());
-    EXPECT_LE(it.key(), key);
+    CHECK(!it.is_end());
+    CHECK_LE(it.key(), key);
     it++;
     if (!it.is_end()) {
-      EXPECT_GT(it.key(), key);
+      CHECK_GT(it.key(), key);
     }
 
     int *p = index.get_payload_last_no_greater_than(key);
-    EXPECT_TRUE(p);
-    EXPECT_EQ(values[i].second, *p);
+    CHECK(p);
+    CHECK_EQ(values[i].second, *p);
   }
 
   // Non-existent key smaller than min
   auto it = index.find_last_no_greater_than(-1);
-  EXPECT_TRUE(!it.is_end());
-  EXPECT_EQ(values[0].first, it.key());
+  CHECK(!it.is_end());
+  CHECK_EQ(values[0].first, it.key());
 }
 
-TEST(Alex, TestReadModifyWrite) {
+TEST_CASE("TestReadModifyWrite") {
   Alex<int, int> index;
 
   Alex<int, int>::V values[100];
@@ -318,19 +318,19 @@ TEST(Alex, TestReadModifyWrite) {
   index.bulk_load(values, 100);
 
   auto it = index.find(50);
-  EXPECT_TRUE(!it.is_end());
-  EXPECT_EQ(50, it.key());
-  EXPECT_EQ(0, it.payload());
+  CHECK(!it.is_end());
+  CHECK_EQ(50, it.key());
+  CHECK_EQ(0, it.payload());
 
   it.payload() = 50;
 
   it = index.find(50);
-  EXPECT_TRUE(!it.is_end());
-  EXPECT_EQ(50, it.key());
-  EXPECT_EQ(50, it.payload());
+  CHECK(!it.is_end());
+  CHECK_EQ(50, it.key());
+  CHECK_EQ(50, it.payload());
 }
 
-TEST(Alex, TestSequentialInserts) {
+TEST_CASE("TestSequentialInserts") {
   Alex<int, int> index;
 
   Alex<int, int>::V values[50];
@@ -345,17 +345,17 @@ TEST(Alex, TestSequentialInserts) {
 
   for (int i = 50; i < 200; i++) {
     auto ret = index.insert(i, i);
-    EXPECT_EQ(ret.first.key(), i);
+    CHECK_EQ(ret.first.key(), i);
   }
 
   for (int i = 0; i < 200; i++) {
     auto it = index.find(i);
-    EXPECT_TRUE(!it.is_end());
-    EXPECT_EQ(i, it.key());
+    CHECK(!it.is_end());
+    CHECK_EQ(i, it.key());
   }
 }
 
-TEST(Alex, TestOrderedInserts) {
+TEST_CASE("TestOrderedInserts") {
   Alex<int, int> index;
 
   Alex<int, int>::V values[100];
@@ -370,18 +370,18 @@ TEST(Alex, TestOrderedInserts) {
 
   for (int i = 0; i < 100; i++) {
     auto ret = index.insert(2 * i + 1, i);
-    EXPECT_EQ(ret.first.key(), 2 * i + 1);
+    CHECK_EQ(ret.first.key(), 2 * i + 1);
   }
 
   // Check that getting the key is correct.
   for (int i = 0; i < 200; i++) {
     auto it = index.find(i);
-    EXPECT_TRUE(!it.is_end());
-    EXPECT_EQ(i, it.key());
+    CHECK(!it.is_end());
+    CHECK_EQ(i, it.key());
   }
 }
 
-TEST(Alex, TestRandomInserts) {
+TEST_CASE("TestRandomInserts") {
   Alex<int, int> index;
 
   Alex<int, int>::V values[200];
@@ -396,18 +396,18 @@ TEST(Alex, TestRandomInserts) {
 
   for (int i = 25; i < 200; i++) {
     auto ret = index.insert(values[i].first, values[i].second);
-    EXPECT_EQ(ret.first.key(), values[i].first);
+    CHECK_EQ(ret.first.key(), values[i].first);
   }
 
   // Check that getting the key is correct.
   for (int i = 0; i < 200; i++) {
     auto it = index.find(values[i].first);
-    EXPECT_TRUE(!it.is_end());
-    EXPECT_EQ(values[i].first, it.key());
+    CHECK(!it.is_end());
+    CHECK_EQ(values[i].first, it.key());
   }
 }
 
-TEST(Alex, TestInsertFromEmpty) {
+TEST_CASE("TestInsertFromEmpty") {
   Alex<int, int> index;
 
   Alex<int, int>::V values[200];
@@ -418,18 +418,18 @@ TEST(Alex, TestInsertFromEmpty) {
 
   for (int i = 0; i < 200; i++) {
     auto ret = index.insert(values[i].first, values[i].second);
-    EXPECT_EQ(ret.first.key(), values[i].first);
+    CHECK_EQ(ret.first.key(), values[i].first);
   }
 
   // Check that getting the key is correct.
   for (int i = 0; i < 200; i++) {
     auto it = index.find(values[i].first);
-    EXPECT_TRUE(!it.is_end());
-    EXPECT_EQ(values[i].first, it.key());
+    CHECK(!it.is_end());
+    CHECK_EQ(values[i].first, it.key());
   }
 }
 
-TEST(Alex, TestRandomErases) {
+TEST_CASE("TestRandomErases") {
   Alex<int, int> index;
 
   Alex<int, int>::V values[200];
@@ -443,25 +443,25 @@ TEST(Alex, TestRandomErases) {
   index.bulk_load(values, 200);
 
   // Try to erase a nonexistent key
-  EXPECT_EQ(index.erase_one(1000), 0);
+  CHECK_EQ(index.erase_one(1000), 0);
 
   // Erase with key
   for (int i = 0; i < 100; i++) {
     int num_erased = index.erase_one(values[i].first);
-    EXPECT_EQ(num_erased, 1);
+    CHECK_EQ(num_erased, 1);
   }
 
   // Erase with iterator
   for (int i = 100; i < 200; i++) {
     auto it = index.lower_bound(values[i].first);
-    EXPECT_TRUE(!it.is_end());
+    CHECK(!it.is_end());
     index.erase(it);
   }
 
-  EXPECT_EQ(index.stats_.num_keys, 0);
+  CHECK_EQ(index.stats_.num_keys, 0);
 }
 
-TEST(Alex, TestRangeScan) {
+TEST_CASE("TestRangeScan") {
   Alex<int, int> index;
 
   Alex<int, int>::V values[200];
@@ -481,8 +481,8 @@ TEST(Alex, TestRangeScan) {
     results.push_back((*it).second);
     sum += (*it).second;
   }
-  EXPECT_EQ(results.size(), 200);
-  EXPECT_EQ(sum, 19900);
+  CHECK_EQ(results.size(), 200);
+  CHECK_EQ(sum, 19900);
 
   std::vector<int> results2;
   int sum2 = 0;
@@ -492,9 +492,7 @@ TEST(Alex, TestRangeScan) {
     results2.push_back((*it2).second);
     sum2 += (*it2).second;
   }
-  EXPECT_EQ(results2.size(), 90);
-  EXPECT_EQ(sum2, 4905);
+  CHECK_EQ(results2.size(), 90);
+  CHECK_EQ(sum2, 4905);
 }
-
-TEST(Alex, TestDebug) {}
 };
