@@ -3,7 +3,6 @@
 
 #include "doctest.h"
 
-#define private public
 #include "alex.h"
 
 using namespace alex;

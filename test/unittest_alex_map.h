@@ -3,7 +3,6 @@
 
 #include "doctest.h"
 
-#define private public
 #include "alex_map.h"
 
 using namespace alex;
