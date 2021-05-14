@@ -121,8 +121,7 @@ TEST_CASE("TestRangeScan") {
 
   std::vector<int> results;
   int sum = 0;
-  auto it = index.begin();
-  for (; it != index.end(); it++) {
+  for (auto it = index.begin(); it != index.end(); it++) {
     results.push_back((*it).second);
     sum += (*it).second;
   }
@@ -131,11 +130,9 @@ TEST_CASE("TestRangeScan") {
 
   std::vector<int> results2;
   int sum2 = 0;
-  auto it2 = index.find(10);
-  auto it_end = index.find(100);
-  for (; it2 != it_end; it2++) {
-    results2.push_back((*it2).second);
-    sum2 += (*it2).second;
+  for (auto it = index.find(10), it_end = index.find(100); it != it_end; it++) {
+    results2.push_back((*it).second);
+    sum2 += (*it).second;
   }
   CHECK_EQ(results2.size(), 90);
   CHECK_EQ(sum2, 4905);
