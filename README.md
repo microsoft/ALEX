@@ -64,6 +64,13 @@ Your keys will need to be in either binary format or text format (one key per li
 If the data type of your keys is not `double`, you will need to modify `#define KEY_TYPE double` to
 `#define KEY_TYPE [your data type]` in [src/benchmark/main.cpp](src/benchmark/main.cpp).
 
+### Datasets
+The four datasets we used in our [SIGMOD 2020 paper](https://dl.acm.org/doi/pdf/10.1145/3318464.3389711) are publicly available (all in binary format):
+- [Longitudes (200M 8-byte floats)](https://drive.google.com/file/d/1zc90sD6Pze8UM_XYDmNjzPLqmKly8jKl/view?usp=sharing)
+- [Longlat (200M 8-byte floats)](https://drive.google.com/file/d/1mH-y_PcLQ6p8kgAz9SB7ME4KeYAfRfmR/view?usp=sharing)
+- [Lognormal (190M 8-byte signed ints)](https://drive.google.com/file/d/1y-UBf8CuuFgAZkUg_2b_G8zh4iF_N-mq/view?usp=sharing)
+- [YCSB (200M 8-byte unsigned ints)](https://drive.google.com/file/d/1Q89-v4FJLEwIKL3YY3oCeOEs0VUuv5bD/view?usp=sharing)
+
 # Design Overview
 Like the B+ Tree, ALEX is a data structure that indexes sorted data and supports workloads that contain a mix of point lookups, short range queries, inserts, updates, and deletes.
 Internally, ALEX uses a collection of linear regressions, organized hierarchically into a tree, to model the distribution of keys.
