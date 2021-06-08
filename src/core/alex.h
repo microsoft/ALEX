@@ -1395,7 +1395,8 @@ class Alex {
     // Modify the root node appropriately
     int new_nodes_start;  // index of first pointer to a new node
     int new_nodes_end;    // exclusive
-    if (root->num_children_ * expansion_factor <= derived_params_.max_fanout) {
+    if (static_cast<size_t>(root->num_children_) * expansion_factor <=
+        static_cast<size_t>(derived_params_.max_fanout)) {
       // Expand root node
       stats_.num_model_node_expansions++;
       stats_.num_model_node_expansion_pointers += root->num_children_;
@@ -1424,11 +1425,10 @@ class Alex {
       // Create new root node
       auto new_root = new (model_node_allocator().allocate(1))
           model_node_type(static_cast<short>(root->level_ - 1), allocator_);
-      new_root->model_.a_ = root->model_.a_;
+      new_root->model_.a_ = root->model_.a_ / root->num_children_;
+      new_root->model_.b_ = root->model_.b_ / root->num_children_;
       if (expand_left) {
-        new_root->model_.b_ = root->model_.b_ + expansion_factor - 1;
-      } else {
-        new_root->model_.b_ = root->model_.b_;
+        new_root->model_.b_ += expansion_factor - 1;
       }
       new_root->num_children_ = expansion_factor;
       new_root->children_ = new (pointer_allocator().allocate(expansion_factor))
@@ -2954,4 +2954,4 @@ class Alex {
     bool is_end() const { return cur_node_ == nullptr; }
   };
 };
-}
+}  // namespace alex
