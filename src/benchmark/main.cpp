@@ -88,32 +88,34 @@ int main(int argc, char* argv[]) {
     batch_no++;
 
     // Do lookups
-    KEY_TYPE* lookup_keys = nullptr;
-    if (lookup_distribution == "uniform") {
-      lookup_keys = get_search_keys(keys, i, num_lookups_per_batch);
-    } else if (lookup_distribution == "zipf") {
-      lookup_keys = get_search_keys_zipf(keys, i, num_lookups_per_batch);
-    } else {
-      std::cerr << "--lookup_distribution must be either 'uniform' or 'zipf'"
-                << std::endl;
-      return 1;
-    }
-    auto lookups_start_time = std::chrono::high_resolution_clock::now();
-    for (int j = 0; j < num_lookups_per_batch; j++) {
-      KEY_TYPE key = lookup_keys[j];
-      PAYLOAD_TYPE* payload = index.get_payload(key);
-      if (payload) {
-        sum += *payload;
+    double batch_lookup_time = 0.0;
+    if (i > 0) {
+      KEY_TYPE* lookup_keys = nullptr;
+      if (lookup_distribution == "uniform") {
+        lookup_keys = get_search_keys(keys, i, num_lookups_per_batch);
+      } else if (lookup_distribution == "zipf") {
+        lookup_keys = get_search_keys_zipf(keys, i, num_lookups_per_batch);
+      } else {
+        std::cerr << "--lookup_distribution must be either 'uniform' or 'zipf'"
+                  << std::endl;
+        return 1;
       }
+      auto lookups_start_time = std::chrono::high_resolution_clock::now();
+      for (int j = 0; j < num_lookups_per_batch; j++) {
+        KEY_TYPE key = lookup_keys[j];
+        PAYLOAD_TYPE* payload = index.get_payload(key);
+        if (payload) {
+          sum += *payload;
+        }
+      }
+      auto lookups_end_time = std::chrono::high_resolution_clock::now();
+      batch_lookup_time = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                              lookups_end_time - lookups_start_time)
+                              .count();
+      cumulative_lookup_time += batch_lookup_time;
+      cumulative_lookups += num_lookups_per_batch;
+      delete[] lookup_keys;
     }
-    auto lookups_end_time = std::chrono::high_resolution_clock::now();
-    double batch_lookup_time =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(lookups_end_time -
-                                                             lookups_start_time)
-            .count();
-    cumulative_lookup_time += batch_lookup_time;
-    cumulative_lookups += num_lookups_per_batch;
-    delete[] lookup_keys;
 
     // Do inserts
     int num_actual_inserts =

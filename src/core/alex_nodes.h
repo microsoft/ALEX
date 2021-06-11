@@ -537,7 +537,7 @@ class AlexDataNode : public AlexNode<T, P> {
   // Number of keys between positions left and right (exclusive) in
   // key/data_slots
   int num_keys_in_range(int left, int right) const {
-    assert(left >= 0 && left < right && right <= data_capacity_);
+    assert(left >= 0 && left <= right && right <= data_capacity_);
     int num_keys = 0;
     int left_bitmap_idx = left >> 6;
     int right_bitmap_idx = right >> 6;
