@@ -114,7 +114,7 @@ template <class T, class P, class Compare = std::less<T>>
 double compute_level(const std::pair<T, P> values[], int num_keys,
                      const AlexNode<T, P>* node, int total_keys,
                      std::vector<FTNode>& used_fanout_tree_nodes, int level,
-                     double expected_insert_frac = 0,
+                     int max_data_node_keys, double expected_insert_frac = 0,
                      bool approximate_model_computation = true,
                      bool approximate_cost_computation = false,
                      Compare key_less = Compare()) {
@@ -142,7 +142,7 @@ double compute_level(const std::pair<T, P> values[], int num_keys,
     }
     if (left_boundary == right_boundary) {
       used_fanout_tree_nodes.push_back(
-          {level, i, 0, left_boundary, right_boundary, true, 0, 0, 0, 0, 0});
+          {level, i, 0, left_boundary, right_boundary, false, 0, 0, 0, 0, 0});
       continue;
     }
     LinearModel<T> model;
@@ -155,6 +155,11 @@ double compute_level(const std::pair<T, P> values[], int num_keys,
         values + left_boundary, right_boundary - left_boundary,
         AlexDataNode<T, P>::kInitDensity_, expected_insert_frac, &model,
         approximate_cost_computation, &stats);
+    // If the node is too big to be a data node, proactively incorporate an
+    // extra tree traversal level into the cost.
+    if (right_boundary - left_boundary > max_data_node_keys) {
+      node_cost += kNodeLookupsWeight;
+    }
 
     cost += node_cost * (right_boundary - left_boundary) / num_keys;
 
@@ -181,7 +186,8 @@ template <class T, class P, class Compare = std::less<T>>
 std::pair<int, double> find_best_fanout_bottom_up(
     const std::pair<T, P> values[], int num_keys, const AlexNode<T, P>* node,
     int total_keys, std::vector<FTNode>& used_fanout_tree_nodes, int max_fanout,
-    double expected_insert_frac = 0, bool approximate_model_computation = true,
+    int max_data_node_keys, double expected_insert_frac = 0,
+    bool approximate_model_computation = true,
     bool approximate_cost_computation = false, Compare key_less = Compare()) {
   // Repeatedly add levels to the fanout tree until the overall cost of each
   // level starts to increase
@@ -197,7 +203,7 @@ std::pair<int, double> find_best_fanout_bottom_up(
     std::vector<FTNode> new_level;
     double cost = compute_level<T, P, Compare>(
         values, num_keys, node, total_keys, new_level, fanout_tree_level,
-        expected_insert_frac, approximate_model_computation,
+        max_data_node_keys, expected_insert_frac, approximate_model_computation,
         approximate_cost_computation, key_less);
     fanout_costs.push_back(cost);
     if (fanout_costs.size() >= 3 &&

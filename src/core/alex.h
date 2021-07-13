@@ -748,10 +748,12 @@ class Alex {
     std::vector<fanout_tree::FTNode> used_fanout_tree_nodes;
     std::pair<int, double> best_fanout_stats;
     if (experimental_params_.fanout_selection_method == 0) {
+      int max_data_node_keys = static_cast<int>(
+          derived_params_.max_data_node_slots * data_node_type::kMinDensity_);
       best_fanout_stats = fanout_tree::find_best_fanout_bottom_up<T, P>(
           values, num_keys, node, total_keys, used_fanout_tree_nodes,
-          derived_params_.max_fanout, params_.expected_insert_frac,
-          params_.approximate_model_computation,
+          derived_params_.max_fanout, max_data_node_keys,
+          params_.expected_insert_frac, params_.approximate_model_computation,
           params_.approximate_cost_computation, key_less_);
     } else if (experimental_params_.fanout_selection_method == 1) {
       best_fanout_stats = fanout_tree::find_best_fanout_top_down<T, P>(
@@ -782,10 +784,12 @@ class Alex {
                                        derived_params_.max_data_node_slots)) +
             1;
         used_fanout_tree_nodes.clear();
+        int max_data_node_keys = static_cast<int>(
+            derived_params_.max_data_node_slots * data_node_type::kMinDensity_);
         fanout_tree::compute_level<T, P>(
             values, num_keys, node, total_keys, used_fanout_tree_nodes,
-            best_fanout_tree_depth, params_.expected_insert_frac,
-            params_.approximate_model_computation,
+            best_fanout_tree_depth, max_data_node_keys,
+            params_.expected_insert_frac, params_.approximate_model_computation,
             params_.approximate_cost_computation);
       }
       int fanout = 1 << best_fanout_tree_depth;
@@ -1632,8 +1636,9 @@ class Alex {
     if (used_fanout_tree_nodes.empty()) {
       assert(fanout_tree_depth == 1);
       create_two_new_data_nodes(
-          leaf, parent, std::max(fanout_tree_depth,
-                                 static_cast<int>(leaf->duplication_factor_)),
+          leaf, parent,
+          std::max(fanout_tree_depth,
+                   static_cast<int>(leaf->duplication_factor_)),
           reuse_model, start_bucketID);
     } else {
       // Extra duplication factor is required when there are more redundant
