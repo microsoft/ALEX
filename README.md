@@ -26,6 +26,9 @@ On Linux/Mac, use the following commands:
 # Build using CMake, which creates a new build directory
 ./build.sh
 
+# Build using CMake in Debug Mode, which creates a new build_debug directory and defines the macro ‘DEBUG'
+./build.sh debug
+
 # Run example program
 ./build/example
 
