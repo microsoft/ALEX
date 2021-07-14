@@ -3,7 +3,7 @@ project(alex)
 
 set(CMAKE_CXX_STANDARD 14)
 
-# Define the macro ‘DEBUG' to be true in the debug mode
+# Define the macro ‘DEBUG' in the debug mode
 if(CMAKE_BUILD_TYPE STREQUAL Debug)        
     ADD_DEFINITIONS(-DDEBUG)               
 endif()
