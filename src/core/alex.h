@@ -1557,7 +1557,7 @@ class Alex {
   // newly created model node.
   model_node_type* split_downwards(
       model_node_type* parent, int bucketID, int fanout_tree_depth,
-      const std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes,
+      std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes,
       bool reuse_model) {
     auto leaf = static_cast<data_node_type*>(parent->children_[bucketID]);
     stats_.num_downward_splits++;
@@ -1610,10 +1610,10 @@ class Alex {
 
   // Splits data node sideways in the manner determined by the fanout tree.
   // If no fanout tree is provided, then splits sideways in two.
-  void split_sideways(
-      model_node_type* parent, int bucketID, int fanout_tree_depth,
-      const std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes,
-      bool reuse_model) {
+  void split_sideways(model_node_type* parent, int bucketID,
+                      int fanout_tree_depth,
+                      std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes,
+                      bool reuse_model) {
     auto leaf = static_cast<data_node_type*>(parent->children_[bucketID]);
     stats_.num_sideways_splits++;
     stats_.num_sideways_split_keys += leaf->num_keys_;
@@ -1680,6 +1680,15 @@ class Alex {
 
     int right_boundary = old_node->lower_bound(
         (mid_bucketID - parent->model_.b_) / parent->model_.a_);
+    // Account for off-by-one errors due to floating-point precision issues.
+    while (right_boundary < old_node->data_capacity_ &&
+           old_node->get_key(right_boundary) != data_node_type::kEndSentinel_ &&
+           parent->model_.predict(old_node->get_key(right_boundary)) <
+               mid_bucketID) {
+      right_boundary = std::min(
+          old_node->get_next_filled_position(right_boundary, false) + 1,
+          old_node->data_capacity_);
+    }
     data_node_type* left_leaf = bulk_load_leaf_node_from_existing(
         old_node, 0, right_boundary, true, nullptr, reuse_model,
         append_mostly_right && start_bucketID <= appending_right_bucketID &&
@@ -1717,7 +1726,7 @@ class Alex {
   void create_new_data_nodes(
       const data_node_type* old_node, model_node_type* parent,
       int fanout_tree_depth,
-      const std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes,
+      std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes,
       int start_bucketID = 0, int extra_duplication_factor = 0) {
     bool append_mostly_right = old_node->is_append_mostly_right();
     int appending_right_bucketID = std::min<int>(
@@ -1732,7 +1741,13 @@ class Alex {
     int cur = start_bucketID;  // first bucket with same child
     data_node_type* prev_leaf =
         old_node->prev_leaf_;  // used for linking the new data nodes
-    for (const fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {
+    int left_boundary = 0;
+    int right_boundary = 0;
+    // Keys may be re-assigned to an adjacent fanout tree node due to off-by-one
+    // errors
+    int num_reassigned_keys = 0;
+    for (fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {
+      left_boundary = right_boundary;
       auto duplication_factor = static_cast<uint8_t>(
           fanout_tree_depth - tree_node.level + extra_duplication_factor);
       int child_node_repeats = 1 << duplication_factor;
@@ -1740,9 +1755,24 @@ class Alex {
                        appending_right_bucketID < cur + child_node_repeats;
       bool keep_right = append_mostly_left && cur <= appending_left_bucketID &&
                         appending_left_bucketID < cur + child_node_repeats;
+      right_boundary = tree_node.right_boundary;
+      // Account for off-by-one errors due to floating-point precision issues.
+      tree_node.num_keys -= num_reassigned_keys;
+      num_reassigned_keys = 0;
+      while (right_boundary < old_node->data_capacity_ &&
+             old_node->get_key(right_boundary) !=
+                 data_node_type::kEndSentinel_ &&
+             parent->model_.predict(old_node->get_key(right_boundary)) <
+                 cur + child_node_repeats) {
+        num_reassigned_keys++;
+        right_boundary = std::min(
+            old_node->get_next_filled_position(right_boundary, false) + 1,
+            old_node->data_capacity_);
+      }
+      tree_node.num_keys += num_reassigned_keys;
       data_node_type* child_node = bulk_load_leaf_node_from_existing(
-          old_node, tree_node.left_boundary, tree_node.right_boundary, false,
-          &tree_node, false, keep_left, keep_right);
+          old_node, left_boundary, right_boundary, false, &tree_node, false,
+          keep_left, keep_right);
       child_node->level_ = static_cast<short>(parent->level_ + 1);
       child_node->cost_ = tree_node.cost;
       child_node->duplication_factor_ = duplication_factor;

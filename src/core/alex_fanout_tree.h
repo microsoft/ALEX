@@ -136,8 +136,8 @@ double compute_level(const std::pair<T, P> values[], int num_keys,
                                    }) -
                   values);
     // Account for off-by-one errors due to floating-point precision issues.
-    if (right_boundary < num_keys &&
-        static_cast<int>(a * values[right_boundary].first + b) <= i) {
+    while (right_boundary < num_keys &&
+           static_cast<int>(a * values[right_boundary].first + b) <= i) {
       right_boundary++;
     }
     if (left_boundary == right_boundary) {
