@@ -729,7 +729,7 @@ class Alex {
     // Automatically convert to data node when it is impossible to be better
     // than current cost
     if (num_keys <= derived_params_.max_data_node_slots *
-                        data_node_type::kMinDensity_ &&
+                        data_node_type::kInitDensity_ &&
         (node->cost_ < kNodeLookupsWeight || node->model_.a_ == 0)) {
       stats_.num_data_nodes++;
       auto data_node = new (data_node_allocator().allocate(1))
@@ -749,7 +749,7 @@ class Alex {
     std::pair<int, double> best_fanout_stats;
     if (experimental_params_.fanout_selection_method == 0) {
       int max_data_node_keys = static_cast<int>(
-          derived_params_.max_data_node_slots * data_node_type::kMinDensity_);
+          derived_params_.max_data_node_slots * data_node_type::kInitDensity_);
       best_fanout_stats = fanout_tree::find_best_fanout_bottom_up<T, P>(
           values, num_keys, node, total_keys, used_fanout_tree_nodes,
           derived_params_.max_fanout, max_data_node_keys,
@@ -768,7 +768,7 @@ class Alex {
     // Decide whether this node should be a model node or data node
     if (best_fanout_tree_cost < node->cost_ ||
         num_keys > derived_params_.max_data_node_slots *
-                       data_node_type::kMinDensity_) {
+                       data_node_type::kInitDensity_) {
       // Convert to model node based on the output of the fanout tree
       stats_.num_model_nodes++;
       auto model_node = new (model_node_allocator().allocate(1))
@@ -785,7 +785,7 @@ class Alex {
             1;
         used_fanout_tree_nodes.clear();
         int max_data_node_keys = static_cast<int>(
-            derived_params_.max_data_node_slots * data_node_type::kMinDensity_);
+            derived_params_.max_data_node_slots * data_node_type::kInitDensity_);
         fanout_tree::compute_level<T, P>(
             values, num_keys, node, total_keys, used_fanout_tree_nodes,
             best_fanout_tree_depth, max_data_node_keys,
