@@ -297,6 +297,46 @@ TEST_CASE("TestFindLastNoGreaterThan") {
   CHECK_EQ(values[0].first, it.key());
 }
 
+TEST_CASE("TestLargeFindLastNoGreaterThan") {
+  Alex<uint64_t, uint64_t> index;
+  index.insert(std::make_pair(0ULL, 0ULL));
+
+  const uint64_t keys_per_segment = 80523;
+  const uint64_t step_size = 43206176;
+  const uint64_t num_segments = 16;
+  const uint64_t start_keys[] = {698631712, 658125922, 660826308, 663526694,
+                                 666227080, 668927466, 671627852, 674328238,
+                                 677028624, 679729010, 682429396, 685129782,
+                                 687830168, 690530554, 693230940, 695931326};
+
+  uint64_t max_key = 0;
+  uint64_t max_key_value = 0;
+  for (uint64_t segment = 0; segment < num_segments; ++segment) {
+    uint64_t curr_key = start_keys[segment];
+    for (uint64_t i = 0; i < keys_per_segment; ++i) {
+      if (curr_key > max_key) {
+        max_key = curr_key;
+        max_key_value = i + 1;
+      }
+
+      index.insert(curr_key, i + 1);
+      curr_key += step_size;
+    }
+  }
+
+  // This key is larger than all keys in the index.
+  const uint64_t test_key = 3650322694401;
+  CHECK_GT(test_key, max_key);
+
+  auto it = index.find_last_no_greater_than(test_key);
+  CHECK(!it.is_end());
+  CHECK_EQ(max_key, it.key());
+
+  const uint64_t *p = index.get_payload_last_no_greater_than(test_key);
+  CHECK(p);
+  CHECK_EQ(max_key_value, *p);
+}
+
 TEST_CASE("TestReadModifyWrite") {
   Alex<int, int> index;
 

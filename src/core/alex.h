@@ -994,18 +994,20 @@ class Alex {
   typename self_type::Iterator find_last_no_greater_than(const T& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
-    int idx = leaf->upper_bound(key) - 1;
-    if (idx == -1) {
-      if (leaf->prev_leaf_) {
-        // Edge case: need to check previous data node
-        data_node_type* prev_leaf = leaf->prev_leaf_;
-        int last_pos = prev_leaf->last_pos();
-        return Iterator(prev_leaf, last_pos);
-      } else {
+    const int idx = leaf->upper_bound(key) - 1;
+    if (idx >= 0) {
+      return Iterator(leaf, idx);
+    }
+
+    // Edge case: need to check previous data node(s)
+    while (true) {
+      if (leaf->prev_leaf_ == nullptr) {
         return Iterator(leaf, 0);
       }
-    } else {
-      return Iterator(leaf, idx);
+      leaf = leaf->prev_leaf_;
+      if (leaf->num_keys_ > 0) {
+        return Iterator(leaf, leaf->last_pos());
+      }
     }
   }
 
@@ -1015,17 +1017,20 @@ class Alex {
   P* get_payload_last_no_greater_than(const T& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
-    int idx = leaf->upper_bound(key) - 1;
-    if (idx == -1) {
-      if (leaf->prev_leaf_) {
-        // Edge case: need to check previous data node
-        data_node_type* prev_leaf = leaf->prev_leaf_;
-        return &(prev_leaf->get_payload(prev_leaf->last_pos()));
-      } else {
+    const int idx = leaf->upper_bound(key) - 1;
+    if (idx >= 0) {
+      return &(leaf->get_payload(idx));
+    }
+
+    // Edge case: Need to check previous data node(s)
+    while (true) {
+      if (leaf->prev_leaf_ == nullptr) {
         return &(leaf->get_payload(leaf->first_pos()));
       }
-    } else {
-      return &(leaf->get_payload(idx));
+      leaf = leaf->prev_leaf_;
+      if (leaf->num_keys_ > 0) {
+        return &(leaf->get_payload(leaf->last_pos()));
+      }
     }
   }
 
