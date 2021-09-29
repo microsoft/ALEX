@@ -215,6 +215,7 @@ class Alex {
         data_node_type(key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
+    stats_.num_data_nodes++;
     create_superroot();
   }
 
@@ -225,6 +226,7 @@ class Alex {
         data_node_type(key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
+    stats_.num_data_nodes++;
     create_superroot();
   }
 
@@ -234,6 +236,7 @@ class Alex {
         data_node_type(key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
+    stats_.num_data_nodes++;
     create_superroot();
   }
 
