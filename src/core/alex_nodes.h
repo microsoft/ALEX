@@ -1228,6 +1228,7 @@ class AlexDataNode : public AlexNode<T, P> {
                                              static_cast<double>(num_keys + 1)),
                                     static_cast<double>(data_capacity_));
     contraction_threshold_ = data_capacity_ * kMinDensity_;
+    min_key_ = values[0].first;
     max_key_ = values[num_keys - 1].first;
   }
 
@@ -1328,6 +1329,7 @@ class AlexDataNode : public AlexNode<T, P> {
       ALEX_DATA_NODE_KEY_AT(i) = kEndSentinel_;
     }
 
+    min_key_ = node->min_key_;
     max_key_ = node->max_key_;
 
     expansion_threshold_ =
