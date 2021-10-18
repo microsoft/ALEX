@@ -1284,6 +1284,7 @@ class AlexDataNode : public AlexNode<T, P> {
     int last_position = -1;
     int keys_remaining = num_keys_;
     const_iterator_type it(node, left);
+    min_key_ = it.key();
     for (; it.cur_idx_ < right && !it.is_end(); it++) {
       int position = this->model_.predict(it.key());
       position = std::max<int>(position, last_position + 1);
@@ -1329,8 +1330,7 @@ class AlexDataNode : public AlexNode<T, P> {
       ALEX_DATA_NODE_KEY_AT(i) = kEndSentinel_;
     }
 
-    min_key_ = node->min_key_;
-    max_key_ = node->max_key_;
+    max_key_ = ALEX_DATA_NODE_KEY_AT(last_position);
 
     expansion_threshold_ =
         std::min(std::max(data_capacity_ * kMaxDensity_,
