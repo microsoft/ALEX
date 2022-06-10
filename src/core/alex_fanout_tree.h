@@ -35,7 +35,7 @@ struct FTNode {
 /*** Helpers ***/
 
 // Collect all used fanout tree nodes and sort them
-void collect_used_nodes(const std::vector<std::vector<FTNode>>& fanout_tree,
+inline void collect_used_nodes(const std::vector<std::vector<FTNode>>& fanout_tree,
                         int max_level,
                         std::vector<FTNode>& used_fanout_tree_nodes) {
   max_level = std::min(max_level, static_cast<int>(fanout_tree.size()) - 1);
