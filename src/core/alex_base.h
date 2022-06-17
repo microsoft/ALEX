@@ -127,8 +127,14 @@ class LinearModelBuilder {
 
     // If floating point precision errors, fit spline
     if (model_->a_ <= 0) {
-      model_->a_ = (y_max_ - y_min_) / (x_max_ - x_min_);
-      model_->b_ = -static_cast<double>(x_min_) * model_->a_;
+      if (x_max_ - x_min_ == 0){
+        model_->a_ = 0;
+        model_->b_ = static_cast<double>(y_sum_) / count_;
+      }
+      else{
+        model_->a_ = (y_max_ - y_min_) / (x_max_ - x_min_);
+        model_->b_ = -static_cast<double>(x_min_) * model_->a_;
+      }
     }
   }
 

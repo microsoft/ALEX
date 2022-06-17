@@ -1362,10 +1362,16 @@ class Alex {
     T new_domain_max = istats_.key_domain_max_;
     data_node_type* outermost_node;
     if (expand_left) {
-      auto key_difference = static_cast<double>(istats_.key_domain_min_ -
+      if constexpr (std::is_integral<T>::value){
+        T key_difference = istats_.key_domain_min_ - std::min(key, get_min_key());
+        expansion_factor = pow_2_round_up((key_difference + domain_size - 1) / domain_size + 1);
+      }
+      else{
+        auto key_difference = static_cast<double>(istats_.key_domain_min_ -
                                                 std::min(key, get_min_key()));
-      expansion_factor = pow_2_round_up(static_cast<int>(
-          std::ceil((key_difference + domain_size) / domain_size)));
+        expansion_factor = pow_2_round_up(static_cast<int>(
+            std::ceil((key_difference + domain_size) / domain_size)));
+      }
       // Check for overflow. To avoid overflow on signed types while doing
       // this check, we do comparisons using half of the relevant quantities.
       T half_expandable_domain =
@@ -1382,10 +1388,16 @@ class Alex {
       istats_.num_keys_below_key_domain = 0;
       outermost_node = first_data_node();
     } else {
-      auto key_difference = static_cast<double>(std::max(key, get_max_key()) -
+      if constexpr (std::is_integral<T>::value){
+        T key_difference = std::max(key, get_max_key()) - istats_.key_domain_max_;
+        expansion_factor = pow_2_round_up((key_difference + domain_size - 1) / domain_size + 1);
+      }
+      else{
+        auto key_difference = static_cast<double>(std::max(key, get_max_key()) -
                                                 istats_.key_domain_max_);
-      expansion_factor = pow_2_round_up(static_cast<int>(
-          std::ceil((key_difference + domain_size) / domain_size)));
+        expansion_factor = pow_2_round_up(static_cast<int>(
+            std::ceil((key_difference + domain_size) / domain_size)));
+      }
       // Check for overflow. To avoid overflow on signed types while doing
       // this check, we do comparisons using half of the relevant quantities.
       T half_expandable_domain =
@@ -1483,10 +1495,10 @@ class Alex {
       int left_boundary = outermost_node->lower_bound(left_boundary_value);
       data_node_type* next = outermost_node;
       for (int i = new_nodes_end; i > new_nodes_start; i -= n) {
-        if (i <= in_bounds_new_nodes_start) {
-          // Do not initialize nodes that fall outside the key type's domain
-          break;
-        }
+        // if (i <= in_bounds_new_nodes_start) {
+        //   // Do not initialize nodes that fall outside the key type's domain
+        //   break;
+        // }
         int right_boundary = left_boundary;
         if (i - n <= in_bounds_new_nodes_start) {
           left_boundary = 0;
@@ -1512,10 +1524,10 @@ class Alex {
       int right_boundary = outermost_node->lower_bound(right_boundary_value);
       data_node_type* prev = nullptr;
       for (int i = new_nodes_start; i < new_nodes_end; i += n) {
-        if (i >= in_bounds_new_nodes_end) {
-          // Do not initialize nodes that fall outside the key type's domain
-          break;
-        }
+        // if (i >= in_bounds_new_nodes_end) {
+        //   // Do not initialize nodes that fall outside the key type's domain
+        //   break;
+        // }
         int left_boundary = right_boundary;
         if (i + n >= in_bounds_new_nodes_end) {
           right_boundary = outermost_node->data_capacity_;
@@ -1585,13 +1597,19 @@ class Alex {
         bucketID - (bucketID % repeats);  // first bucket with same child
     int end_bucketID =
         start_bucketID + repeats;  // first bucket with different child
-    double left_boundary_value =
-        (start_bucketID - parent->model_.b_) / parent->model_.a_;
-    double right_boundary_value =
-        (end_bucketID - parent->model_.b_) / parent->model_.a_;
-    new_node->model_.a_ =
-        1.0 / (right_boundary_value - left_boundary_value) * fanout;
-    new_node->model_.b_ = -new_node->model_.a_ * left_boundary_value;
+    if (parent->model_.a_ == 0){
+      new_node->model_.a_ = 0;
+      new_node->model_.b_ = -1.0 * (start_bucketID - parent->model_.b_) / repeats;
+    }
+    else{
+      double left_boundary_value =
+          (start_bucketID - parent->model_.b_) / parent->model_.a_;
+      double right_boundary_value =
+          (end_bucketID - parent->model_.b_) / parent->model_.a_;
+      new_node->model_.a_ =
+          1.0 / (right_boundary_value - left_boundary_value) * fanout;
+      new_node->model_.b_ = -new_node->model_.a_ * left_boundary_value;
+    }
 
     // Create new data nodes
     if (used_fanout_tree_nodes.empty()) {

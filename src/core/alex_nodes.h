@@ -1410,7 +1410,8 @@ class AlexDataNode : public AlexNode<T, P> {
       }
       builder.build();
 
-      double rel_change_in_a = std::abs((model->a_ - prev_a) / prev_a);
+      double rel_change_in_a = prev_a == 0 ? (model->a_ != 0) 
+                               : std::abs((model->a_ - prev_a) / prev_a);
       double abs_change_in_b = std::abs(model->b_ - prev_b);
       double rel_change_in_b = std::abs(abs_change_in_b / prev_b);
       if (verbose) {
@@ -1659,14 +1660,14 @@ class AlexDataNode : public AlexNode<T, P> {
   // splitting
   inline bool significant_cost_deviation() const {
     double emp_cost = empirical_cost();
-    return emp_cost > kNodeLookupsWeight && emp_cost > 1.5 * this->cost_;
+    return this->model_.a_ != 0 && emp_cost > kNodeLookupsWeight && emp_cost > 1.5 * this->cost_;
   }
 
   // Returns true if cost is catastrophically high and we want to force a split
   // The heuristic for this is if the number of shifts per insert (expected or
   // empirical) is over 100
   inline bool catastrophic_cost() const {
-    return shifts_per_insert() > 100 || expected_avg_shifts_ > 100;
+    return this->model_.a_ != 0 && shifts_per_insert() > 100 || expected_avg_shifts_ > 100;
   }
 
   // First value in returned pair is fail flag:

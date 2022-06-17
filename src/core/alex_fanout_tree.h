@@ -362,13 +362,19 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
       bucketID - (bucketID % repeats);  // first bucket with same child
   int end_bucketID =
       start_bucketID + repeats;  // first bucket with different child
-  double left_boundary_value =
-      (start_bucketID - parent->model_.b_) / parent->model_.a_;
-  double right_boundary_value =
-      (end_bucketID - parent->model_.b_) / parent->model_.a_;
   LinearModel<T> base_model;
-  base_model.a_ = 1.0 / (right_boundary_value - left_boundary_value);
-  base_model.b_ = -1.0 * base_model.a_ * left_boundary_value;
+  if (parent->model_.a_ == 0){
+    base_model.a_ = 0;
+    base_model.b_ = -1.0 * (start_bucketID - parent->model_.b_) / repeats;
+  }
+  else{
+    double left_boundary_value =
+      (start_bucketID - parent->model_.b_) / parent->model_.a_;
+    double right_boundary_value =
+        (end_bucketID - parent->model_.b_) / parent->model_.a_;
+    base_model.a_ = 1.0 / (right_boundary_value - left_boundary_value);
+    base_model.b_ = -1.0 * base_model.a_ * left_boundary_value;
+  }
 
   for (int fanout = 1, fanout_tree_level = 0; fanout <= max_fanout;
        fanout *= 2, fanout_tree_level++) {
