@@ -8,12 +8,13 @@
 #include "../core/alex.h"
 
 #include <iomanip>
+#include <string>
 
 #include "flags.h"
 #include "utils.h"
 
 // Modify these if running your own workload
-#define KEY_TYPE double
+#define KEY_TYPE std::string
 #define PAYLOAD_TYPE double
 
 /*

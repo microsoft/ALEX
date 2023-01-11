@@ -7,7 +7,9 @@
 
 #include "../core/alex.h"
 
-#define KEY_TYPE int
+#include <string>
+
+#define KEY_TYPE std::string
 #define PAYLOAD_TYPE int
 
 int main(int, char**) {
