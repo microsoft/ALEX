@@ -329,21 +329,120 @@ class Alex {
     delete[] key_domain_max_;
   }
 
-  // Initializes with range [first, last). The range does not need to be
-  // sorted. This creates a temporary copy of the data. If possible, we
-  // recommend directly using bulk_load() instead.
+  // Below 4 constructors initializes with range [first, last). 
+  // The range does not need to be sorted. 
+  // This creates a temporary copy of the data. 
+  // If possible, we recommend directly using bulk_load() instead.
   template <class InputIterator>
-  explicit Alex(InputIterator first, InputIterator last, const Compare& comp,
-                const Alloc& alloc = Alloc())
-      : key_less_(comp), allocator_(alloc) {
+  explicit Alex(InputIterator first, InputIterator last,
+                unsigned int max_key_length, int key_type = DOUBLE,
+                const Compare& comp = Compare(), const Alloc& alloc = Alloc())
+      : max_key_length_(max_key_length), key_type_(key_type),
+        key_less_(comp), allocator_(alloc) {
+    // key_domain setup
+    key_domain_min_ = new double[1];
+    key_domain_max_ = new double[1];
+    if (key_type_ == STRING) {
+      key_domain_min_[0] = 0.0;
+      key_domain_max_[0] = 127.0
+    }
+    else if (key_type_ == INTEGER) {
+      key_domain_min_[0] = (double) std::numeric_limits<int>::min();
+      key_domain_max_[0] = (double) std::numeric_limits<int>::max();
+    }
+    else {
+      key_domain_min_[0] = std::numeric_limits<double>::min();
+      key_domain_max_[0] = std::numeric_limits<double>::max();
+    }
+
     std::vector<V> values;
     for (auto it = first; it != last; ++it) {
       values.push_back(*it);
     }
     std::sort(values.begin(), values.end(),
-              [this](auto const& a, auto const& b) {
-                return key_less_(a.first, b.first);
-              });
+            [this](auto const& a, auto const& b) {
+              auto key1 = a.first;
+              auto key2 = b.first;
+              /* NOTE : WE MAY NEED TO CHECK IF SIZE OF KEY ARRAY IS PROPERLY OBTAINED.
+               * ALSO, WE MAY NEED TO FIX THE ORDERING FUNCTION. */
+              for (unsigned int i = 0; i < sizeof(key1)/sizeof(double); i++) {
+                if ((key1[i] == 0.0) && (key2[i] == 0.0)) {break;}
+                if (key1[i] < key2[i]) {return true;}
+                else if (key1[i] > key2[i]) {return false;}
+              }
+              return true;
+            });
+    bulk_load(values.data(), static_cast<int>(values.size()));
+  }
+
+  template <class InputIterator>
+  explicit Alex(InputIterator first, InputIterator last, int key_type,
+                const Compare& comp = Compare(), const Alloc& alloc = Alloc())
+      : key_type_(key_type), key_less_(comp), allocator_(alloc) {
+    // key_domain setup
+    key_domain_min_ = new double[1];
+    key_domain_max_ = new double[1];
+    if (key_type_ == STRING) {
+      key_domain_min_[0] = 0.0;
+      key_domain_max_[0] = 127.0
+    }
+    else if (key_type_ == INTEGER) {
+      key_domain_min_[0] = (double) std::numeric_limits<int>::min();
+      key_domain_max_[0] = (double) std::numeric_limits<int>::max();
+    }
+    else {
+      key_domain_min_[0] = std::numeric_limits<double>::min();
+      key_domain_max_[0] = std::numeric_limits<double>::max();
+    }
+
+    std::vector<V> values;
+    for (auto it = first; it != last; ++it) {
+      values.push_back(*it);
+    }
+    std::sort(values.begin(), values.end(),
+            [this](auto const& a, auto const& b) {
+              auto key1 = a.first;
+              auto key2 = b.first;
+              /* NOTE : WE MAY NEED TO CHECK IF SIZE OF KEY ARRAY IS PROPERLY OBTAINED.
+               * ALSO, WE MAY NEED TO FIX THE ORDERING FUNCTION. */
+              for (unsigned int i = 0; i < sizeof(key1)/sizeof(double); i++) {
+                if ((key1[i] == 0.0) && (key2[i] == 0.0)) {break;}
+                if (key1[i] < key2[i]) {return true;}
+                else if (key1[i] > key2[i]) {return false;}
+              }
+              return true;
+            });
+    bulk_load(values.data(), static_cast<int>(values.size()));
+  }
+
+  template <class InputIterator>
+  explicit Alex(InputIterator first, InputIterator last, const Compare& comp,
+                const Alloc& alloc = Alloc())
+      : key_less_(comp), allocator_(alloc) {
+    
+    // key_domain setup
+    key_domain_min_ = new double[1];
+    key_domain_max_ = new double[1];
+    key_domain_min_[0] = std::numeric_limits<double>::min();
+    key_domain_max_[0] = std::numeric_limits<double>::max();
+
+    std::vector<V> values;
+    for (auto it = first; it != last; ++it) {
+      values.push_back(*it);
+    }
+    std::sort(values.begin(), values.end(),
+            [this](auto const& a, auto const& b) {
+              auto key1 = a.first;
+              auto key2 = b.first;
+              /* NOTE : WE MAY NEED TO CHECK IF SIZE OF KEY ARRAY IS PROPERLY OBTAINED.
+               * ALSO, WE MAY NEED TO FIX THE ORDERING FUNCTION. */
+              for (unsigned int i = 0; i < sizeof(key1)/sizeof(double); i++) {
+                if ((key1[i] == 0.0) && (key2[i] == 0.0)) {break;}
+                if (key1[i] < key2[i]) {return true;}
+                else if (key1[i] > key2[i]) {return false;}
+              }
+              return true;
+            });
     bulk_load(values.data(), static_cast<int>(values.size()));
   }
 
@@ -351,14 +450,29 @@ class Alex {
   explicit Alex(InputIterator first, InputIterator last,
                 const Alloc& alloc = Alloc())
       : allocator_(alloc) {
+    // key_domain setup
+    key_domain_min_ = new double[1];
+    key_domain_max_ = new double[1];
+    key_domain_min_[0] = std::numeric_limits<double>::min();
+    key_domain_max_[0] = std::numeric_limits<double>::max();
+
     std::vector<V> values;
     for (auto it = first; it != last; ++it) {
       values.push_back(*it);
     }
     std::sort(values.begin(), values.end(),
-              [this](auto const& a, auto const& b) {
-                return key_less_(a.first, b.first);
-              });
+            [this](auto const& a, auto const& b) {
+              auto key1 = a.first;
+              auto key2 = b.first;
+              /* NOTE : WE MAY NEED TO CHECK IF SIZE OF KEY ARRAY IS PROPERLY OBTAINED.
+               * ALSO, WE MAY NEED TO FIX THE ORDERING FUNCTION. */
+              for (unsigned int i = 0; i < sizeof(key1)/sizeof(double); i++) {
+                if ((key1[i] == 0.0) && (key2[i] == 0.0)) {break;}
+                if (key1[i] < key2[i]) {return true;}
+                else if (key1[i] > key2[i]) {return false;}
+              }
+              return true;
+            });
     bulk_load(values.data(), static_cast<int>(values.size()));
   }
 
@@ -369,7 +483,15 @@ class Alex {
         experimental_params_(other.experimental_params_),
         istats_(other.istats_),
         key_less_(other.key_less_),
-        allocator_(other.allocator_) {
+        allocator_(other.allocator_),
+        max_key_length_(other.max_key_length_),
+        key_type_(other.key_type_) {
+    key_domain_min_ = new double[max_key_length_];
+    key_domain_max_ = new double[max_key_length_];
+    for (int i = 0; i < max_key_length_; i++) {
+      key_domain_min_[i] = other.key_domain_min_[i];
+      key_domain_max_[i] = other.key_domain_max_[i];
+    }
     superroot_ =
         static_cast<model_node_type*>(copy_tree_recursive(other.superroot_));
     root_node_ = superroot_->children_[0];
@@ -382,6 +504,8 @@ class Alex {
         delete_node(node_it.current());
       }
       delete_node(superroot_);
+      delete[] key_domain_min_;
+      delete[] key_domain_max_;
       params_ = other.params_;
       derived_params_ = other.derived_params_;
       experimental_params_ = other.experimental_params_;
@@ -389,6 +513,14 @@ class Alex {
       stats_ = other.stats_;
       key_less_ = other.key_less_;
       allocator_ = other.allocator_;
+      max_key_length_ = other.max_key_length_;
+      key_type_ = other.key_type_;
+      key_domain_min_ = new double[max_key_length_];
+      key_domain_max_ = new double[max_key_length_];
+      for (int i = 0; i < max_key_length_; i++) {
+        key_domain_min_[i] = other.key_domain_min_[i];
+        key_domain_max_[i] = other.key_domain_max_[i];
+      }
       superroot_ =
           static_cast<model_node_type*>(copy_tree_recursive(other.superroot_));
       root_node_ = superroot_->children_[0];
@@ -404,6 +536,10 @@ class Alex {
     std::swap(stats_, other.stats_);
     std::swap(key_less_, other.key_less_);
     std::swap(allocator_, other.allocator_);
+    std::swap(max_key_length_, other.max_key_length_);
+    std::swap(key_type_, other.key_type_);
+    std::swap(key_domain_min_, other.key_domain_min_);
+    std::swap(key_domain_max_, other.key_domain_max_);
     std::swap(superroot_, other.superroot_);
     std::swap(root_node_, other.root_node_);
   }
