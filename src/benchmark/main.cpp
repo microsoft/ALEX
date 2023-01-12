@@ -94,7 +94,7 @@ int main(int argc, char* argv[]) {
             [](auto const& a, auto const& b) {
               auto key1 = a.first;
               auto key2 = b.first;
-              for (unsigned int i = 0; i < sizeof(key1); i++) {
+              for (unsigned int i = 0; i < sizeof(key1)/sizeof(double); i++) {
                 if ((key1[i] == 0.0) && (key2[i] == 0.0)) {break;}
                 if (key1[i] < key2[i]) {return true;}
                 else if (key1[i] > key2[i]) {return false;}
