@@ -228,7 +228,7 @@ class Alex {
   }
 
   Alex(unsigned int key_length, int key_type = DOUBLE,
-   const Compare& comp = Compare(), const Alloc& alloc = Alloc())
+       const Compare& comp = Compare(), const Alloc& alloc = Alloc())
     : max_key_length_(key_length), key_type_(key_type), key_less_(comp), allocator_(alloc) {
     // key_domain setup
     key_domain_min_ = new double[1];
@@ -347,9 +347,6 @@ class Alex {
     bulk_load(values.data(), static_cast<int>(values.size()));
   }
 
-  // Initializes with range [first, last). The range does not need to be
-  // sorted. This creates a temporary copy of the data. If possible, we
-  // recommend directly using bulk_load() instead.
   template <class InputIterator>
   explicit Alex(InputIterator first, InputIterator last,
                 const Alloc& alloc = Alloc())
