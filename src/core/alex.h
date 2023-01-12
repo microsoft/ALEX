@@ -48,22 +48,22 @@
 
 namespace alex {
 
-template <class T, class P, class Compare = AlexCompare,
-          class Alloc = std::allocator<std::pair<T, P>>,
+template <class P, class Compare = AlexCompare,
+          class Alloc = std::allocator<std::pair<double *, P>>,
           bool allow_duplicates = true>
 class Alex {
-  static_assert(std::is_arithmetic<T>::value, "ALEX key type must be numeric.");
+  //static_assert(std::is_arithmetic<T>::value, "ALEX key type must be numeric.");
   static_assert(std::is_same<Compare, AlexCompare>::value,
                 "Must use AlexCompare.");
 
  public:
   // Value type, returned by dereferencing an iterator
-  typedef std::pair<T, P> V;
+  typedef std::pair<double *, P> V;
 
   // ALEX class aliases
-  typedef Alex<T, P, Compare, Alloc, allow_duplicates> self_type;
-  typedef AlexModelNode<T, P, Alloc> model_node_type;
-  typedef AlexDataNode<T, P, Compare, Alloc, allow_duplicates> data_node_type;
+  typedef Alex<P, Compare, Alloc, allow_duplicates> self_type;
+  typedef AlexModelNode<P, Alloc> model_node_type;
+  typedef AlexDataNode<P, Compare, Alloc, allow_duplicates> data_node_type;
 
   // Forward declaration for iterators
   class Iterator;
@@ -72,9 +72,11 @@ class Alex {
   class ConstReverseIterator;
   class NodeIterator;  // Iterates through all nodes with pre-order traversal
 
-  AlexNode<T, P>* root_node_ = nullptr;
+  AlexNode<double *, P>* root_node_ = nullptr;
   model_node_type* superroot_ =
       nullptr;  // phantom node that is the root's parent
+  unsigned int max_key_length_ = 1; // maximum length of keys in this ALEX structure.
+  int key_type_ = DOUBLE; // type of key
 
   /* User-changeable parameters */
   struct Params {
@@ -155,8 +157,8 @@ class Alex {
    * If enough keys fall outside the key domain, then we expand the key domain.
    */
   struct InternalStats {
-    T key_domain_min_ = std::numeric_limits<T>::max();
-    T key_domain_max_ = std::numeric_limits<T>::lowest();
+    double *key_domain_min_; // we need to initialize this for every initializer
+    double *key_domain_max_; // we need to initialize this for every initializer
     int num_keys_above_key_domain = 0;
     int num_keys_below_key_domain = 0;
     int num_keys_at_last_right_domain_resize = 0;
@@ -210,6 +212,12 @@ class Alex {
 
  public:
   Alex() {
+    // key_domain setup
+    key_domain_min_ = new double[1];
+    key_domain_min_[0] = std::numeric_limits<double>::min();
+    key_domain_max_ = new double[1];
+    key_domain_max_[0] = std::numeric_limits<double>::max();
+    
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
         data_node_type(key_less_, allocator_);
@@ -219,8 +227,73 @@ class Alex {
     create_superroot();
   }
 
+  Alex(unsigned int key_length, int key_type = DOUBLE,
+   const Compare& comp = Compare(), const Alloc& alloc = Alloc())
+    : max_key_length_(key_length), key_type_(key_type), key_less_(comp), allocator_(alloc) {
+    // key_domain setup
+    key_domain_min_ = new double[1];
+    key_domain_max_ = new double[max_key_length_];
+    if (key_type_ == STRING) {
+      key_domain_min_[0] = 0.0;
+      for (int i = 0; i < max_key_length; i++) {
+        key_domain_max_[i] = 127.0
+      }
+    }
+    else if (key_type_ == INTEGER) {
+      assert(max_key_length_ == 1);
+      key_domain_min_[0] = (double) std::numeric_limits<int>::min();
+      key_domain_max_[0] = (double) std::numeric_limits<int>::max();
+    }
+    else {
+      assert(max_key_length_ == 1);
+      key_domain_min_[0] = std::numeric_limits<double>::min();
+      key_domain_max_[0] = std::numeric_limits<double>::max();
+    }
+    
+    // Set up root as empty data node
+    auto empty_data_node = new (data_node_allocator().allocate(1))
+        data_node_type(key_less_, allocator_);
+    empty_data_node->bulk_load(nullptr, 0);
+    root_node_ = empty_data_node;
+    stats_.num_data_nodes++;
+    create_superroot();
+  }  
+
+  Alex(int key_type, const Compare& comp = Compare(), const Alloc& alloc = Alloc())
+    : key_type_(key_type), key_less_(comp), allocator_(alloc) {
+    // key_domain setup
+    key_domain_min_ = new double[1];
+    key_domain_max_ = new double[1];
+    if (key_type_ == STRING) {
+      key_domain_min_[0] = 0.0;
+      key_domain_max_[0] = 127.0
+    }
+    else if (key_type_ == INTEGER) {
+      key_domain_min_[0] = (double) std::numeric_limits<int>::min();
+      key_domain_max_[0] = (double) std::numeric_limits<int>::max();
+    }
+    else {
+      key_domain_min_[0] = std::numeric_limits<double>::min();
+      key_domain_max_[0] = std::numeric_limits<double>::max();
+    }
+    
+    // Set up root as empty data node
+    auto empty_data_node = new (data_node_allocator().allocate(1))
+        data_node_type(key_less_, allocator_);
+    empty_data_node->bulk_load(nullptr, 0);
+    root_node_ = empty_data_node;
+    stats_.num_data_nodes++;
+    create_superroot();
+  }  
+
   Alex(const Compare& comp, const Alloc& alloc = Alloc())
       : key_less_(comp), allocator_(alloc) {
+    // key_domain setup
+    key_domain_min_ = new double[1];
+    key_domain_max_ = new double[1];
+    key_domain_min_[0] = std::numeric_limits<double>::min();
+    key_domain_max_[0] = std::numeric_limits<double>::max();
+
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
         data_node_type(key_less_, allocator_);
@@ -231,6 +304,12 @@ class Alex {
   }
 
   Alex(const Alloc& alloc) : allocator_(alloc) {
+    // key_domain setup
+    key_domain_min_ = new double[1];
+    key_domain_max_ = new double[1];
+    key_domain_min_[0] = std::numeric_limits<double>::min();
+    key_domain_max_[0] = std::numeric_limits<double>::max();
+
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
         data_node_type(key_less_, allocator_);
@@ -246,6 +325,8 @@ class Alex {
       delete_node(node_it.current());
     }
     delete_node(superroot_);
+    delete[] key_domain_min_;
+    delete[] key_domain_max_;
   }
 
   // Initializes with range [first, last). The range does not need to be
