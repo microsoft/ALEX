@@ -8,6 +8,7 @@
 #include "../core/alex.h"
 
 #include <iomanip>
+#include <string>
 
 #include "flags.h"
 #include "utils.h"
