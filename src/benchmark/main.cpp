@@ -81,7 +81,7 @@ int main(int argc, char* argv[]) {
   }
 
   // Combine bulk loaded keys with randomly generated payloads
-  auto values = new std::pair<KEY_TYPE, PAYLOAD_TYPE>[init_num_keys];
+  auto values = new std::pair<double *, PAYLOAD_TYPE>[init_num_keys];
   std::mt19937_64 gen_payload(std::random_device{}());
   for (int i = 0; i < init_num_keys; i++) {
     values[i].first = keys[i];
@@ -91,7 +91,16 @@ int main(int argc, char* argv[]) {
   // Create ALEX and bulk load
   alex::Alex<KEY_TYPE, PAYLOAD_TYPE> index;
   std::sort(values, values + init_num_keys,
-            [](auto const& a, auto const& b) { return a.first < b.first; });
+            [](auto const& a, auto const& b) {
+              auto key1 = a.first;
+              auto key2 = b.first;
+              for (unsigned int i = 0; i < sizeof(key1); i++) {
+                if ((key1[i] == 0.0) && (key2[i] == 0.0)) {break;}
+                if (key1[i] < key2[i]) {return true;}
+                else if (key1[i] > key2[i]) {return false;}
+              }
+              return true;
+            });
   index.bulk_load(values, init_num_keys);
 
   // Run workload
