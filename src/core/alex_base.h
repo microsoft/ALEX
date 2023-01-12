@@ -51,6 +51,11 @@ typedef unsigned __int32 uint32_t;
 #define forceinline inline
 #endif
 
+/*** type of key ***/
+#define STRING (0);
+#define INTEGER (1);
+#define DOUBLE (2);
+
 namespace alex {
 
 /*** Linear model and model builder ***/

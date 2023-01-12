@@ -1,11 +1,6 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
-/*** type of key ***/
-#define STRING (0);
-#define INTEGER (1);
-#define DOUBLE (2);
-
 #include "zipf.h"
 #include <cctype>
 
