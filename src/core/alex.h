@@ -227,9 +227,9 @@ class Alex {
     create_superroot();
   }
 
-  Alex(unsigned int key_length, int key_type = DOUBLE,
+  Alex(unsigned int max_key_length, int key_type = DOUBLE,
        const Compare& comp = Compare(), const Alloc& alloc = Alloc())
-    : max_key_length_(key_length), key_type_(key_type), key_less_(comp), allocator_(alloc) {
+    : max_key_length_(max_key_length), key_type_(key_type), key_less_(comp), allocator_(alloc) {
     // key_domain setup
     key_domain_min_ = new double[1];
     key_domain_max_ = new double[max_key_length_];
