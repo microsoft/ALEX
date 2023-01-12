@@ -13,7 +13,7 @@
 #include "utils.h"
 
 // Modify these if running your own workload
-#define KEY_TYPE double
+// #define KEY_TYPE double        /*** we now always think that key is array of double ***/
 #define PAYLOAD_TYPE double
 
 /*
@@ -23,12 +23,14 @@
  * --init_num_keys          number of keys to bulk load with
  * --total_num_keys         total number of keys in the keys file
  * --batch_size             number of operations (lookup or insert) per batch
+ * --key_type               type of key (integer, double, string)
  *
  * Optional flags:
  * --insert_frac            fraction of operations that are inserts (instead of
  * lookups)
  * --lookup_distribution    lookup keys distribution (options: uniform or zipf)
  * --time_limit             time limit, in minutes
+ * --key_length             length of key for string type keys.
  * --print_batch_stats      whether to output stats for each batch
  */
 int main(int argc, char* argv[]) {
@@ -38,18 +40,39 @@ int main(int argc, char* argv[]) {
   auto init_num_keys = stoi(get_required(flags, "init_num_keys"));
   auto total_num_keys = stoi(get_required(flags, "total_num_keys"));
   auto batch_size = stoi(get_required(flags, "batch_size"));
+  auto key_type_flag = get_required(flags, "key_type");
   auto insert_frac = stod(get_with_default(flags, "insert_frac", "0.5"));
   std::string lookup_distribution =
       get_with_default(flags, "lookup_distribution", "zipf");
   auto time_limit = stod(get_with_default(flags, "time_limit", "0.5"));
+  auto key_length = stoi(get_with_default(flags, "key_length", "1"));
   bool print_batch_stats = get_boolean_flag(flags, "print_batch_stats");
 
+  // obtain type of key.
+  int key_type;
+  if (key_type_flag == "integer") {
+    key_type = INTEGER;
+  } else if (key_type_flag == "double") {
+    key_type = DOUBLE;
+  } else if (key_type_flag == "string") {
+    key_type = STRING;
+  } else {
+    std::cerr << "--key_type must be 'integer', 'double', 'string'"
+              << std::endl;
+    return 1;
+  }
+
+  // Allocation for key containers.
+  auto keys = new double *[total_num_keys];
+  for (int i = 0; i < total_num_keys; i++) { 
+    keys[i] = new double[key_length]();
+  }
+
   // Read keys from file
-  auto keys = new KEY_TYPE[total_num_keys];
   if (keys_file_type == "binary") {
-    load_binary_data(keys, total_num_keys, keys_file_path);
+    assert(load_binary_data(keys, total_num_keys, keys_file_path, key_length, key_type));
   } else if (keys_file_type == "text") {
-    load_text_data(keys, total_num_keys, keys_file_path);
+    assert(load_text_data(keys, total_num_keys, keys_file_path, key_length, key_type));
   } else {
     std::cerr << "--keys_file_type must be either 'binary' or 'text'"
               << std::endl;
