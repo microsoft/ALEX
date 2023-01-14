@@ -33,7 +33,7 @@
 namespace alex {
 
 // A parent class for both types of ALEX nodes
-template <class T, class P>
+template <class P>
 class AlexNode {
  public:
   // Whether this node is a leaf (data) node
@@ -49,7 +49,7 @@ class AlexNode {
   short level_ = 0;
 
   // Both model nodes and data nodes nodes use models
-  LinearModel<T> model_;
+  LinearModel model_;
 
   // Could be either the expected or empirical cost, depending on how this field
   // is used
