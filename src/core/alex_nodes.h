@@ -329,6 +329,8 @@ class AlexDataNode : public AlexNode<P> {
   int key_type_ = DOUBLE; // key type for specific node.
   int data_capacity_ = 0;  // size of key/data_slots array
   int num_keys_ = 0;  // number of filled key/data slots (as opposed to gaps)
+  double *the_max_key_arr_; //theoretic maximum key_arr
+  double *the_min_key_arr_; //theoretic minimum key_arr
 
   // Bitmap: each uint64_t represents 64 positions in reverse order
   // (i.e., each uint64_t is "read" from the right-most bit to the left-most
@@ -386,9 +388,21 @@ class AlexDataNode : public AlexNode<P> {
 
   /*** Constructors and destructors ***/
 
+  AlexDataNode () {
+    the_max_key_arr_ = new double[1];
+    the_min_key_arr_ = new double[1];
+    the_max_key_arr[0] = std::numeric_limits<double>::max();
+    the_min_key_arr[0] = std::numeric_limits<double>::min();
+  }
+
   explicit AlexDataNode(const Compare& comp = Compare(), 
         const Alloc& alloc = Alloc())
-      : AlexNode<P>(0, true), key_less_(comp), allocator_(alloc) {}
+      : AlexNode<P>(0, true), key_less_(comp), allocator_(alloc) {
+    the_max_key_arr_ = new double[1];
+    the_min_key_arr_ = new double[1];
+    the_max_key_arr[0] = std::numeric_limits<double>::max();
+    the_min_key_arr[0] = std::numeric_limits<double>::min();
+  }
 
   AlexDataNode(short level, int max_data_node_slots,
                unsigned int max_key_length, int key_type,
@@ -402,33 +416,46 @@ class AlexDataNode : public AlexNode<P> {
     double *max_key_arr = new double[max_key_length_];
     double *min_key_arr = new double[max_key_length_];
     double *kEndSentinel_arr = new double[max_key_length_]
+    the_max_key_arr_ = new double[max_key_length_];
+    the_min_key_arr_ = new double[max_key_length_];
 
     switch key_type_ {
       case DOUBLE:
-        for (int i = 0; i < max_key_length; i++) {
-          max_key_arr[i] = std::numeric_limits<double>::lowest();
-          min_key_arr[i] = std::numeric_limits<double>::max();
-          kEndSentinel_arr[i] = std::numeric_limits<double>::max();
-        } 
+        std::fill(max_key_arr_, max_key_arr_+max_key_length_,
+            std::numeric_limits<double>::lowest());
+        std::fill(min_key_arr_, min_key_arr_+max_key_length_,
+            std::numeric_limits<double>::max());
+        std::fill(kEndSentinel_arr_, kEndSentinel_arr_+max_key_length_,
+            std::numeric_limits<double>::max());
+        std::fill(the_max_key_arr_, the_max_key_arr_+max_key_length_,
+            std::numeric_limits<double>::max());
+        std::fill(the_min_key_arr_, the_min__key_arr_+max_key_length_,
+            std::numeric_limits<double>::lowest());
         break;
       case INTEGER:
-        for (int i = 0; i < max_key_length; i++) {
-          max_key_arr[i] = std::numeric_limits<int>::lowest();
-          min_key_arr[i] = std::numeric_limits<int>::max();
-          kEndSentinel_arr[i] = std::numeric_limits<int>::max();
-        } 
+        std::fill(max_key_arr_, max_key_arr_+max_key_length_,
+            std::numeric_limits<int>::lowest());
+        std::fill(min_key_arr_, min_key_arr_+max_key_length_,
+            std::numeric_limits<int>::max());
+        std::fill(kEndSentinel_arr_, kEndSentinel_arr_+max_key_length_,
+            std::numeric_limits<int>::max());
+        std::fill(the_max_key_arr_, the_max_key_arr_+max_key_length_,
+            std::numeric_limits<int>::max());
+        std::fill(the_min_key_arr_, the_min__key_arr_+max_key_length_,
+            std::numeric_limits<int>::lowest());
         break;
       case STRING:
-        for (int i = 0; i < max_key_length; i++) {
-          max_key_arr[i] = 0.0;
-          min_key_arr[i] = 127.0;
-          kEndSentinel_arr[i] = 127.0;
-        } 
+        std::fill(max_key_arr_, max_key_arr_+max_key_length_, 0.0);
+        std::fill(min_key_arr_, min_key_arr_+max_key_length_, 127.0);
+        std::fill(kEndSentinel_arr_, kEndSentinel_arr_+max_key_length_, 127.0);
+        std::fill(the_max_key_arr_, the_max_key_arr_+max_key_length_, 127.0);
+        std::fill(the_min_key_arr_, the_min__key_arr_+max_key_length_, 0.0);
         break;  
     }
     min_key_ = new AlexKey(min_key_arr, max_key_length_);
     max_key_ = new AlexKey(max_key_arr, max_key_length_);
     kEndSentinel_ = new AlexKey(kEndSentinel_arr, max_key_length_);
+
   }
 
   ~AlexDataNode() {
@@ -448,6 +475,8 @@ class AlexDataNode : public AlexNode<P> {
     delete min_key_;
     delete max_key_;
     delete kEndSentinel_;
+    delete[] the_max_key_arr_;
+    delete[] the_min_key_arr_;
   }
 
   AlexDataNode(const self_type& other)
@@ -526,7 +555,10 @@ class AlexDataNode : public AlexNode<P> {
 
   /*** General helper functions ***/
 
-  inline T& get_key(int pos) const { return ALEX_DATA_NODE_KEY_AT(pos); }
+  inline AlexKey& get_key(int pos) const { return ALEX_DATA_NODE_KEY_AT(pos); }
+
+  //newly added for actual content achieving without need for max_length data.
+  inline double *get_key_ptr(int pos) const { return get_key(pos).key_arr_; }
 
   inline P& get_payload(int pos) const {
     return ALEX_DATA_NODE_PAYLOAD_AT(pos);
@@ -564,19 +596,19 @@ class AlexDataNode : public AlexNode<P> {
   }
 
   // Value of first (i.e., min) key
-  T first_key() const {
+  double * first_key() const {
     for (int i = 0; i < data_capacity_; i++) {
-      if (check_exists(i)) return get_key(i);
+      if (check_exists(i)) return get_key_ptr(i);
     }
-    return std::numeric_limits<T>::max();
+    return the_max_key_arr_;
   }
 
   // Value of last (i.e., max) key
-  T last_key() const {
+  double * last_key() const {
     for (int i = data_capacity_ - 1; i >= 0; i--) {
-      if (check_exists(i)) return get_key(i);
+      if (check_exists(i)) return get_key_ptr(i);
     }
-    return std::numeric_limits<T>::lowest();
+    return the_min_key_arr_;
   }
 
   // Position in key/data_slots of first (i.e., min) key
@@ -628,32 +660,32 @@ class AlexDataNode : public AlexNode<P> {
   }
 
   // True if a < b
-  template <class K>
-  forceinline bool key_less(const T& a, const K& b) const {
+  //template <class K>
+  forceinline bool key_less(const AlexKey& a, const AlexKey& b) const {
     return key_less_(a, b);
   }
 
   // True if a <= b
-  template <class K>
-  forceinline bool key_lessequal(const T& a, const K& b) const {
+  //template <class K>
+  forceinline bool key_lessequal(const AlexKey& a, const AlexKey& b) const {
     return !key_less_(b, a);
   }
 
   // True if a > b
-  template <class K>
-  forceinline bool key_greater(const T& a, const K& b) const {
+  //template <class K>
+  forceinline bool key_greater(const AlexKey& a, const AlexKey& b) const {
     return key_less_(b, a);
   }
 
   // True if a >= b
-  template <class K>
-  forceinline bool key_greaterequal(const T& a, const K& b) const {
+  //template <class K>
+  forceinline bool key_greaterequal(const AlexKey& a, const AlexKey& b) const {
     return !key_less_(a, b);
   }
 
   // True if a == b
   template <class K>
-  forceinline bool key_equal(const T& a, const K& b) const {
+  forceinline bool key_equal(const AlexKey& a, const AlexKey& b) const {
     return !key_less_(a, b) && !key_less_(b, a);
   }
 
