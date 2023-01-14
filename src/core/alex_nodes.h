@@ -98,7 +98,7 @@ class AlexModelNode : public AlexNode<P> {
         allocator_(other.allocator_),
         num_children_(other.num_children_) {
     children_ = new (pointer_allocator().allocate(other.num_children_))
-        AlexNode<T, P>*[other.num_children_];
+        AlexNode<P>*[other.num_children_];
     std::copy(other.children_, other.children_ + other.num_children_,
               children_);
   }
