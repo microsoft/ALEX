@@ -58,7 +58,7 @@ class Alex {
 
  public:
   // Value type, returned by dereferencing an iterator
-  typedef std::pair<double *, P> V;
+  typedef std::pair<AlexKey, P> V;
 
   // ALEX class aliases
   typedef Alex<P, Compare, Alloc, allow_duplicates> self_type;
@@ -72,7 +72,7 @@ class Alex {
   class ConstReverseIterator;
   class NodeIterator;  // Iterates through all nodes with pre-order traversal
 
-  AlexNode<double *, P>* root_node_ = nullptr;
+  AlexNode<AlexKey, P>* root_node_ = nullptr; // NEED TO FIX ALEXNODE STRUCTURE
   model_node_type* superroot_ =
       nullptr;  // phantom node that is the root's parent
   unsigned int max_key_length_ = 1; // maximum length of keys in this ALEX structure.
@@ -211,6 +211,11 @@ class Alex {
   /*** Constructors and setters ***/
 
  public:
+ /* basic initialization can handle up to 4 parameters
+  * 1) max key length of each keys. default value is 1. 
+  * 2) type of keys. Default is double, integer (int), string is also possible.
+  * 3) compare function used for comparing. Default is basic AlexCompare
+  * 4) allocation function used for allocation. Default is basic allocator. */
   Alex() {
     // key_domain setup
     key_domain_min_ = new double[1];
@@ -363,9 +368,11 @@ class Alex {
             [this](auto const& a, auto const& b) {
               auto key1 = a.first;
               auto key2 = b.first;
+              assert(key1.max_key_length_ == key2.max_key_length_);
+              auto bound = a.second;
               /* NOTE : WE MAY NEED TO CHECK IF SIZE OF KEY ARRAY IS PROPERLY OBTAINED.
                * ALSO, WE MAY NEED TO FIX THE ORDERING FUNCTION. */
-              for (unsigned int i = 0; i < sizeof(key1)/sizeof(double); i++) {
+              for (unsigned int i = 0; i < bound; i++) {
                 if ((key1[i] == 0.0) && (key2[i] == 0.0)) {break;}
                 if (key1[i] < key2[i]) {return true;}
                 else if (key1[i] > key2[i]) {return false;}
@@ -403,9 +410,9 @@ class Alex {
             [this](auto const& a, auto const& b) {
               auto key1 = a.first;
               auto key2 = b.first;
-              /* NOTE : WE MAY NEED TO CHECK IF SIZE OF KEY ARRAY IS PROPERLY OBTAINED.
-               * ALSO, WE MAY NEED TO FIX THE ORDERING FUNCTION. */
-              for (unsigned int i = 0; i < sizeof(key1)/sizeof(double); i++) {
+              assert(key1.max_key_length_ == key2.max_key_length_);
+              auto bound = a.second;
+              for (unsigned int i = 0; i < bound; i++) {
                 if ((key1[i] == 0.0) && (key2[i] == 0.0)) {break;}
                 if (key1[i] < key2[i]) {return true;}
                 else if (key1[i] > key2[i]) {return false;}
@@ -434,9 +441,9 @@ class Alex {
             [this](auto const& a, auto const& b) {
               auto key1 = a.first;
               auto key2 = b.first;
-              /* NOTE : WE MAY NEED TO CHECK IF SIZE OF KEY ARRAY IS PROPERLY OBTAINED.
-               * ALSO, WE MAY NEED TO FIX THE ORDERING FUNCTION. */
-              for (unsigned int i = 0; i < sizeof(key1)/sizeof(double); i++) {
+              assert(key1.max_key_length_ == key2.max_key_length_);
+              auto bound = a.second;
+              for (unsigned int i = 0; i < bound; i++) {
                 if ((key1[i] == 0.0) && (key2[i] == 0.0)) {break;}
                 if (key1[i] < key2[i]) {return true;}
                 else if (key1[i] > key2[i]) {return false;}
@@ -464,9 +471,9 @@ class Alex {
             [this](auto const& a, auto const& b) {
               auto key1 = a.first;
               auto key2 = b.first;
-              /* NOTE : WE MAY NEED TO CHECK IF SIZE OF KEY ARRAY IS PROPERLY OBTAINED.
-               * ALSO, WE MAY NEED TO FIX THE ORDERING FUNCTION. */
-              for (unsigned int i = 0; i < sizeof(key1)/sizeof(double); i++) {
+              assert(key1.max_key_length_ == key2.max_key_length_);
+              auto bound = a.second;
+              for (unsigned int i = 0; i < bound; i++) {
                 if ((key1[i] == 0.0) && (key2[i] == 0.0)) {break;}
                 if (key1[i] < key2[i]) {return true;}
                 else if (key1[i] > key2[i]) {return false;}
