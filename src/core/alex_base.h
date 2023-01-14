@@ -124,7 +124,7 @@ class LinearModel {
     assert (max_key_length_ == key.max_key_length_);
     double result = 0.0;
     for (int i = 0; i < max_key_length_; i++) {
-      result = key.key_data_[i] * a_[i] + b_[i];
+      result = key.key_arr_[i] * a_[i] + b_[i];
     }
     return static_cast<int>(result);
   }
@@ -133,7 +133,7 @@ class LinearModel {
     assert (max_key_length_ == key.max_key_length_);
     double result = 0.0;
     for (int i = 0; i < max_key_length_; i++) {
-      result = key.key_data_[i] * a_[i] + b_[i];
+      result = key.key_arr_[i] * a_[i] + b_[i];
     }
     return result;
   }
@@ -200,9 +200,18 @@ class LinearModelBuilder {
 };
 
 /*** AlexKey ***/
-struct AlexKey {
-  double *key_data_;
-  unsigned int max_key_length_;
+class AlexKey {
+ public:
+  double *key_arr_ = nullptr;
+  unsigned int max_key_length_ = 1;
+
+  AlexKey() {;}
+
+  AlexKey(double *key_arr, unsigned int max_key_length = 1) {
+    key_arr_ = key_arr;
+    max_key_length_ = max_key_length;
+  }
+
 };
 
 /*** Comparison ***/

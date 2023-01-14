@@ -66,7 +66,7 @@ int main(int argc, char* argv[]) {
   // Allocation for key containers.
   auto keys = new alex::AlexKey[total_num_keys];
   for (int i = 0; i < total_num_keys; i++) { 
-    keys[i].key_data_ = new double[max_key_length]();
+    keys[i].key_arr_ = new double[max_key_length]();
     keys[i].max_key_length_ = max_key_length;
   }
 

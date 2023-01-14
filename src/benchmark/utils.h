@@ -18,13 +18,13 @@ bool load_binary_data(alex::AlexKey data[], int length, const std::string& file_
         /* NOTE : I'M ASSUMING THAT BINARY STRING DATA FILES DO ZERO PADDING
          * SO IT COULD MAINTAIN THE CONSTRAINT OF MAXIMUM KEY_LENGTH 
          * WE MAY NEED TO FIX THIS LATER. */
-        is.read(reinterpret_cast<char*>(&data[i].key_data_[pos]), std::streamsize(sizeof(char)));
+        is.read(reinterpret_cast<char*>(&data[i].key_arr_[pos]), std::streamsize(sizeof(char)));
       }
     }
   }
   else { //numeric key reading.
     for (int i = 0; i < length ; i++) {
-      is.read(reinterpret_cast<char*>(data[i].key_data_), std::streamsize(sizeof(double)));
+      is.read(reinterpret_cast<char*>(data[i].key_arr_), std::streamsize(sizeof(double)));
     }
   }
   is.close();
@@ -46,7 +46,7 @@ bool load_text_data(alex::AlexKey array[], int length, const std::string& file_p
         return false;
       }
       for (unsigned int pos = 0; pos < str.size(); pos++) {
-        array[i].key_data_[pos] = (double) tolower(str.at(pos));
+        array[i].key_arr_[pos] = (double) tolower(str.at(pos));
       }
       i++;
     }
@@ -54,7 +54,7 @@ bool load_text_data(alex::AlexKey array[], int length, const std::string& file_p
   else { //numeric key reading.
     while (std::getline(is, str) && i < length) {
       std::istringstream ss(str);
-      ss >> array[i].key_data_[0];
+      ss >> array[i].key_arr_[0];
       i++;
     }
   }
