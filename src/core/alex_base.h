@@ -85,7 +85,7 @@ class LinearModel {
     b_[0] = 0.0;
   }
 
-  LinearModel(double *a, double *b, unsigned int max_key_length) : max_key_length_(max_key_length) {
+  LinearModel(double a[], double b[], unsigned int max_key_length) : max_key_length_(max_key_length) {
     a_ = new double[max_key_length_];
     b_ = new double[max_key_length_];
     for (int i = 0; i < max_key_length_; i++) {
@@ -120,18 +120,20 @@ class LinearModel {
     }
   }
 
-  inline int predict(double *key) const {
+  inline int predict(AlexKey key) const {
+    assert (max_key_length_ == key.max_key_length_);
     double result = 0.0;
     for (int i = 0; i < max_key_length_; i++) {
-      result = key[i] * a_[i] + b_[i];
+      result = key.key_data_[i] * a_[i] + b_[i];
     }
     return static_cast<int>(result);
   }
 
-  inline double predict_double(double *key) const {
+  inline double predict_double(AlexKey key) const {
+    assert (max_key_length_ == key.max_key_length_);
     double result = 0.0;
     for (int i = 0; i < max_key_length_; i++) {
-      result = key[i] * a_[i] + b_[i];
+      result = key.key_data_[i] * a_[i] + b_[i];
     }
     return result;
   }
