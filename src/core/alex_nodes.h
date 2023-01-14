@@ -64,12 +64,12 @@ class AlexNode {
   virtual long long node_size() const = 0;
 };
 
-template <class T, class P, class Alloc = std::allocator<std::pair<T, P>>>
-class AlexModelNode : public AlexNode<T, P> {
+template <class P, class Alloc = std::allocator<std::pair<alex::AlexKey, P>>>
+class AlexModelNode : public AlexNode<P> {
  public:
-  typedef AlexModelNode<T, P, Alloc> self_type;
+  typedef AlexModelNode<P, Alloc> self_type;
   typedef typename Alloc::template rebind<self_type>::other alloc_type;
-  typedef typename Alloc::template rebind<AlexNode<T, P>*>::other
+  typedef typename Alloc::template rebind<AlexNode<P>*>::other
       pointer_alloc_type;
 
   const Alloc& allocator_;
@@ -78,13 +78,13 @@ class AlexModelNode : public AlexNode<T, P> {
   int num_children_ = 0;
 
   // Array of pointers to children
-  AlexNode<T, P>** children_ = nullptr;
+  AlexNode<P>** children_ = nullptr;
 
   explicit AlexModelNode(const Alloc& alloc = Alloc())
-      : AlexNode<T, P>(0, false), allocator_(alloc) {}
+      : AlexNode<P>(0, false), allocator_(alloc) {}
 
   explicit AlexModelNode(short level, const Alloc& alloc = Alloc())
-      : AlexNode<T, P>(level, false), allocator_(alloc) {}
+      : AlexNode<P>(level, false), allocator_(alloc) {}
 
   ~AlexModelNode() {
     if (children_ == nullptr) {
@@ -94,7 +94,7 @@ class AlexModelNode : public AlexNode<T, P> {
   }
 
   AlexModelNode(const self_type& other)
-      : AlexNode<T, P>(other),
+      : AlexNode<P>(other),
         allocator_(other.allocator_),
         num_children_(other.num_children_) {
     children_ = new (pointer_allocator().allocate(other.num_children_))
@@ -104,7 +104,7 @@ class AlexModelNode : public AlexNode<T, P> {
   }
 
   // Given a key, traverses to the child node responsible for that key
-  inline AlexNode<T, P>* get_child_node(const T& key) {
+  inline AlexNode<P>* get_child_node(const alex::AlexKey& key) {
     int bucketID = this->model_.predict(key);
     bucketID = std::min<int>(std::max<int>(bucketID, 0), num_children_ - 1);
     return children_[bucketID];
@@ -120,10 +120,10 @@ class AlexModelNode : public AlexNode<T, P> {
     int expansion_factor = 1 << log2_expansion_factor;
     int num_new_children = num_children_ * expansion_factor;
     auto new_children = new (pointer_allocator().allocate(num_new_children))
-        AlexNode<T, P>*[num_new_children];
+        AlexNode<P>*[num_new_children];
     int cur = 0;
     while (cur < num_children_) {
-      AlexNode<T, P>* cur_child = children_[cur];
+      AlexNode<P>* cur_child = children_[cur];
       int cur_child_repeats = 1 << cur_child->duplication_factor_;
       for (int i = expansion_factor * cur;
            i < expansion_factor * (cur + cur_child_repeats); i++) {
@@ -145,7 +145,7 @@ class AlexModelNode : public AlexNode<T, P> {
 
   long long node_size() const override {
     long long size = sizeof(self_type);
-    size += num_children_ * sizeof(AlexNode<T, P>*);  // pointers to children
+    size += num_children_ * sizeof(AlexNode<P>*);  // pointers to children
     return size;
   }
 
@@ -174,7 +174,11 @@ class AlexModelNode : public AlexNode<T, P> {
       return false;
     }
 
-    if (this->model_.a_ == 0) {
+    int zero_slope = 1;
+    for (int i = 0; i < this->model_.a_.max_key_length_; i++) {
+      if (this->model_.a_[i] != 0.0) {zero_slope = 0; break;}
+    }
+    if (zero_slope) {
       if (verbose) {
         std::cout << "[Model node with zero slope] addr: " << this << ", level "
                   << this->level_ << std::endl;
@@ -182,7 +186,7 @@ class AlexModelNode : public AlexNode<T, P> {
       return false;
     }
 
-    AlexNode<T, P>* cur_child = children_[0];
+    AlexNode<P>* cur_child = children_[0];
     int cur_repeats = 1;
     int i;
     for (i = 1; i < num_children_; i++) {
