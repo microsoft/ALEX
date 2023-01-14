@@ -370,12 +370,10 @@ class Alex {
               auto key2 = b.first;
               assert(key1.max_key_length_ == key2.max_key_length_);
               auto bound = a.second;
-              /* NOTE : WE MAY NEED TO CHECK IF SIZE OF KEY ARRAY IS PROPERLY OBTAINED.
-               * ALSO, WE MAY NEED TO FIX THE ORDERING FUNCTION. */
               for (unsigned int i = 0; i < bound; i++) {
-                if ((key1[i] == 0.0) && (key2[i] == 0.0)) {break;}
-                if (key1[i] < key2[i]) {return true;}
-                else if (key1[i] > key2[i]) {return false;}
+                if ((key1.key_ptr_[i] == 0.0) && (key2.key_ptr_[i] == 0.0)) {break;}
+                if (key1.key_ptr_[i] < key2.key_ptr_[i]) {return true;}
+                else if (key1.key_ptr_[i] > key2.key_ptr_[i]) {return false;}
               }
               return true;
             });
@@ -413,9 +411,9 @@ class Alex {
               assert(key1.max_key_length_ == key2.max_key_length_);
               auto bound = a.second;
               for (unsigned int i = 0; i < bound; i++) {
-                if ((key1[i] == 0.0) && (key2[i] == 0.0)) {break;}
-                if (key1[i] < key2[i]) {return true;}
-                else if (key1[i] > key2[i]) {return false;}
+                if ((key1.key_ptr_[i] == 0.0) && (key2.key_ptr_[i] == 0.0)) {break;}
+                if (key1.key_ptr_[i] < key2.key_ptr_[i]) {return true;}
+                else if (key1.key_ptr_[i] > key2.key_ptr_[i]) {return false;}
               }
               return true;
             });
@@ -444,9 +442,9 @@ class Alex {
               assert(key1.max_key_length_ == key2.max_key_length_);
               auto bound = a.second;
               for (unsigned int i = 0; i < bound; i++) {
-                if ((key1[i] == 0.0) && (key2[i] == 0.0)) {break;}
-                if (key1[i] < key2[i]) {return true;}
-                else if (key1[i] > key2[i]) {return false;}
+                if ((key1.key_ptr_[i] == 0.0) && (key2.key_ptr_[i] == 0.0)) {break;}
+                if (key1.key_ptr_[i] < key2.key_ptr_[i]) {return true;}
+                else if (key1.key_ptr_[i] > key2.key_ptr_[i]) {return false;}
               }
               return true;
             });
@@ -474,9 +472,9 @@ class Alex {
               assert(key1.max_key_length_ == key2.max_key_length_);
               auto bound = a.second;
               for (unsigned int i = 0; i < bound; i++) {
-                if ((key1[i] == 0.0) && (key2[i] == 0.0)) {break;}
-                if (key1[i] < key2[i]) {return true;}
-                else if (key1[i] > key2[i]) {return false;}
+                if ((key1.key_ptr_[i] == 0.0) && (key2.key_ptr_[i] == 0.0)) {break;}
+                if (key1.key_ptr_[i] < key2.key_ptr_[i]) {return true;}
+                else if (key1.key_ptr_[i] > key2.key_ptr_[i]) {return false;}
               }
               return true;
             });
