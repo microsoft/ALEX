@@ -14,7 +14,7 @@
 #include "utils.h"
 
 // Modify these if running your own workload
-// #define KEY_TYPE double        /*** we now always think that key is array of double ***/
+// #define KEY_TYPE double        /*** we now always think that key is array of double (AlexKey) ***/
 #define PAYLOAD_TYPE double
 
 /*
@@ -31,7 +31,7 @@
  * lookups)
  * --lookup_distribution    lookup keys distribution (options: uniform or zipf)
  * --time_limit             time limit, in minutes
- * --key_length             length of key for string type keys.
+ * --max_key_length             length of key for string type keys.
  * --print_batch_stats      whether to output stats for each batch
  */
 int main(int argc, char* argv[]) {
@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
   std::string lookup_distribution =
       get_with_default(flags, "lookup_distribution", "zipf");
   auto time_limit = stod(get_with_default(flags, "time_limit", "0.5"));
-  auto key_length = stoi(get_with_default(flags, "key_length", "1"));
+  auto max_key_length = stoi(get_with_default(flags, "max_key_length", "1"));
   bool print_batch_stats = get_boolean_flag(flags, "print_batch_stats");
 
   // obtain type of key.
@@ -64,16 +64,17 @@ int main(int argc, char* argv[]) {
   }
 
   // Allocation for key containers.
-  auto keys = new double *[total_num_keys];
+  auto keys = new alex::AlexKey[total_num_keys];
   for (int i = 0; i < total_num_keys; i++) { 
-    keys[i] = new double[key_length]();
+    keys[i].key_data_ = new double[max_key_length]();
+    keys[i].max_key_length_ = max_key_length;
   }
 
   // Read keys from file
   if (keys_file_type == "binary") {
-    assert(load_binary_data(keys, total_num_keys, keys_file_path, key_length, key_type));
+    assert(load_binary_data(keys, total_num_keys, keys_file_path, max_key_length, key_type));
   } else if (keys_file_type == "text") {
-    assert(load_text_data(keys, total_num_keys, keys_file_path, key_length, key_type));
+    assert(load_text_data(keys, total_num_keys, keys_file_path, max_key_length, key_type));
   } else {
     std::cerr << "--keys_file_type must be either 'binary' or 'text'"
               << std::endl;
@@ -81,7 +82,7 @@ int main(int argc, char* argv[]) {
   }
 
   // Combine bulk loaded keys with randomly generated payloads
-  auto values = new std::pair<double *, PAYLOAD_TYPE>[init_num_keys];
+  auto values = new std::pair<alex::AlexKey, PAYLOAD_TYPE>[init_num_keys];
   std::mt19937_64 gen_payload(std::random_device{}());
   for (int i = 0; i < init_num_keys; i++) {
     values[i].first = keys[i];
@@ -94,8 +95,11 @@ int main(int argc, char* argv[]) {
             [](auto const& a, auto const& b) {
               auto key1 = a.first;
               auto key2 = b.first;
-              /* NOTE : WE MAY NEED TO CHECK IF SIZE OF KEY ARRAY IS PROPERLY OBTAINED. */
-              for (unsigned int i = 0; i < sizeof(key1)/sizeof(double); i++) {
+              assert(key1.max_key_length_ == key2.max_key_length_);
+              auto bound = a.second;
+              /* NOTE : WE MAY NEED TO CHECK IF SIZE OF KEY ARRAY IS PROPERLY OBTAINED.
+               * ALSO, WE MAY NEED TO FIX THE ORDERING FUNCTION. */
+              for (unsigned int i = 0; i < bound; i++) {
                 if ((key1[i] == 0.0) && (key2[i] == 0.0)) {break;}
                 if (key1[i] < key2[i]) {return true;}
                 else if (key1[i] > key2[i]) {return false;}

@@ -1,10 +1,11 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 
+#include "../core/alex_base.h"
 #include "zipf.h"
 #include <cctype>
 
-bool load_binary_data(double *data[], int length, const std::string& file_path,
+bool load_binary_data(alex::AlexKey data[], int length, const std::string& file_path,
  unsigned int key_length, int key_type) {
   std::ifstream is(file_path.c_str(), std::ios::binary | std::ios::in);
   if (!is.is_open()) {
@@ -17,20 +18,20 @@ bool load_binary_data(double *data[], int length, const std::string& file_path,
         /* NOTE : I'M ASSUMING THAT BINARY STRING DATA FILES DO ZERO PADDING
          * SO IT COULD MAINTAIN THE CONSTRAINT OF MAXIMUM KEY_LENGTH 
          * WE MAY NEED TO FIX THIS LATER. */
-        is.read(reinterpret_cast<char*>(&data[i][pos]), std::streamsize(sizeof(char)));
+        is.read(reinterpret_cast<char*>(&data[i].key_data_[pos]), std::streamsize(sizeof(char)));
       }
     }
   }
   else { //numeric key reading.
     for (int i = 0; i < length ; i++) {
-      is.read(reinterpret_cast<char*>(data[i]), std::streamsize(sizeof(double)));
+      is.read(reinterpret_cast<char*>(data[i].key_data_), std::streamsize(sizeof(double)));
     }
   }
   is.close();
   return true;
 }
 
-bool load_text_data(double *array[], int length, const std::string& file_path,
+bool load_text_data(alex::AlexKey array[], int length, const std::string& file_path,
  unsigned int key_length, int key_type) {
   std::ifstream is(file_path.c_str());
   if (!is.is_open()) {
@@ -45,7 +46,7 @@ bool load_text_data(double *array[], int length, const std::string& file_path,
         return false;
       }
       for (unsigned int pos = 0; pos < str.size(); pos++) {
-        array[i][pos] = (double) tolower(str.at(pos));
+        array[i].key_data_[pos] = (double) tolower(str.at(pos));
       }
       i++;
     }
@@ -53,7 +54,7 @@ bool load_text_data(double *array[], int length, const std::string& file_path,
   else { //numeric key reading.
     while (std::getline(is, str) && i < length) {
       std::istringstream ss(str);
-      ss >> array[i][0];
+      ss >> array[i].key_data_[0];
       i++;
     }
   }

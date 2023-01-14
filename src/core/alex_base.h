@@ -58,6 +58,9 @@ typedef unsigned __int32 uint32_t;
 
 namespace alex {
 
+/*** MAY BE USED UNDER CIRCUMSTANCES ***/
+//extern unsigned int max_key_length;
+
 /*** Linear model and model builder ***/
 
 // Forward declaration
@@ -192,6 +195,12 @@ class LinearModelBuilder {
   T x_max_ = std::numeric_limits<T>::lowest();
   double y_min_ = std::numeric_limits<double>::max();
   double y_max_ = std::numeric_limits<double>::lowest();
+};
+
+/*** AlexKey ***/
+struct AlexKey {
+  double *key_data_;
+  unsigned int max_key_length_;
 };
 
 /*** Comparison ***/
