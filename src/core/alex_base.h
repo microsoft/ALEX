@@ -228,12 +228,18 @@ class AlexKey {
 /*** Comparison ***/
 
 struct AlexCompare {
-  template <class T1, class T2>
-  bool operator()(const T1& x, const T2& y) const {
-    static_assert(
-        std::is_arithmetic<T1>::value && std::is_arithmetic<T2>::value,
-        "Comparison types must be numeric.");
-    return x < y;
+  bool operator()(const AlexKey& x, const AlexKey& y) const {
+    //static_assert(
+    //    std::is_arithmetic<T1>::value && std::is_arithmetic<T2>::value,
+    //    "Comparison types must be numeric.");
+    assert(x.max_key_length_ == y.max_key_length_);
+    auto x_key_ptr_ = x.key_arr_;
+    auto y_key_ptr_ = y.key_arr_;
+    for (int i = 0; i < x.max_key_length_; i++) {
+      if (x_key_ptr_[i] < y_key_ptr_[i]) {return true;}
+      else if (x_key_ptr_[i] > y_key_ptr_[i]) {return false;}
+    }
+    return false;
   }
 };
 
