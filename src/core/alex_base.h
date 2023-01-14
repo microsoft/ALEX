@@ -207,6 +207,8 @@ class AlexKey {
   double *key_arr_ = nullptr;
   unsigned int max_key_length_ = 1;
 
+  AlexKey() = default;
+
   AlexKey(double *key_arr, unsigned int max_key_length = 1)
       : key_arr_(key_arr), max_key_length_(max_key_length) {}
 
