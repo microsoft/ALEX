@@ -67,11 +67,7 @@ namespace alex {
 template <class T>
 class LinearModelBuilder;
 
-/* Linear Regression Model
- * THERE IS NO ASSERTION FOR CHECKING WRONG KEY LENGTH INPUT
- * So we need to properly track if
- * 1) length of parameters for  slope and intercept is same as max length in model.
- * 2) key for prediction is same as max length in model.*/
+/* Linear Regression Model */
 class LinearModel {
  public:
   double *a_ = nullptr;  // slope, we MUST initialize.

@@ -746,7 +746,7 @@ class AlexDataNode : public AlexNode<P> {
     }
 #endif
 
-    const T& key() const {
+    const AlexKey& key() const {
 #if ALEX_DATA_NODE_SEP_ARRAYS
       return node_->key_slots_[cur_idx_];
 #else
