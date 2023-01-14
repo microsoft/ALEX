@@ -291,15 +291,15 @@ class AlexModelNode : public AlexNode<P> {
 * - Stats
 * - Debugging
 */
-template <class T, class P, class Compare = AlexCompare,
-          class Alloc = std::allocator<std::pair<T, P>>,
+template <class P, class Compare = AlexCompare,
+          class Alloc = std::allocator<std::pair<AlexKey, P>>,
           bool allow_duplicates = true>
-class AlexDataNode : public AlexNode<T, P> {
+class AlexDataNode : public AlexNode<P> {
  public:
-  typedef std::pair<T, P> V;
-  typedef AlexDataNode<T, P, Compare, Alloc, allow_duplicates> self_type;
+  typedef std::pair<AlexKey, P> V;
+  typedef AlexDataNode<P, Compare, Alloc, allow_duplicates> self_type;
   typedef typename Alloc::template rebind<self_type>::other alloc_type;
-  typedef typename Alloc::template rebind<T>::other key_alloc_type;
+  typedef typename Alloc::template rebind<AlexKey>::other key_alloc_type;
   typedef typename Alloc::template rebind<P>::other payload_alloc_type;
   typedef typename Alloc::template rebind<V>::other value_alloc_type;
   typedef typename Alloc::template rebind<uint64_t>::other bitmap_alloc_type;
@@ -318,13 +318,15 @@ class AlexDataNode : public AlexNode<T, P> {
   self_type* prev_leaf_ = nullptr;
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
-  T* key_slots_ = nullptr;  // holds keys
+  AlexKey* key_slots_ = nullptr;  // holds keys
   P* payload_slots_ =
       nullptr;  // holds payloads, must be same size as key_slots
 #else
   V* data_slots_ = nullptr;  // holds key-payload pairs
 #endif
 
+  unsigned int max_key_length_ = 1; // maximum length of each key 
+  int key_type_ = DOUBLE; // key type for specific node.
   int data_capacity_ = 0;  // size of key/data_slots array
   int num_keys_ = 0;  // number of filled key/data slots (as opposed to gaps)
 
@@ -360,10 +362,10 @@ class AlexDataNode : public AlexNode<T, P> {
   int num_resizes_ = 0;  // technically not required, but nice to have
 
   // Variables for determining append-mostly behavior
-  T max_key_ = std::numeric_limits<
-      T>::lowest();  // max key in node, updates after inserts but not erases
-  T min_key_ = std::numeric_limits<T>::max();  // min key in node, updates after
-                                               // inserts but not erases
+  // max key in node, updates after inserts but not erases.
+  AlexKey *max_key_ = new AlexKey(std::numeric_limits<double>::lowest()); 
+  // min key in node, updates after inserts but not erases. 
+  AlexKey *min_key_ = new AlexKey(std::numeric_limits<double>::max()); 
   int num_right_out_of_bounds_inserts_ =
       0;  // number of inserts that are larger than the max key
   int num_left_out_of_bounds_inserts_ =
@@ -378,21 +380,56 @@ class AlexDataNode : public AlexNode<T, P> {
   double expected_avg_exp_search_iterations_ = 0;
   double expected_avg_shifts_ = 0;
 
-  // Placed at the end of the key/data slots if there are gaps after the max key
-  static constexpr T kEndSentinel_ = std::numeric_limits<T>::max();
+  // Placed at the end of the key/data slots if there are gaps after the max key.
+  // It was originally static constexpr, but I changed to normal AlexKey.
+  AlexKey *kEndSentinel_ = new AlexKey(std::numeric_limits<double>::max()); 
 
   /*** Constructors and destructors ***/
 
-  explicit AlexDataNode(const Compare& comp = Compare(),
-                        const Alloc& alloc = Alloc())
-      : AlexNode<T, P>(0, true), key_less_(comp), allocator_(alloc) {}
+  explicit AlexDataNode(const Compare& comp = Compare(), 
+        const Alloc& alloc = Alloc())
+      : AlexNode<P>(0, true), key_less_(comp), allocator_(alloc) {}
 
   AlexDataNode(short level, int max_data_node_slots,
+               unsigned int max_key_length, int key_type,
                const Compare& comp = Compare(), const Alloc& alloc = Alloc())
-      : AlexNode<T, P>(level, true),
+      : AlexNode<P>(level, true),
         key_less_(comp),
         allocator_(alloc),
-        max_slots_(max_data_node_slots) {}
+        max_slots_(max_data_node_slots),
+        max_key_length_(max_key_length),
+        key_type_(key_type) {
+    double *max_key_arr = new double[max_key_length_];
+    double *min_key_arr = new double[max_key_length_];
+    double *kEndSentinel_arr = new double[max_key_length_]
+
+    switch key_type_ {
+      case DOUBLE:
+        for (int i = 0; i < max_key_length; i++) {
+          max_key_arr[i] = std::numeric_limits<double>::lowest();
+          min_key_arr[i] = std::numeric_limits<double>::max();
+          kEndSentinel_arr[i] = std::numeric_limits<double>::max();
+        } 
+        break;
+      case INTEGER:
+        for (int i = 0; i < max_key_length; i++) {
+          max_key_arr[i] = std::numeric_limits<int>::lowest();
+          min_key_arr[i] = std::numeric_limits<int>::max();
+          kEndSentinel_arr[i] = std::numeric_limits<int>::max();
+        } 
+        break;
+      case STRING:
+        for (int i = 0; i < max_key_length; i++) {
+          max_key_arr[i] = 0.0;
+          min_key_arr[i] = 127.0;
+          kEndSentinel_arr[i] = 127.0;
+        } 
+        break;  
+    }
+    min_key_ = new AlexKey(min_key_arr, max_key_length_);
+    max_key_ = new AlexKey(max_key_arr, max_key_length_);
+    kEndSentinel_ = new AlexKey(kEndSentinel_arr, max_key_length_);
+  }
 
   ~AlexDataNode() {
 #if ALEX_DATA_NODE_SEP_ARRAYS
@@ -408,14 +445,19 @@ class AlexDataNode : public AlexNode<T, P> {
     value_allocator().deallocate(data_slots_, data_capacity_);
 #endif
     bitmap_allocator().deallocate(bitmap_, bitmap_size_);
+    delete min_key_;
+    delete max_key_;
+    delete kEndSentinel_;
   }
 
   AlexDataNode(const self_type& other)
-      : AlexNode<T, P>(other),
+      : AlexNode<P>(other),
         key_less_(other.key_less_),
         allocator_(other.allocator_),
         next_leaf_(other.next_leaf_),
         prev_leaf_(other.prev_leaf_),
+        max_key_length_(other.max_key_length_),
+        key_type_(other.key_type_),
         data_capacity_(other.data_capacity_),
         num_keys_(other.num_keys_),
         bitmap_size_(other.bitmap_size_),
@@ -427,17 +469,32 @@ class AlexDataNode : public AlexNode<T, P> {
         num_lookups_(other.num_lookups_),
         num_inserts_(other.num_inserts_),
         num_resizes_(other.num_resizes_),
-        max_key_(other.max_key_),
-        min_key_(other.min_key_),
         num_right_out_of_bounds_inserts_(
             other.num_right_out_of_bounds_inserts_),
         num_left_out_of_bounds_inserts_(other.num_left_out_of_bounds_inserts_),
         expected_avg_exp_search_iterations_(
             other.expected_avg_exp_search_iterations_),
         expected_avg_shifts_(other.expected_avg_shifts_) {
+    /* deep copy of max/min_key array is needed
+     * since deletion of either one of the datanode
+     * would result to other one's key's data pointer invalid
+     * for similar reason, kEndSentinel_ also needs deep copying. */
+    double *max_key_arr = new double[max_key_length_];
+    double *min_key_arr = new double[max_key_length_];
+    double *kEndSentinel_arr = new double[max_key_length_];
+    std::copy(other.max_key_.key_arr_, other.max_key_.key_arr_ + max_key_length_,
+        max_key_arr_);
+    std::copy(other.min_key_.key_arr_, other.min_key_.key_arr_ + max_key_length_,
+        min_key_arr_);
+    std::copy(other.kEndSentinel_.key_arr_, other.kEndSentinel_.key_arr_ + max_key_length_,
+        kEndSentinel_arr_);
+    max_key_ = new AlexKey(max_key_arr, max_key_length_);
+    min_key_ = new AlexKey(min_key_arr, max_key_length_);
+    kEndSentinel = new AlexKey(kEndSentinel_arr, max_key_length);
+
 #if ALEX_DATA_NODE_SEP_ARRAYS
     key_slots_ = new (key_allocator().allocate(other.data_capacity_))
-        T[other.data_capacity_];
+        AlexKey[other.data_capacity_];
     std::copy(other.key_slots_, other.key_slots_ + other.data_capacity_,
               key_slots_);
     payload_slots_ = new (payload_allocator().allocate(other.data_capacity_))
