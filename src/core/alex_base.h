@@ -199,7 +199,9 @@ class LinearModelBuilder {
   double y_max_ = std::numeric_limits<double>::lowest();
 };
 
-/*** AlexKey ***/
+/* AlexKey
+ * One important notice, the pointer given to AlexKey must be given by new.
+ * Also, the pointer should not be manually deleted (it is deleted automatically) */
 class AlexKey {
  public:
   double *key_arr_ = nullptr;
@@ -214,7 +216,9 @@ class AlexKey {
   }
 
   ~AlexKey() {
-    delete[] key_arr_;
+    if (key_arr_ != nullptr) {
+      delete[] key_arr_;
+    }
   }
 
 };
