@@ -205,11 +205,16 @@ class AlexKey {
   double *key_arr_ = nullptr;
   unsigned int max_key_length_ = 1;
 
-  AlexKey() {;}
+  AlexKey(double *key_arr, unsigned int max_key_length = 1)
+      : key_arr_(key_arr), max_key_length_(max_key_length) {}
 
-  AlexKey(double *key_arr, unsigned int max_key_length = 1) {
-    key_arr_ = key_arr;
-    max_key_length_ = max_key_length;
+  AlexKey(double data) {
+    key_arr_ = new double[1];
+    key_arr_[0] = data;
+  }
+
+  ~AlexKey() {
+    delete[] key_arr_;
   }
 
 };
