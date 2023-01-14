@@ -98,11 +98,10 @@ int main(int argc, char* argv[]) {
               assert(key1.max_key_length_ == key2.max_key_length_);
               auto bound = a.second;
               for (unsigned int i = 0; i < bound; i++) {
-                if ((key1.key_ptr_[i] == 0.0) && (key2.key_ptr_[i] == 0.0)) {break;}
-                if (key1.key_ptr_[i] < key2.key_ptr_[i]) {return true;}
-                else if (key1.key_ptr_[i] > key2.key_ptr_[i]) {return false;}
+                if (key1.key_arr_[i] < key2.key_arr_[i]) {return true;}
+                else if (key1.key_arr_[i] > key2.key_arr_[i]) {return false;}
               }
-              return true;
+              return false;
             });
   index.bulk_load(values, init_num_keys);
 

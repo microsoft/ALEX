@@ -558,7 +558,7 @@ class AlexDataNode : public AlexNode<P> {
   inline AlexKey& get_key(int pos) const { return ALEX_DATA_NODE_KEY_AT(pos); }
 
   //newly added for actual content achieving without need for max_length data.
-  inline double *get_key_ptr(int pos) const { return get_key(pos).key_arr_; }
+  inline double *get_key_arr(int pos) const { return get_key(pos).key_arr_; }
 
   inline P& get_payload(int pos) const {
     return ALEX_DATA_NODE_PAYLOAD_AT(pos);
@@ -598,7 +598,7 @@ class AlexDataNode : public AlexNode<P> {
   // Value of first (i.e., min) key
   double * first_key() const {
     for (int i = 0; i < data_capacity_; i++) {
-      if (check_exists(i)) return get_key_ptr(i);
+      if (check_exists(i)) return get_key_arr(i);
     }
     return the_max_key_arr_;
   }
@@ -606,7 +606,7 @@ class AlexDataNode : public AlexNode<P> {
   // Value of last (i.e., max) key
   double * last_key() const {
     for (int i = data_capacity_ - 1; i >= 0; i--) {
-      if (check_exists(i)) return get_key_ptr(i);
+      if (check_exists(i)) return get_key_arr(i);
     }
     return the_min_key_arr_;
   }
