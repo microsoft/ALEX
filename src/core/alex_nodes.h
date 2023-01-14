@@ -64,7 +64,7 @@ class AlexNode {
   virtual long long node_size() const = 0;
 };
 
-template <class P, class Alloc = std::allocator<std::pair<alex::AlexKey, P>>>
+template <class P, class Alloc = std::allocator<std::pair<AlexKey, P>>>
 class AlexModelNode : public AlexNode<P> {
  public:
   typedef AlexModelNode<P, Alloc> self_type;
@@ -104,7 +104,7 @@ class AlexModelNode : public AlexNode<P> {
   }
 
   // Given a key, traverses to the child node responsible for that key
-  inline AlexNode<P>* get_child_node(const alex::AlexKey& key) {
+  inline AlexNode<P>* get_child_node(const AlexKey& key) {
     int bucketID = this->model_.predict(key);
     bucketID = std::min<int>(std::max<int>(bucketID, 0), num_children_ - 1);
     return children_[bucketID];
