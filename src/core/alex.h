@@ -72,7 +72,7 @@ class Alex {
   class ConstReverseIterator;
   class NodeIterator;  // Iterates through all nodes with pre-order traversal
 
-  AlexNode<AlexKey, P>* root_node_ = nullptr; // NEED TO FIX ALEXNODE STRUCTURE
+  AlexNode<P>* root_node_ = nullptr;
   model_node_type* superroot_ =
       nullptr;  // phantom node that is the root's parent
   unsigned int max_key_length_ = 1; // maximum length of keys in this ALEX structure.
@@ -547,7 +547,7 @@ class Alex {
 
  private:
   // Deep copy of tree starting at given node
-  AlexNode<T, P>* copy_tree_recursive(const AlexNode<T, P>* node) {
+  AlexNode<P>* copy_tree_recursive(const AlexNode<P>* node) {
     if (!node) return nullptr;
     if (node->is_leaf_) {
       return new (data_node_allocator().allocate(1))
@@ -557,8 +557,8 @@ class Alex {
           model_node_type(*static_cast<const model_node_type*>(node));
       int cur = 0;
       while (cur < node_copy->num_children_) {
-        AlexNode<T, P>* child_node = node_copy->children_[cur];
-        AlexNode<T, P>* child_node_copy = copy_tree_recursive(child_node);
+        AlexNode<P>* child_node = node_copy->children_[cur];
+        AlexNode<P>* child_node_copy = copy_tree_recursive(child_node);
         int repeats = 1 << child_node_copy->duplication_factor_;
         for (int i = cur; i < cur + repeats; i++) {
           node_copy->children_[i] = child_node_copy;
