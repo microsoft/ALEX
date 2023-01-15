@@ -1295,9 +1295,12 @@ class AlexDataNode : public AlexNode<P> {
   }
 
   // Assumes pretrained_model is trained on dense array of keys
+  // I also assumed that all DataNodes have properly initialized key length limit. (max_key_length_)
   void bulk_load(const V values[], int num_keys,
-                 const LinearModel<T>* pretrained_model = nullptr,
+                 const LinearModel* pretrained_model = nullptr,
                  bool train_with_sample = false) {
+    /* minimal condition checking. */
+    if (num_keys != 0) {assert(values[0].first.max_key_length_ == max_key_length_);}
     initialize(num_keys, kInitDensity_);
 
     if (num_keys == 0) {
@@ -1311,8 +1314,13 @@ class AlexDataNode : public AlexNode<P> {
 
     // Build model
     if (pretrained_model != nullptr) {
-      this->model_.a_ = pretrained_model->a_;
-      this->model_.b_ = pretrained_model->b_;
+      assert(pretrained_model->max_key_length_ == max_key_length_);
+      this->model_.max_key_length_ = pretrained_model->max_key_length_;
+      this->model_.a_ = new double[model.max_key_length_];
+      for (int i = 0; i < model.max_key_length_; i++) {
+        this->model_.a_[i] = existing_model->a_[i];
+      }
+      this->model_.b_ = existing_model->b_;
     } else {
       build_model(values, num_keys, &(this->model_), train_with_sample);
     }
@@ -1371,8 +1379,11 @@ class AlexDataNode : public AlexNode<P> {
                                              static_cast<double>(num_keys + 1)),
                                     static_cast<double>(data_capacity_));
     contraction_threshold_ = data_capacity_ * kMinDensity_;
-    min_key_ = values[0].first;
-    max_key_ = values[num_keys - 1].first;
+
+    for (int i = 0; i < max_key_length_; i++) {
+       min_key_->key_arr_[i] = values[0].first.key_arr_[i];
+       max_key_->key_arr_[i] = values[num_keys-1].first.key_arr_[i];
+    }
   }
 
   // Bulk load using the keys between the left and right positions in
@@ -1383,23 +1394,29 @@ class AlexDataNode : public AlexNode<P> {
   void bulk_load_from_existing(
       const self_type* node, int left, int right, bool keep_left = false,
       bool keep_right = false,
-      const LinearModel<T>* precomputed_model = nullptr,
+      const LinearModel* precomputed_model = nullptr,
       int precomputed_num_actual_keys = -1) {
     assert(left >= 0 && right <= node->data_capacity_);
+    assert(node->max_key_length_ == max_key_length_);
 
     // Build model
     int num_actual_keys = 0;
     if (precomputed_model == nullptr || precomputed_num_actual_keys == -1) {
       const_iterator_type it(node, left);
-      LinearModelBuilder<T> builder(&(this->model_));
+      LinearModelBuilder builder(&(this->model_));
       for (int i = 0; it.cur_idx_ < right && !it.is_end(); it++, i++) {
         builder.add(it.key(), i);
         num_actual_keys++;
       }
       builder.build();
     } else {
+      assert(pretrained_model->max_key_length_ == max_key_length_);
       num_actual_keys = precomputed_num_actual_keys;
-      this->model_.a_ = precomputed_model->a_;
+      this->model_.max_key_length_ = precomputed_model->max_key_length_;
+      this->model_.a_ = new double[model.max_key_length_];
+      for (int i = 0; i < model.max_key_length_; i++) {
+        this->model_.a_[i] = precomputed_model->a_[i];
+      }
       this->model_.b_ = precomputed_model->b_;
     }
 
@@ -1427,7 +1444,9 @@ class AlexDataNode : public AlexNode<P> {
     int last_position = -1;
     int keys_remaining = num_keys_;
     const_iterator_type it(node, left);
-    min_key_ = it.key();
+    for (int i = 0; i < max_key_length_; i++) {
+      min_key_->key_arr_[i] = it.key().key_arr_[i];
+    }
     for (; it.cur_idx_ < right && !it.is_end(); it++) {
       int position = this->model_.predict(it.key());
       position = std::max<int>(position, last_position + 1);
@@ -1473,7 +1492,9 @@ class AlexDataNode : public AlexNode<P> {
       ALEX_DATA_NODE_KEY_AT(i) = kEndSentinel_;
     }
 
-    max_key_ = ALEX_DATA_NODE_KEY_AT(last_position);
+    for (int i = 0; i < max_key_length_; i++) {
+      max_key_.key_arr_[i] = ALEX_DATA_NODE_KEY_AT(last_position).key_arr_[i];
+    }
 
     expansion_threshold_ =
         std::min(std::max(data_capacity_ * kMaxDensity_,
@@ -1576,14 +1597,14 @@ class AlexDataNode : public AlexNode<P> {
   // Unused function: builds a spline model by connecting the smallest and
   // largest points instead of using
   // a linear regression
-  static void build_spline(const V* values, int num_keys,
-                           const LinearModel<T>* model) {
-    int y_max = num_keys - 1;
-    int y_min = 0;
-    model->a_ = static_cast<double>(y_max - y_min) /
-                (values[y_max].first - values[y_min].first);
-    model->b_ = -1.0 * values[y_min].first * model->a_;
-  }
+  //static void build_spline(const V* values, int num_keys,
+  //                         const LinearModel<T>* model) {
+  //  int y_max = num_keys - 1;
+  //  int y_min = 0;
+  //  model->a_ = static_cast<double>(y_max - y_min) /
+  //              (values[y_max].first - values[y_min].first);
+  //  model->b_ = -1.0 * values[y_min].first * model->a_;
+  //}
 
   /*** Lookup ***/
 
