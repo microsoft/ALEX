@@ -2269,7 +2269,7 @@ class AlexDataNode : public AlexNode<P> {
 
   // Erase the left-most key with the input value
   // Returns the number of keys erased (0 or 1)
-  int erase_one(const T& key) {
+  int erase_one(const AlexKey& key) {
     int pos = find_lower(key);
 
     if (pos == data_capacity_ || !key_equal(ALEX_DATA_NODE_KEY_AT(pos), key))
@@ -2281,19 +2281,22 @@ class AlexDataNode : public AlexNode<P> {
   }
 
   // Erase the key at the given position
+  // CURRENTLY ASSUMING THAT DUPLICATE KEYS HAVE SEPARATE MEMORY... CHECK PLEASE
   void erase_one_at(int pos) {
-    T next_key;
+    AlexKey next_key;
     if (pos == data_capacity_ - 1) {
       next_key = kEndSentinel_;
     } else {
       next_key = ALEX_DATA_NODE_KEY_AT(pos + 1);
     }
+    delete ALEX_DATA_NODE_KEY_AT(pos);
     ALEX_DATA_NODE_KEY_AT(pos) = next_key;
     unset_bit(pos);
     pos--;
 
     // Erase preceding gaps until we reach an existing key
     while (pos >= 0 && !check_exists(pos)) {
+      delete ALEX_DATA_NODE_KEY_AT(pos);
       ALEX_DATA_NODE_KEY_AT(pos) = next_key;
       pos--;
     }
@@ -2309,14 +2312,14 @@ class AlexDataNode : public AlexNode<P> {
   // Erase all keys with the input value
   // Returns the number of keys erased (there may be multiple keys with the same
   // value)
-  int erase(const T& key) {
+  int erase(const AlexKey& key) {
     int pos = upper_bound(key);
 
     if (pos == 0 || !key_equal(ALEX_DATA_NODE_KEY_AT(pos - 1), key)) return 0;
 
     // Erase preceding positions until we reach a key with smaller value
     int num_erased = 0;
-    T next_key;
+    AlexKey next_key;
     if (pos == data_capacity_) {
       next_key = kEndSentinel_;
     } else {
@@ -2324,6 +2327,7 @@ class AlexDataNode : public AlexNode<P> {
     }
     pos--;
     while (pos >= 0 && key_equal(ALEX_DATA_NODE_KEY_AT(pos), key)) {
+      delete ALEX_DATA_NODE_KEY_AT(pos);
       ALEX_DATA_NODE_KEY_AT(pos) = next_key;
       num_erased += check_exists(pos);
       unset_bit(pos);
@@ -2341,7 +2345,7 @@ class AlexDataNode : public AlexNode<P> {
 
   // Erase keys with value between start key (inclusive) and end key.
   // Returns the number of keys erased.
-  int erase_range(T start_key, T end_key, bool end_key_inclusive = false) {
+  int erase_range(AlexKey start_key, AlexKey end_key, bool end_key_inclusive = false) {
     int pos;
     if (end_key_inclusive) {
       pos = upper_bound(end_key);
@@ -2353,7 +2357,7 @@ class AlexDataNode : public AlexNode<P> {
 
     // Erase preceding positions until key value is below the start key
     int num_erased = 0;
-    T next_key;
+    AlexKey next_key;
     if (pos == data_capacity_) {
       next_key = kEndSentinel_;
     } else {
@@ -2362,6 +2366,7 @@ class AlexDataNode : public AlexNode<P> {
     pos--;
     while (pos >= 0 &&
            key_greaterequal(ALEX_DATA_NODE_KEY_AT(pos), start_key)) {
+      delete ALEX_DATA_NODE_KEY_AT(pos);
       ALEX_DATA_NODE_KEY_AT(pos) = next_key;
       num_erased += check_exists(pos);
       unset_bit(pos);
@@ -2384,7 +2389,7 @@ class AlexDataNode : public AlexNode<P> {
 
   // Total size in bytes of key/payload/data_slots and bitmap
   long long data_size() const {
-    long long data_size = data_capacity_ * sizeof(T);
+    long long data_size = data_capacity_ * sizeof(AlexKey);
     data_size += data_capacity_ * sizeof(P);
     data_size += bitmap_size_ * sizeof(uint64_t);
     return data_size;
