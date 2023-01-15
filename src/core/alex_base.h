@@ -36,6 +36,8 @@ typedef unsigned __int32 uint32_t;
 #else
 #include <stdint.h>
 #endif
+#include "mkl.h"
+#include "mkl_lapacke.h"
 
 #ifdef _MSC_VER
 #define forceinline __forceinline
@@ -58,7 +60,7 @@ typedef unsigned __int32 uint32_t;
 
 namespace alex {
 
-static const size_t desired_training_key_n = 10000000; /* desired training key according to Xindex */
+static const size_t desired_training_key_n_ = 10000000; /* desired training key according to Xindex */
 
 /*** MAY BE USED UNDER CIRCUMSTANCES ***/
 //extern unsigned int max_key_length;
@@ -133,63 +135,158 @@ class LinearModel {
   }
 };
 
+/* LinearModelBuilder acts very similar to XIndex model preparing. */
 class LinearModelBuilder {
  public:
   LinearModel* model_;
 
-  explicit LinearModelBuilder<T>(LinearModel<T>* model) : model_(model) {}
+  LinearModelBuilder (LinearModel* model) : model_(model) {}
 
-  inline void add(T x, int y) {
-    count_++;
-    x_sum_ += static_cast<long double>(x);
-    y_sum_ += static_cast<long double>(y);
-    xx_sum_ += static_cast<long double>(x) * x;
-    xy_sum_ += static_cast<long double>(x) * y;
-    x_min_ = std::min<T>(x, x_min_);
-    x_max_ = std::max<T>(x, x_max_);
-    y_min_ = std::min<double>(y, y_min_);
-    y_max_ = std::max<double>(y, y_max_);
+  inline void add(AlexKey x, int y) {
+    assert(model_->max_key_length_ == x.max_key_length_);
+    training_keys_.push_back(x.key_arr_);
+    positions_.push_back(y);
   }
 
   void build() {
-    if (count_ <= 1) {
-      model_->a_ = 0;
-      model_->b_ = static_cast<double>(y_sum_);
+    if (positions_.size() == 0) {return;}
+    if (positions_.size() == 1) {
+      for (int i = 0; i < model_->max_key_length_; i++) {
+        model_->a_[i] = 0.0;
+      }
+      model_->b_ = positions_[0];
       return;
     }
 
-    if (static_cast<long double>(count_) * xx_sum_ - x_sum_ * x_sum_ == 0) {
-      // all values in a bucket have the same key.
-      model_->a_ = 0;
-      model_->b_ = static_cast<double>(y_sum_) / count_;
+    if (model_->max_key_length_ == 1) { /* single dimension */
+      double x_expected = 0, y_expected = 0, xy_expected = 0,
+            x_square_expected = 0;
+      for (size_t key_i = 0; key_i < positions_.size(); key_i++) {
+        double key = training_keys_[key_i][0];
+        x_expected += key;
+        y_expected += positions_[key_i];
+        x_square_expected += key * key;
+        xy_expected += key * positions_[key_i];
+      }
+      x_expected /= positions_.size();
+      y_expected /= positions_.size();
+      x_square_expected /= positions_.size();
+      xy_expected /= positions_.size();
+
+      model_->a_[0] = (xy_expected - x_expected * y_expected) /
+                  (x_square_expected - x_expected * x_expected);
+      model_->b_ = (x_square_expected * y_expected - x_expected * xy_expected) /
+                  (x_square_expected - x_expected * x_expected);
       return;
+
     }
 
-    auto slope = static_cast<double>(
-        (static_cast<long double>(count_) * xy_sum_ - x_sum_ * y_sum_) /
-        (static_cast<long double>(count_) * xx_sum_ - x_sum_ * x_sum_));
-    auto intercept = static_cast<double>(
-        (y_sum_ - static_cast<long double>(slope) * x_sum_) / count_);
-    model_->a_ = slope;
-    model_->b_ = intercept;
-
-    // If floating point precision errors, fit spline
-    if (model_->a_ <= 0) {
-      model_->a_ = (y_max_ - y_min_) / (x_max_ - x_min_);
-      model_->b_ = -static_cast<double>(x_min_) * model_->a_;
+    size_t step = 1;
+    if (training_keys_.size() > desired_training_key_n_) {
+      step = training_keys_.size() / desired_training_key_n_;
     }
+
+    std::vector<size_t> useful_feat_index_;
+    for (size_t feat_i = 0; feat_i < model_->max_key_length_; feat_i++) {
+      double first_val = training_keys_[0][feat_i];
+      for (size_t key_i = 0; key_i < training_keys_.size(); key_i += step) {
+        if (training_keys_[key_i][feat_i] != first_val) {
+          useful_feat_index_.push_back(feat_i);
+          break;
+        }
+      }
+    }
+
+    if (training_keys_.size() != 1 && useful_feat_index_.size() == 0) {
+      std::cout<<"all feats are the same"<<std::endl;
+    }
+
+    size_t useful_feat_n_ = useful_feat_index_.size();
+    bool use_bias_ = true;
+
+    // we may need multiple runs to avoid "not full rank" error
+    int fitting_res = -1;
+    while (fitting_res != 0) {
+      // use LAPACK to solve least square problem, i.e., to minimize ||b-Ax||_2
+      // where b is the actual positions, A is inputmodel_keys
+      int m = training_keys_.size() / step;                  // number of samples
+      int n = use_bias_ ? useful_feat_n_ + 1 : useful_feat_n_;  // number of features
+      double *A = (double *) malloc(m * n * sizeof(double));
+      double *b = (double *) malloc(std::max(m, n) * sizeof(double));
+      if (A == nullptr || b == nullptr) {
+        std::cout<<"cannot allocate memory for matrix A or b"<<std::endl;
+        std::cout<<"at "<<__FILE__<<":"<<__LINE__<<std::endl;
+        abort();
+      }
+
+      for (int sample_i = 0; sample_i < m; ++sample_i) {
+        // we only fit with useful features
+        for (size_t useful_feat_i = 0; useful_feat_i < useful_feat_n_;
+            useful_feat_i++) {
+          A[sample_i * n + useful_feat_i] =
+              training_keys_[sample_i * step][useful_feat_index_[useful_feat_i]];
+        }
+        if (use_bias_) {
+          A[sample_i * n + useful_feat_n_] = 1;  // the extra 1
+        }
+        b[sample_i] = positions_[sample_i * step];
+        assert(sample_i * step < training_keys_.size());
+      }
+
+      // fill the rest of b when m < n, otherwise nan value will cause failure
+      for (int i = m; i < n; i++) {
+        b[i] = 0;
+      }
+
+      fitting_res = LAPACKE_dgels(LAPACK_ROW_MAJOR, 'N', m, n, 1 /* nrhs */, A,
+                                  n /* lda */, b, 1 /* ldb, i.e. nrhs */);
+
+      if (fitting_res > 0) {
+        // now we need to remove one column in matrix a
+        // note that fitting_res indexes starting with 1
+        if ((size_t)fitting_res > useful_feat_index_.size()) {
+          use_bias_ = false;
+        } else {
+          size_t feat_i = fitting_res - 1;
+          useful_feat_index_.erase(useful_feat_index_.begin() + feat_i);
+          useful_feat_n_ = useful_feat_index_.size();
+        }
+
+        if (useful_feat_index_.size() == 0 && use_bias_ == false) {
+          std::cout<<"impossible! cannot fail when there is only 1 bias column in matrix a"
+            <<std::endl;
+          std::cout<<"at "<<__FILE__<<":"<<__LINE__<<std::endl;
+          abort();
+        }
+      } else if (fitting_res < 0) {
+        printf("%i-th parameter had an illegal value\n", -fitting_res);
+        exit(-2);
+      }
+
+      // set weights to all zero
+      for (size_t weight_i = 0; weight_i < model_->max_key_length_; weight_i++) {
+        model_->a_[weight_i] = 0;
+      }
+      // set weights of useful features
+      for (size_t useful_feat_i = 0; useful_feat_i < useful_feat_index_.size();
+          useful_feat_i++) {
+        model_->a_[useful_feat_index_[useful_feat_i]] = b[useful_feat_i];
+      }
+      // set bias
+      if (use_bias_) {
+        model_->b_ = b[n - 1];
+      }
+
+      free(A);
+      free(b);
+    }
+    assert(fitting_res == 0);
+
   }
 
  private:
-  int count_ = 0;
-  long double x_sum_ = 0;
-  long double y_sum_ = 0;
-  long double xx_sum_ = 0;
-  long double xy_sum_ = 0;
-  T x_min_ = std::numeric_limits<T>::max();
-  T x_max_ = std::numeric_limits<T>::lowest();
-  double y_min_ = std::numeric_limits<double>::max();
-  double y_max_ = std::numeric_limits<double>::lowest();
+  std::vector<double *> training_keys_;
+  std::vector<int> positions_;
 };
 
 /* AlexKey
