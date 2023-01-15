@@ -369,7 +369,7 @@ class Alex {
               auto key1 = a.first;
               auto key2 = b.first;
               assert(key1.max_key_length_ == key2.max_key_length_);
-              auto bound = a.second;
+              auto bound = key1.max_key_length_;
               for (unsigned int i = 0; i < bound; i++) {
                 if (key1.key_arr_[i] < key2.key_arr_[i]) {return true;}
                 else if (key1.key_arr_[i] > key2.key_arr_[i]) {return false;}
@@ -408,7 +408,7 @@ class Alex {
               auto key1 = a.first;
               auto key2 = b.first;
               assert(key1.max_key_length_ == key2.max_key_length_);
-              auto bound = a.second;
+              auto bound = key1.max_key_length_;
               for (unsigned int i = 0; i < bound; i++) {
                 if (key1.key_arr_[i] < key2.key_arr_[i]) {return true;}
                 else if (key1.key_arr_[i] > key2.key_arr_[i]) {return false;}
@@ -438,7 +438,7 @@ class Alex {
               auto key1 = a.first;
               auto key2 = b.first;
               assert(key1.max_key_length_ == key2.max_key_length_);
-              auto bound = a.second;
+              auto bound = key1.max_key_length_;
               for (unsigned int i = 0; i < bound; i++) {
                 if (key1.key_arr_[i] < key2.key_arr_[i]) {return true;}
                 else if (key1.key_arr_[i] > key2.key_arr_[i]) {return false;}
@@ -467,7 +467,7 @@ class Alex {
               auto key1 = a.first;
               auto key2 = b.first;
               assert(key1.max_key_length_ == key2.max_key_length_);
-              auto bound = a.second;
+              auto bound = key1.max_key_length_;
               for (unsigned int i = 0; i < bound; i++) {
                 if (key1.key_arr_[i] < key2.key_arr_[i]) {return true;}
                 else if (key1.key_arr_[i] > key2.key_arr_[i]) {return false;}
