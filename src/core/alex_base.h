@@ -74,15 +74,10 @@ class LinearModelBuilder;
 class LinearModel {
  public:
   double *a_ = nullptr;  // slope, we MUST initialize.
-  double b_;  // intercept, we MUST initialize by ourself.
+  double b_ = 0.0;  // intercept, we MUST initialize by ourself.
   unsigned int max_key_length_ = 0; 
 
-  LinearModel() {
-    a_ = new double[1];
-    a_[0] = 0.0;
-    b_ = 0.0;
-    max_key_length_ = 1;
-  }
+  LinearModel() = default; 
 
   LinearModel(double a[], double b[], unsigned int max_key_length) : max_key_length_(max_key_length) {
     a_ = new double[max_key_length_];
