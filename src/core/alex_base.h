@@ -135,10 +135,9 @@ class LinearModel {
   }
 };
 
-template <class T>
 class LinearModelBuilder {
  public:
-  LinearModel<T>* model_;
+  LinearModel* model_;
 
   explicit LinearModelBuilder<T>(LinearModel<T>* model) : model_(model) {}
 
@@ -201,7 +200,7 @@ class LinearModelBuilder {
 class AlexKey {
  public:
   double *key_arr_ = nullptr;
-  unsigned int max_key_length_ = 1;
+  unsigned int max_key_length_ = 0;
 
   AlexKey() = default;
 
@@ -211,6 +210,7 @@ class AlexKey {
   AlexKey(double data) {
     key_arr_ = new double[1];
     key_arr_[0] = data;
+    max_key_length_ = 1;
   }
 
   ~AlexKey() {
