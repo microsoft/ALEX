@@ -613,11 +613,11 @@ class Alex {
 // node's parent.
 #if ALEX_SAFE_LOOKUP
   forceinline data_node_type* get_leaf(
-      T key, std::vector<TraversalNode>* traversal_path = nullptr) const {
+      AlexKey key, std::vector<TraversalNode>* traversal_path = nullptr) const {
     if (traversal_path) {
       traversal_path->push_back({superroot_, 0});
     }
-    AlexNode<T, P>* cur = root_node_;
+    AlexNode<P>* cur = root_node_;
     if (cur->is_leaf_) {
       return static_cast<data_node_type*>(cur);
     }
@@ -669,11 +669,11 @@ class Alex {
   }
 #else
   data_node_type* get_leaf(
-      T key, std::vector<TraversalNode>* traversal_path = nullptr) const {
+      AlexKey key, std::vector<TraversalNode>* traversal_path = nullptr) const {
     if (traversal_path) {
       traversal_path->push_back({superroot_, 0});
     }
-    AlexNode<T, P>* cur = root_node_;
+    AlexNode<P>* cur = root_node_;
 
     while (!cur->is_leaf_) {
       auto node = static_cast<model_node_type*>(cur);
@@ -714,7 +714,7 @@ class Alex {
         }
         int correct_bucketID = start_bucketID - 1;
         tn.bucketID = correct_bucketID;
-        AlexNode<T, P>* cur = parent->children_[correct_bucketID];
+        AlexNode<P>* cur = parent->children_[correct_bucketID];
         while (!cur->is_leaf_) {
           auto node = static_cast<model_node_type*>(cur);
           traversal_path.push_back({node, node->num_children_ - 1});
@@ -741,7 +741,7 @@ class Alex {
         }
         int correct_bucketID = end_bucketID;
         tn.bucketID = correct_bucketID;
-        AlexNode<T, P>* cur = parent->children_[correct_bucketID];
+        AlexNode<P>* cur = parent->children_[correct_bucketID];
         while (!cur->is_leaf_) {
           auto node = static_cast<model_node_type*>(cur);
           traversal_path.push_back({node, 0});
@@ -756,7 +756,7 @@ class Alex {
 
   // Return left-most data node
   data_node_type* first_data_node() const {
-    AlexNode<T, P>* cur = root_node_;
+    AlexNode<P>* cur = root_node_;
 
     while (!cur->is_leaf_) {
       cur = static_cast<model_node_type*>(cur)->children_[0];
@@ -766,7 +766,7 @@ class Alex {
 
   // Return right-most data node
   data_node_type* last_data_node() const {
-    AlexNode<T, P>* cur = root_node_;
+    AlexNode<P>* cur = root_node_;
 
     while (!cur->is_leaf_) {
       auto node = static_cast<model_node_type*>(cur);
@@ -776,17 +776,17 @@ class Alex {
   }
 
   // Returns minimum key in the index
-  T get_min_key() const { return first_data_node()->first_key(); }
+  double *get_min_key() const { return first_data_node()->first_key(); }
 
   // Returns maximum key in the index
-  T get_max_key() const { return last_data_node()->last_key(); }
+  double *get_max_key() const { return last_data_node()->last_key(); }
 
   // Link all data nodes together. Used after bulk loading.
   void link_all_data_nodes() {
     data_node_type* prev_leaf = nullptr;
     for (NodeIterator node_it = NodeIterator(this); !node_it.is_end();
          node_it.next()) {
-      AlexNode<T, P>* cur = node_it.current();
+      AlexNode<P>* cur = node_it.current();
       if (cur->is_leaf_) {
         auto node = static_cast<data_node_type*>(cur);
         if (prev_leaf != nullptr) {
