@@ -1609,7 +1609,7 @@ class AlexDataNode : public AlexNode<P> {
   /*** Lookup ***/
 
   // Predicts the position of a key using the model
-  inline int predict_position(const T& key) const {
+  inline int predict_position(const AlexKey& key) const {
     int position = this->model_.predict(key);
     position = std::max<int>(std::min<int>(position, data_capacity_ - 1), 0);
     return position;
@@ -1617,7 +1617,7 @@ class AlexDataNode : public AlexNode<P> {
 
   // Searches for the last non-gap position equal to key
   // If no positions equal to key, returns -1
-  int find_key(const T& key) {
+  int find_key(const AlexKey& key) {
     num_lookups_++;
     int predicted_pos = predict_position(key);
 
@@ -1634,7 +1634,7 @@ class AlexDataNode : public AlexNode<P> {
   // Searches for the first non-gap position no less than key
   // Returns position in range [0, data_capacity]
   // Compare with lower_bound()
-  int find_lower(const T& key) {
+  int find_lower(const AlexKey& key) {
     num_lookups_++;
     int predicted_pos = predict_position(key);
 
@@ -1645,7 +1645,7 @@ class AlexDataNode : public AlexNode<P> {
   // Searches for the first non-gap position greater than key
   // Returns position in range [0, data_capacity]
   // Compare with upper_bound()
-  int find_upper(const T& key) {
+  int find_upper(const AlexKey& key) {
     num_lookups_++;
     int predicted_pos = predict_position(key);
 
@@ -1658,7 +1658,7 @@ class AlexDataNode : public AlexNode<P> {
   // Second returned value is first valid position (i.e., upper_bound of key).
   // If there are duplicate keys, the insert position will be to the right of
   // all existing keys of the same value.
-  std::pair<int, int> find_insert_position(const T& key) {
+  std::pair<int, int> find_insert_position(const AlexKey& key) {
     int predicted_pos =
         predict_position(key);  // first use model to get prediction
 
@@ -1708,8 +1708,7 @@ class AlexDataNode : public AlexNode<P> {
   // This could be the position for a gap (i.e., its bit in the bitmap is 0)
   // Returns position in range [0, data_capacity]
   // Compare with find_upper()
-  template <class K>
-  int upper_bound(const K& key) {
+  int upper_bound(const AlexKey& key) {
     num_lookups_++;
     int position = predict_position(key);
     return exponential_search_upper_bound(position, key);
@@ -1717,8 +1716,7 @@ class AlexDataNode : public AlexNode<P> {
 
   // Searches for the first position greater than key, starting from position m
   // Returns position in range [0, data_capacity]
-  template <class K>
-  inline int exponential_search_upper_bound(int m, const K& key) {
+  inline int exponential_search_upper_bound(int m, const AlexKey& key) {
     // Continue doubling the bound until it contains the upper bound. Then use
     // binary search.
     int bound = 1;
@@ -1748,8 +1746,7 @@ class AlexDataNode : public AlexNode<P> {
   // Searches for the first position greater than key in range [l, r)
   // https://stackoverflow.com/questions/6443569/implementation-of-c-lower-bound
   // Returns position in range [l, r]
-  template <class K>
-  inline int binary_search_upper_bound(int l, int r, const K& key) const {
+  inline int binary_search_upper_bound(int l, int r, const AlexKey& key) const {
     while (l < r) {
       int mid = l + (r - l) / 2;
       if (key_lessequal(ALEX_DATA_NODE_KEY_AT(mid), key)) {
@@ -1765,8 +1762,7 @@ class AlexDataNode : public AlexNode<P> {
   // This could be the position for a gap (i.e., its bit in the bitmap is 0)
   // Returns position in range [0, data_capacity]
   // Compare with find_lower()
-  template <class K>
-  int lower_bound(const K& key) {
+  int lower_bound(const AlexKey& key) {
     num_lookups_++;
     int position = predict_position(key);
     return exponential_search_lower_bound(position, key);
@@ -1774,8 +1770,7 @@ class AlexDataNode : public AlexNode<P> {
 
   // Searches for the first position no less than key, starting from position m
   // Returns position in range [0, data_capacity]
-  template <class K>
-  inline int exponential_search_lower_bound(int m, const K& key) {
+  inline int exponential_search_lower_bound(int m, const AlexKey& key) {
     // Continue doubling the bound until it contains the lower bound. Then use
     // binary search.
     int bound = 1;
@@ -1804,8 +1799,7 @@ class AlexDataNode : public AlexNode<P> {
   // Searches for the first position no less than key in range [l, r)
   // https://stackoverflow.com/questions/6443569/implementation-of-c-lower-bound
   // Returns position in range [l, r]
-  template <class K>
-  inline int binary_search_lower_bound(int l, int r, const K& key) const {
+  inline int binary_search_lower_bound(int l, int r, const AlexKey& key) const {
     while (l < r) {
       int mid = l + (r - l) / 2;
       if (key_greaterequal(ALEX_DATA_NODE_KEY_AT(mid), key)) {
