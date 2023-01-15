@@ -849,7 +849,7 @@ class AlexDataNode : public AlexNode<P> {
   static double compute_expected_cost(
       const V* values, int num_keys, double density,
       double expected_insert_frac,
-      const LinearModel<T>* existing_model = nullptr, bool use_sampling = false,
+      const LinearModel* existing_model = nullptr, bool use_sampling = false,
       DataNodeStats* stats = nullptr) {
     if (use_sampling) {
       return compute_expected_cost_sampling(values, num_keys, density,
@@ -865,12 +865,15 @@ class AlexDataNode : public AlexNode<P> {
         std::max(static_cast<int>(num_keys / density), num_keys + 1);
 
     // Compute what the node's model would be
-    LinearModel<T> model;
+    LinearModel model;
     if (existing_model == nullptr) {
       build_model(values, num_keys, &model);
     } else {
       model.max_key_length_ = existing_model->max_key_length_;
-      model.a_ = existing_model->a_;
+      model.a_ = new double[model.max_key_length_];
+      for (int i = 0; i < model.max_key_length_; i++) {
+        model.a_[i] = existing_model->a_[i];
+      }
       model.b_ = existing_model->b_;
     }
     model.expand(static_cast<double>(data_capacity) / num_keys);
@@ -905,7 +908,7 @@ class AlexDataNode : public AlexNode<P> {
   // Implicitly build the data node in order to collect the stats
   static void build_node_implicit(const V* values, int num_keys,
                                   int data_capacity, StatAccumulator* acc,
-                                  const LinearModel<T>* model) {
+                                  const LinearModel* model) {
     int last_position = -1;
     int keys_remaining = num_keys;
     for (int i = 0; i < num_keys; i++) {
@@ -938,7 +941,7 @@ class AlexDataNode : public AlexNode<P> {
   static double compute_expected_cost_sampling(
       const V* values, int num_keys, double density,
       double expected_insert_frac,
-      const LinearModel<T>* existing_model = nullptr,
+      const LinearModel* existing_model = nullptr,
       DataNodeStats* stats = nullptr) {
     const static int min_sample_size = 25;
 
@@ -967,11 +970,15 @@ class AlexDataNode : public AlexNode<P> {
                                    stats);
     }
 
-    LinearModel<T> model;  // trained for full dense array
+    LinearModel model;  // trained for full dense array
     if (existing_model == nullptr) {
       build_model(values, num_keys, &model);
     } else {
-      model.a_ = existing_model->a_;
+      model.max_key_length_ = existing_model->max_key_length_;
+      model.a_ = new double[model.max_key_length_];
+      for (int i = 0; i < model.max_key_length_; i++) {
+        model.a_[i] = existing_model->a_[i];
+      }
       model.b_ = existing_model->b_;
     }
 
@@ -1009,7 +1016,7 @@ class AlexDataNode : public AlexNode<P> {
     while (true) {
       int sample_data_capacity = std::max(
           static_cast<int>(sample_num_keys / density), sample_num_keys + 1);
-      LinearModel<T> sample_model(model.a_, model.b_);
+      LinearModel sample_model(model.a_, model.b_, model.max_key_length_);
       sample_model.expand(static_cast<double>(sample_data_capacity) / num_keys);
 
       // Compute stats using the sample
@@ -1104,7 +1111,7 @@ class AlexDataNode : public AlexNode<P> {
                                            int sample_num_keys,
                                            int sample_data_capacity,
                                            int step_size, StatAccumulator* ent,
-                                           const LinearModel<T>* sample_model) {
+                                           const LinearModel* sample_model) {
     int last_position = -1;
     int sample_keys_remaining = sample_num_keys;
     for (int i = 0; i < num_keys; i += step_size) {
@@ -1138,15 +1145,15 @@ class AlexDataNode : public AlexNode<P> {
   static double compute_expected_cost_from_existing(
       const self_type* node, int left, int right, double density,
       double expected_insert_frac,
-      const LinearModel<T>* existing_model = nullptr,
+      const LinearModel* existing_model = nullptr,
       DataNodeStats* stats = nullptr) {
     assert(left >= 0 && right <= node->data_capacity_);
 
-    LinearModel<T> model;
+    LinearModel model;
     int num_actual_keys = 0;
     if (existing_model == nullptr) {
       const_iterator_type it(node, left);
-      LinearModelBuilder<T> builder(&model);
+      LinearModelBuilder builder(&model);
       for (int i = 0; it.cur_idx_ < right && !it.is_end(); it++, i++) {
         builder.add(it.key(), i);
         num_actual_keys++;
@@ -1154,7 +1161,11 @@ class AlexDataNode : public AlexNode<P> {
       builder.build();
     } else {
       num_actual_keys = node->num_keys_in_range(left, right);
-      model.a_ = existing_model->a_;
+      model.max_key_length_ = existing_model->max_key_length_;
+      model.a_ = new double[model.max_key_length_];
+      for (int i = 0; i < model.max_key_length_; i++) {
+        model.a_[i] = existing_model->a_[i];
+      }
       model.b_ = existing_model->b_;
     }
 
@@ -1199,7 +1210,7 @@ class AlexDataNode : public AlexNode<P> {
                                                 int right, int num_actual_keys,
                                                 int data_capacity,
                                                 StatAccumulator* acc,
-                                                const LinearModel<T>* model) {
+                                                const LinearModel* model) {
     int last_position = -1;
     int keys_remaining = num_actual_keys;
     const_iterator_type it(node, left);
