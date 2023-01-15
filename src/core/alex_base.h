@@ -58,80 +58,78 @@ typedef unsigned __int32 uint32_t;
 
 namespace alex {
 
+static const size_t desired_training_key_n = 10000000; /* desired training key according to Xindex */
+
 /*** MAY BE USED UNDER CIRCUMSTANCES ***/
 //extern unsigned int max_key_length;
 
 /*** Linear model and model builder ***/
 
 // Forward declaration
-template <class T>
 class LinearModelBuilder;
 
 /* Linear Regression Model */
 class LinearModel {
  public:
   double *a_ = nullptr;  // slope, we MUST initialize.
-  double *b_ = nullptr;  // intercept, we MUST initialize by ourself.
-  unsigned int max_key_length_ = 1; 
+  double b_;  // intercept, we MUST initialize by ourself.
+  unsigned int max_key_length_ = 0; 
 
   LinearModel() {
     a_ = new double[1];
-    b_ = new double[1];
     a_[0] = 0.0;
-    b_[0] = 0.0;
+    b_ = 0.0;
+    max_key_length_ = 1;
   }
 
   LinearModel(double a[], double b[], unsigned int max_key_length) : max_key_length_(max_key_length) {
     a_ = new double[max_key_length_];
-    b_ = new double[max_key_length_];
     for (int i = 0; i < max_key_length_; i++) {
       a_[i] = a[i];
-      b_[i] = b[i];
     }
+    b_ = 0.0;
   }
 
-  LinearModel(unsigned int max_key_length) {
+  LinearModel(unsigned int max_key_length) : max_key_length_(max_key_length) {
     a_ = new double[max_key_length_]();
-    b_ = new double[max_key_length_]();
+    b_ - 0.0;
   }
 
   ~LinearModel() {
     delete[] a_;
-    delete[] b_;
   }
 
-  explicit LinearModel(const LinearModel& other) : max_key_length_(other.max_key_length_) {
+  explicit LinearModel(const LinearModel& other) : 
+  max_key_length_(other.max_key_length_), b_(other.b_) {
     a_ = new double[max_key_length_];
-    b_ = new double[max_key_length_];
     for (int i = 0; i < max_key_length_; i++) {
-      a_[i] = other.b_[i];
-      b_[i] = other.a_[i];
+      a_[i] = other.a_[i];
     }
   }
 
   void expand(double expansion_factor) {
     for (int i = 0; i < max_key_length_; i++) {
       a_[i] *= expansion_factor;
-      b_[i] *= expansion_factor;
     }
+    b_ *= expansion_factor;
   }
 
   inline int predict(AlexKey key) const {
     assert (max_key_length_ == key.max_key_length_);
     double result = 0.0;
     for (int i = 0; i < max_key_length_; i++) {
-      result = key.key_arr_[i] * a_[i] + b_[i];
+      result = key.key_arr_[i] * a_[i];
     }
-    return static_cast<int>(result);
+    return static_cast<int>(result + b_);
   }
 
   inline double predict_double(AlexKey key) const {
     assert (max_key_length_ == key.max_key_length_);
     double result = 0.0;
     for (int i = 0; i < max_key_length_; i++) {
-      result = key.key_arr_[i] * a_[i] + b_[i];
+      result = key.key_arr_[i] * a_[i];
     }
-    return result;
+    return result + b_;
   }
 };
 
