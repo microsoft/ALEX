@@ -834,7 +834,7 @@ class Alex {
     return typename model_node_type::pointer_alloc_type(allocator_);
   }
 
-  void delete_node(AlexNode<T, P>* node) {
+  void delete_node(AlexNode<P>* node) {
     if (node == nullptr) {
       return;
     } else if (node->is_leaf_) {
@@ -868,13 +868,13 @@ class Alex {
     // Build temporary root model, which outputs a CDF in the range [0, 1]
     root_node_ =
         new (model_node_allocator().allocate(1)) model_node_type(0, allocator_);
-    T min_key = values[0].first;
-    T max_key = values[num_keys - 1].first;
+    AlexKey min_key = values[0].first;
+    AlexKey max_key = values[num_keys - 1].first;
     root_node_->model_.a_ = 1.0 / (max_key - min_key);
     root_node_->model_.b_ = -1.0 * min_key * root_node_->model_.a_;
 
     // Compute cost of root node
-    LinearModel<T> root_data_node_model;
+    LinearModel root_data_node_model;
     data_node_type::build_model(values, num_keys, &root_data_node_model,
                                 params_.approximate_model_computation);
     DataNodeStats stats;
@@ -908,7 +908,7 @@ class Alex {
         model_node_type(static_cast<short>(root_node_->level_ - 1), allocator_);
     superroot_->num_children_ = 1;
     superroot_->children_ =
-        new (pointer_allocator().allocate(1)) AlexNode<T, P>*[1];
+        new (pointer_allocator().allocate(1)) AlexNode<P>*[1];
     update_superroot_pointer();
   }
 
@@ -940,9 +940,9 @@ class Alex {
   // node is trained as if it's a model node.
   // data_node_model is what the node's model would be if it were a data node of
   // dense keys.
-  void bulk_load_node(const V values[], int num_keys, AlexNode<T, P>*& node,
+  void bulk_load_node(const V values[], int num_keys, AlexNode<P>*& node,
                       int total_keys,
-                      const LinearModel<T>* data_node_model = nullptr) {
+                      const LinearModel* data_node_model = nullptr) {
     // Automatically convert to data node when it is impossible to be better
     // than current cost
     if (num_keys <= derived_params_.max_data_node_slots *
