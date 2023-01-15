@@ -847,8 +847,7 @@ class Alex {
   }
 
   // True if a == b
-  template <class K>
-  forceinline bool key_equal(const T& a, const K& b) const {
+  forceinline bool key_equal(const AlexKey& a, const AlexKey& b) const {
     return !key_less_(a, b) && !key_less_(b, a);
   }
 
