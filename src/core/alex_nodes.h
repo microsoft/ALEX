@@ -2388,6 +2388,7 @@ class AlexDataNode : public AlexNode<P> {
   long long node_size() const override { return sizeof(self_type); }
 
   // Total size in bytes of key/payload/data_slots and bitmap
+  // NOTE THAT IT DOESN'T INCLUDE ALEX KEY'S POINTING ARRAY SIZE.
   long long data_size() const {
     long long data_size = data_capacity_ * sizeof(AlexKey);
     data_size += data_capacity_ * sizeof(P);
@@ -2469,7 +2470,7 @@ class AlexDataNode : public AlexNode<P> {
   // Check that a key exists in the key/data_slots
   // If validate_bitmap is true, confirm that the corresponding position in the
   // bitmap is correctly set to 1
-  bool key_exists(const T& key, bool validate_bitmap) const {
+  bool key_exists(const AlexKey& key, bool validate_bitmap) const {
     for (int i = 0; i < data_capacity_ - 1; i++) {
       if (key_equal(ALEX_DATA_NODE_KEY_AT(i), key) &&
           (!validate_bitmap || check_exists(i))) {
