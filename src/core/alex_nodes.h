@@ -1838,7 +1838,7 @@ class AlexDataNode : public AlexNode<P> {
   // Second value in returned pair is position of inserted key, or of the
   // already-existing key.
   // -1 if no insertion.
-  std::pair<int, int> insert(const T& key, const P& payload) {
+  std::pair<int, int> insert(const AlexKey& key, const P& payload) {
     // Periodically check for catastrophe
     if (num_inserts_ % 64 == 0 && catastrophic_cost()) {
       return {2, -1};
@@ -1906,8 +1906,8 @@ class AlexDataNode : public AlexNode<P> {
     auto new_bitmap = new (bitmap_allocator().allocate(new_bitmap_size))
         uint64_t[new_bitmap_size]();  // initialize to all false
 #if ALEX_DATA_NODE_SEP_ARRAYS
-    T* new_key_slots =
-        new (key_allocator().allocate(new_data_capacity)) T[new_data_capacity];
+    AlexKey* new_key_slots =
+        new (key_allocator().allocate(new_data_capacity)) AlexKey[new_data_capacity];
     P* new_payload_slots = new (payload_allocator().allocate(new_data_capacity))
         P[new_data_capacity];
 #else
@@ -1918,7 +1918,7 @@ class AlexDataNode : public AlexNode<P> {
     // Retrain model if the number of keys is sufficiently small (under 50)
     if (num_keys_ < 50 || force_retrain) {
       const_iterator_type it(this, 0);
-      LinearModelBuilder<T> builder(&(this->model_));
+      LinearModelBuilder builder(&(this->model_));
       for (int i = 0; it.cur_idx_ < data_capacity_ && !it.is_end(); it++, i++) {
         builder.add(it.key(), i);
       }
@@ -2037,7 +2037,7 @@ class AlexDataNode : public AlexNode<P> {
   }
 
   // Insert key into pos. The caller must guarantee that pos is a gap.
-  void insert_element_at(const T& key, P payload, int pos) {
+  void insert_element_at(const AlexKey& key, P payload, int pos) {
 #if ALEX_DATA_NODE_SEP_ARRAYS
     key_slots_[pos] = key;
     payload_slots_[pos] = payload;
@@ -2056,7 +2056,7 @@ class AlexDataNode : public AlexNode<P> {
 
   // Insert key into pos, shifting as necessary in the range [left, right)
   // Returns the actual position of insertion
-  int insert_using_shifts(const T& key, P payload, int pos) {
+  int insert_using_shifts(const AlexKey& key, P payload, int pos) {
     // Find the closest gap
     int gap_pos = closest_gap(pos);
     set_bit(gap_pos);
