@@ -869,6 +869,7 @@ class AlexDataNode : public AlexNode<P> {
     if (existing_model == nullptr) {
       build_model(values, num_keys, &model);
     } else {
+      model.max_key_length_ = existing_model->max_key_length_;
       model.a_ = existing_model->a_;
       model.b_ = existing_model->b_;
     }
@@ -1432,14 +1433,15 @@ class AlexDataNode : public AlexNode<P> {
     contraction_threshold_ = data_capacity_ * kMinDensity_;
   }
 
-  static void build_model(const V* values, int num_keys, LinearModel<T>* model,
+  static void build_model(const V* values, int num_keys, LinearModel* model,
                           bool use_sampling = false) {
-    if (use_sampling) {
+    /* sampling only possible for integer, double type keys... for now.*/
+    if (use_sampling && (model->max_key_length_ == 1)) {
       build_model_sampling(values, num_keys, model);
       return;
     }
 
-    LinearModelBuilder<T> builder(model);
+    LinearModelBuilder builder(model);
     for (int i = 0; i < num_keys; i++) {
       builder.add(values[i].first, i);
     }
@@ -1450,7 +1452,7 @@ class AlexDataNode : public AlexNode<P> {
   // Progressively increases sample size until model parameters are relatively
   // stable
   static void build_model_sampling(const V* values, int num_keys,
-                                   LinearModel<T>* model,
+                                   LinearModel* model,
                                    bool verbose = false) {
     const static int sample_size_lower_bound = 10;
     // If slope and intercept change by less than this much between samples,
@@ -1476,12 +1478,12 @@ class AlexDataNode : public AlexNode<P> {
     step_size /= sample_size_multiplier;
 
     // Run with initial step size
-    LinearModelBuilder<T> builder(model);
+    LinearModelBuilder builder(model);
     for (int i = 0; i < num_keys; i += step_size) {
       builder.add(values[i].first, i);
     }
     builder.build();
-    double prev_a = model->a_;
+    double prev_a = model->a_[0];
     double prev_b = model->b_;
     if (verbose) {
       std::cout << "Build index, sample size: " << num_keys / step_size
@@ -1503,12 +1505,12 @@ class AlexDataNode : public AlexNode<P> {
       }
       builder.build();
 
-      double rel_change_in_a = std::abs((model->a_ - prev_a) / prev_a);
+      double rel_change_in_a = std::abs((model->a_[0] - prev_a) / prev_a);
       double abs_change_in_b = std::abs(model->b_ - prev_b);
       double rel_change_in_b = std::abs(abs_change_in_b / prev_b);
       if (verbose) {
         std::cout << "Build index, sample size: " << num_keys / step_size
-                  << " (a, b): (" << model->a_ << ", " << model->b_ << ") ("
+                  << " (a, b): (" << model->a_[0] << ", " << model->b_ << ") ("
                   << rel_change_in_a << ", " << rel_change_in_b << ")"
                   << std::endl;
       }
@@ -1517,7 +1519,7 @@ class AlexDataNode : public AlexNode<P> {
            abs_change_in_b < abs_change_threshold)) {
         return;
       }
-      prev_a = model->a_;
+      prev_a = model->a_[0];
       prev_b = model->b_;
     }
   }
