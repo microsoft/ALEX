@@ -49,7 +49,10 @@ class AlexNode {
   short level_ = 0;
 
   // Both model nodes and data nodes nodes use models
-  LinearModel model_;
+  LinearModel model_ = LinearModel(1);
+
+  // Node's linear model's key's max_length.
+  unsigned int max_key_length_ = 1;
 
   // Could be either the expected or empirical cost, depending on how this field
   // is used
@@ -58,6 +61,10 @@ class AlexNode {
   AlexNode() = default;
   explicit AlexNode(short level) : level_(level) {}
   AlexNode(short level, bool is_leaf) : is_leaf_(is_leaf), level_(level) {}
+  AlexNode(short level, bool is_leaf, unsigned int max_key_length) 
+        : is_leaf_(is_leaf), level_(level), max_key_length_(max_key_length) {
+    model_ = LinearModel(max_key_length);
+  }
   virtual ~AlexNode() = default;
 
   // The size in bytes of all member variables in this class
@@ -85,6 +92,10 @@ class AlexModelNode : public AlexNode<P> {
 
   explicit AlexModelNode(short level, const Alloc& alloc = Alloc())
       : AlexNode<P>(level, false), allocator_(alloc) {}
+  
+  explicit AlexModelNode(short level, unsigned int max_key_length,
+                         const Alloc& Alloc = Alloc())
+      : AlexNode<P>(level, false, max_key_length), allocator_(alloc) {}
 
   ~AlexModelNode() {
     if (children_ == nullptr) {
@@ -96,11 +107,18 @@ class AlexModelNode : public AlexNode<P> {
   AlexModelNode(const self_type& other)
       : AlexNode<P>(other),
         allocator_(other.allocator_),
-        num_children_(other.num_children_) {
+        num_children_(other.num_children_),
+        max_key_length_(other.max_key_length_) {
     children_ = new (pointer_allocator().allocate(other.num_children_))
         AlexNode<P>*[other.num_children_];
     std::copy(other.children_, other.children_ + other.num_children_,
               children_);
+    model_ = LinearModel(other.max_key_length_);
+    model_.a_ = new double[max_key_length_]();
+    for (int i = 0; i < max_key_length_; i++) {
+      a_[i] = other.model_.a_[i];
+    }
+    model_.b_ = other.model_.b_;
   }
 
   // Given a key, traverses to the child node responsible for that key
