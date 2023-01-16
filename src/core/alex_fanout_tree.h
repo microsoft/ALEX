@@ -157,7 +157,7 @@ double compute_level(const std::pair<AlexKey, P> values[], int num_keys,
           {level, i, 0, left_boundary, right_boundary, false, 0, 0, 0, 0, 0});
       continue;
     }
-    LinearModel model;
+    LinearModel model = LinearModel(node->model_.max_key_length_);
     AlexDataNode<P>::build_model(values + left_boundary,
                                     right_boundary - left_boundary, &model,
                                     approximate_model_computation);
@@ -302,7 +302,7 @@ std::pair<int, double> find_best_fanout_top_down(
                           tree_node.right_boundary};
       double node_costs[2];
       DataNodeStats node_stats[2];
-      LinearModel<T> node_models[2];
+      LinearModel node_models(node->model_.max_key_length_)[2];
       for (int i = 0; i < 2; i++) {
         int left = boundaries[i];
         int right = boundaries[i + 1];
@@ -397,6 +397,7 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
     double cost = 0.0;
     double a = base_model.a_ * fanout;
     double b = base_model.b_ * fanout;
+    LinearModel newLModel = LinearModel(a, b, base_model.max_key_length_);
     int left_boundary = 0;
     int right_boundary = 0;
     for (int i = 0; i < fanout; i++) {
