@@ -1157,7 +1157,7 @@ class Alex {
   // right-most key
   // If you instead want an iterator to the left-most key with the input value,
   // use lower_bound()
-  typename self_type::Iterator find(const T& key) {
+  typename self_type::Iterator find(const AlexKey& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     int idx = leaf->find_key(key);
@@ -1168,7 +1168,7 @@ class Alex {
     }
   }
 
-  typename self_type::ConstIterator find(const T& key) const {
+  typename self_type::ConstIterator find(const AlexKey& key) const {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     int idx = leaf->find_key(key);
@@ -1179,7 +1179,7 @@ class Alex {
     }
   }
 
-  size_t count(const T& key) {
+  size_t count(const AlexKey& key) {
     ConstIterator it = lower_bound(key);
     size_t num_equal = 0;
     while (!it.is_end() && key_equal(it.key(), key)) {
@@ -1190,7 +1190,7 @@ class Alex {
   }
 
   // Returns an iterator to the first key no less than the input value
-  typename self_type::Iterator lower_bound(const T& key) {
+  typename self_type::Iterator lower_bound(const AlexKey& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     int idx = leaf->find_lower(key);
@@ -1198,7 +1198,7 @@ class Alex {
                                  // leaf->data_capacity
   }
 
-  typename self_type::ConstIterator lower_bound(const T& key) const {
+  typename self_type::ConstIterator lower_bound(const AlexKey& key) const {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     int idx = leaf->find_lower(key);
@@ -1207,7 +1207,7 @@ class Alex {
   }
 
   // Returns an iterator to the first key greater than the input value
-  typename self_type::Iterator upper_bound(const T& key) {
+  typename self_type::Iterator upper_bound(const AlexKey& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     int idx = leaf->find_upper(key);
@@ -1215,7 +1215,7 @@ class Alex {
                                  // leaf->data_capacity
   }
 
-  typename self_type::ConstIterator upper_bound(const T& key) const {
+  typename self_type::ConstIterator upper_bound(const AlexKey& key) const {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     int idx = leaf->find_upper(key);
@@ -1223,11 +1223,11 @@ class Alex {
                                       // idx == leaf->data_capacity
   }
 
-  std::pair<Iterator, Iterator> equal_range(const T& key) {
+  std::pair<Iterator, Iterator> equal_range(const AlexKey& key) {
     return std::pair<Iterator, Iterator>(lower_bound(key), upper_bound(key));
   }
 
-  std::pair<ConstIterator, ConstIterator> equal_range(const T& key) const {
+  std::pair<ConstIterator, ConstIterator> equal_range(const AlexKey& key) const {
     return std::pair<ConstIterator, ConstIterator>(lower_bound(key),
                                                    upper_bound(key));
   }
@@ -1235,7 +1235,7 @@ class Alex {
   // Directly returns a pointer to the payload found through find(key)
   // This avoids the overhead of creating an iterator
   // Returns null pointer if there is no exact match of the key
-  P* get_payload(const T& key) const {
+  P* get_payload(const AlexKey& key) const {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     int idx = leaf->find_key(key);
@@ -1248,7 +1248,7 @@ class Alex {
 
   // Looks for the last key no greater than the input value
   // Conceptually, this is equal to the last key before upper_bound()
-  typename self_type::Iterator find_last_no_greater_than(const T& key) {
+  typename self_type::Iterator find_last_no_greater_than(const AlexKey& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     const int idx = leaf->upper_bound(key) - 1;
@@ -1271,7 +1271,7 @@ class Alex {
   // Directly returns a pointer to the payload found through
   // find_last_no_greater_than(key)
   // This avoids the overhead of creating an iterator
-  P* get_payload_last_no_greater_than(const T& key) {
+  P* get_payload_last_no_greater_than(const AlexKey& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key);
     const int idx = leaf->upper_bound(key) - 1;
@@ -1292,7 +1292,7 @@ class Alex {
   }
 
   typename self_type::Iterator begin() {
-    AlexNode<T, P>* cur = root_node_;
+    AlexNode<P>* cur = root_node_;
 
     while (!cur->is_leaf_) {
       cur = static_cast<model_node_type*>(cur)->children_[0];
@@ -1308,7 +1308,7 @@ class Alex {
   }
 
   typename self_type::ConstIterator cbegin() const {
-    AlexNode<T, P>* cur = root_node_;
+    AlexNode<P>* cur = root_node_;
 
     while (!cur->is_leaf_) {
       cur = static_cast<model_node_type*>(cur)->children_[0];
@@ -1324,7 +1324,7 @@ class Alex {
   }
 
   typename self_type::ReverseIterator rbegin() {
-    AlexNode<T, P>* cur = root_node_;
+    AlexNode<P>* cur = root_node_;
 
     while (!cur->is_leaf_) {
       auto model_node = static_cast<model_node_type*>(cur);
@@ -1342,7 +1342,7 @@ class Alex {
   }
 
   typename self_type::ConstReverseIterator crbegin() const {
-    AlexNode<T, P>* cur = root_node_;
+    AlexNode<P>* cur = root_node_;
 
     while (!cur->is_leaf_) {
       auto model_node = static_cast<model_node_type*>(cur);
