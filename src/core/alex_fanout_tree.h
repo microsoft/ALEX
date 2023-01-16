@@ -27,7 +27,7 @@ struct FTNode {
   bool use = false;
   double expected_avg_search_iterations = 0;
   double expected_avg_shifts = 0;
-  double a = 0;  // linear model slope
+  double *a = nullptr;  // linear model slope
   double b = 0;  // linear model intercept
   int num_keys = 0;
 };
@@ -59,7 +59,7 @@ inline void collect_used_nodes(const std::vector<std::vector<FTNode>>& fanout_tr
 // upwards if doing so decreases the cost.
 // Returns the new best cost.
 // This is a helper function for finding the best fanout in a bottom-up fashion.
-template <class T, class P>
+template <class P>
 static double merge_nodes_upwards(
     int start_level, double best_cost, int num_keys, int total_keys,
     std::vector<std::vector<FTNode>>& fanout_tree) {
@@ -74,7 +74,7 @@ static double merge_nodes_upwards(
           fanout_tree[level][2 * i + 1].use = false;
           fanout_tree[level - 1][i].use = true;
           at_least_one_merge = true;
-          best_cost -= kModelSizeWeight * sizeof(AlexDataNode<T, P>) *
+          best_cost -= kModelSizeWeight * sizeof(AlexDataNode<P>) *
                        total_keys / num_keys;
           continue;
         }
@@ -85,7 +85,7 @@ static double merge_nodes_upwards(
             (fanout_tree[level][2 * i + 1].cost * num_right_keys /
              num_node_keys) -
             fanout_tree[level - 1][i].cost +
-            (kModelSizeWeight * sizeof(AlexDataNode<T, P>) * total_keys /
+            (kModelSizeWeight * sizeof(AlexDataNode<P>) * total_keys /
              num_node_keys);
         if (merging_cost_saving >= 0) {
           fanout_tree[level][2 * i].use = false;
