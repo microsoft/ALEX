@@ -397,7 +397,6 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
     double cost = 0.0;
     double a = base_model.a_ * fanout;
     double b = base_model.b_ * fanout;
-    LinearModel newLModel = LinearModel(a, b, base_model.max_key_length_);
     int left_boundary = 0;
     int right_boundary = 0;
     for (int i = 0; i < fanout; i++) {
