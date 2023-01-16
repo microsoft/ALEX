@@ -249,12 +249,12 @@ std::pair<int, double> find_best_fanout_bottom_up(
 // 1).
 // Returns the depth of the best fanout tree and the total cost of the fanout
 // tree.
-template <class P, class Compare = AlexCompare>
+template <class P>
 std::pair<int, double> find_best_fanout_top_down(
     const std::pair<AlexKey, P> values[], int num_keys, const AlexNode<P>* node,
     int total_keys, std::vector<FTNode>& used_fanout_tree_nodes, int max_fanout,
     double expected_insert_frac = 0, bool approximate_model_computation = true,
-    bool approximate_cost_computation = false, Compare key_less = Compare()) {
+    bool approximate_cost_computation = false) {
   // Grow the fanout tree top-down breadth-first, each node independently
   // instead of complete levels at a time
   std::vector<std::vector<FTNode>> fanout_tree;
