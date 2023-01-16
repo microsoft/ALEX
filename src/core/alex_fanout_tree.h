@@ -364,14 +364,14 @@ std::pair<int, double> find_best_fanout_top_down(
 // This mirrors the logic of finding the best fanout "bottom-up" when bulk
 // loading.
 // Returns the depth of the best fanout tree.
-template <class T, class P>
-int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
+template <class P>
+int find_best_fanout_existing_node(const AlexModelNode<P>* parent,
                                    int bucketID, int total_keys,
                                    std::vector<FTNode>& used_fanout_tree_nodes,
                                    int max_fanout) {
   // Repeatedly add levels to the fanout tree until the overall cost of each
   // level starts to increase
-  auto node = static_cast<AlexDataNode<T, P>*>(parent->children_[bucketID]);
+  auto node = static_cast<AlexDataNode<P>*>(parent->children_[bucketID]);
   int num_keys = node->num_keys_;
   int best_level = 0;
   double best_cost = std::numeric_limits<double>::max();
@@ -383,35 +383,64 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
       bucketID - (bucketID % repeats);  // first bucket with same child
   int end_bucketID =
       start_bucketID + repeats;  // first bucket with different child
-  double left_boundary_value =
-      (start_bucketID - parent->model_.b_) / parent->model_.a_;
-  double right_boundary_value =
-      (end_bucketID - parent->model_.b_) / parent->model_.a_;
-  LinearModel<T> base_model;
-  base_model.a_ = 1.0 / (right_boundary_value - left_boundary_value);
-  base_model.b_ = -1.0 * base_model.a_ * left_boundary_value;
+
+  // NOT FULLY IMPLEMENTED
+  // WE NEED TO FIND A WAY FOR OBTAINING LEFT_BOUNDARY_VALUE
+
+  double *left_boundary_value =
+      (start_bucketID - parent->model_.b_) / parent->model_.a_; /* wrong */
+  double *right_boundary_value =
+      (end_bucketID - parent->model_.b_) / parent->model_.a_; /* wrong */
+
+  /* needs change compared to original since we now we need length-dimension realted line.
+     * steps are like this
+     * 1) obtain direction vector using min_key, max_key to find line going through those two.
+     * 2) find t and v such that t(v(x-min_key)) = 0, and compute a_, b_ value. */
+  LinearModel base_model = LinearModel(parent->model_.max_key_length_);
+  double *direction_vector_[max_key_length_]();
+  double t_inverse_ = 0.0;
+  for (int i = 0; i < base_model.max_key_length_; i++) {
+    direction_vector_[i] = right_boundary_value[i] - left_boundary_value[i];
+    t_inverse_ += direction_vector_[i] * direction_vector_[i];
+  }
+  double t = 1 / t_inverse_;
+  base_model.b_ = 0.0;
+  for (int i = 0; i < max_key_length_; i++) {
+    base_model.a_[i] = direction_vector_[i] * t;
+    base_model.b_ += t * direction_vector_[i] * left_boundary_value[i];
+  }
 
   for (int fanout = 1, fanout_tree_level = 0; fanout <= max_fanout;
        fanout *= 2, fanout_tree_level++) {
     std::vector<FTNode> new_level;
     double cost = 0.0;
-    double a = base_model.a_ * fanout;
+    double a[base_model.max_key_length_]();
+    for (int i = 0; i < base_model.max_key_length_; i++) {
+      a[i] = base_model.a_[i] * fanout;
+    }
     double b = base_model.b_ * fanout;
+    LinearModel newLModel = LinearModel(a, b, base_model.max_key_length_);
     int left_boundary = 0;
     int right_boundary = 0;
     for (int i = 0; i < fanout; i++) {
       left_boundary = right_boundary;
-      right_boundary = i == fanout - 1 ? node->data_capacity_
-                                       : node->lower_bound(((i + 1) - b) / a);
-      if (left_boundary == right_boundary) {
-        new_level.push_back({fanout_tree_level, i, 0, left_boundary,
-                             right_boundary, false, 0, 0, 0, 0, 0});
-        continue;
+      if (i == fanout - 1) {right_boundary = num_keys;}
+      else {
+        char flag = 1;
+        for (int idx = 0; idx < num_keys; idx++) {
+          int predicted_pos = newLModel.predict(values[i].first);
+          if (predicted_pos >= i+1) {
+            flag = 0;
+            right_boundary = idx;
+            break;
+          }
+        }
+        if (flag) {right_boundary = num_keys;}
       }
       int num_actual_keys = 0;
-      LinearModel<T> model;
-      typename AlexDataNode<T, P>::const_iterator_type it(node, left_boundary);
-      LinearModelBuilder<T> builder(&model);
+      LinearModel model = LinearModel(node->model_.max_key_length_);
+      typename AlexDataNode<P>::const_iterator_type it(node, left_boundary);
+      LinearModelBuilder builder(&model);
       for (int j = 0; it.cur_idx_ < right_boundary && !it.is_end(); it++, j++) {
         builder.add(it.key(), j);
         num_actual_keys++;
@@ -421,9 +450,9 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
       double empirical_insert_frac = node->frac_inserts();
       DataNodeStats stats;
       double node_cost =
-          AlexDataNode<T, P>::compute_expected_cost_from_existing(
+          AlexDataNode<P>::compute_expected_cost_from_existing(
               node, left_boundary, right_boundary,
-              AlexDataNode<T, P>::kInitDensity_, empirical_insert_frac, &model,
+              AlexDataNode<P>::kInitDensity_, empirical_insert_frac, &model,
               &stats);
 
       cost += node_cost * num_actual_keys / num_keys;
@@ -437,7 +466,7 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
     double traversal_cost =
         kNodeLookupsWeight +
         (kModelSizeWeight * fanout *
-         (sizeof(AlexDataNode<T, P>) + sizeof(void*)) * total_keys / num_keys);
+         (sizeof(AlexDataNode<P>) + sizeof(void*)) * total_keys / num_keys);
     cost += traversal_cost;
     fanout_costs.push_back(cost);
     // stop after expanding fanout increases cost twice in a row
@@ -459,7 +488,7 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
   }
 
   // Merge nodes to improve cost
-  merge_nodes_upwards<T, P>(best_level, best_cost, num_keys, total_keys,
+  merge_nodes_upwards<P>(best_level, best_cost, num_keys, total_keys,
                             fanout_tree);
 
   collect_used_nodes(fanout_tree, best_level, used_fanout_tree_nodes);
