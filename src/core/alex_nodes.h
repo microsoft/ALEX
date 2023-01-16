@@ -343,8 +343,10 @@ class AlexDataNode : public AlexNode<P> {
   V* data_slots_ = nullptr;  // holds key-payload pairs
 #endif
 
-  unsigned int max_key_length_ = 1; // maximum length of each key 
-  int key_type_ = DOUBLE; // key type for specific node.
+  /* Below are unused attributes */
+  //unsigned int max_key_length_ = 1; // maximum length of each key 
+  //int key_type_ = DOUBLE; // key type for specific node.
+
   int data_capacity_ = 0;  // size of key/data_slots array
   int num_keys_ = 0;  // number of filled key/data slots (as opposed to gaps)
   double *the_max_key_arr_; //theoretic maximum key_arr
@@ -406,7 +408,7 @@ class AlexDataNode : public AlexNode<P> {
 
   /*** Constructors and destructors ***/
 
-  AlexDataNode () {
+  AlexDataNode () : AlexNode<P>(0, true) {
     the_max_key_arr_ = new double[1];
     the_min_key_arr_ = new double[1];
     the_max_key_arr[0] = std::numeric_limits<double>::max();
@@ -415,8 +417,7 @@ class AlexDataNode : public AlexNode<P> {
 
   explicit AlexDataNode(unsigned int max_key_length, int key_type,
         const Compare& comp = Compare(), const Alloc& alloc = Alloc())
-      : AlexNode<P>(0, true), key_less_(comp), allocator_(alloc),
-        max_key_length_(max_key_length), key_type_(key_type) {
+      : AlexNode<P>(0, true, max_key_length), key_less_(comp), allocator_(alloc) {
     double *max_key_arr = new double[max_key_length_];
     double *min_key_arr = new double[max_key_length_];
     double *kEndSentinel_arr = new double[max_key_length_]
@@ -464,7 +465,7 @@ class AlexDataNode : public AlexNode<P> {
   AlexDataNode(short level, int max_data_node_slots,
                unsigned int max_key_length, int key_type,
                const Compare& comp = Compare(), const Alloc& alloc = Alloc())
-      : AlexNode<P>(level, true),
+      : AlexNode<P>(level, true, max_key_length),
         key_less_(comp),
         allocator_(alloc),
         max_slots_(max_data_node_slots),
@@ -541,8 +542,6 @@ class AlexDataNode : public AlexNode<P> {
         allocator_(other.allocator_),
         next_leaf_(other.next_leaf_),
         prev_leaf_(other.prev_leaf_),
-        max_key_length_(other.max_key_length_),
-        key_type_(other.key_type_),
         data_capacity_(other.data_capacity_),
         num_keys_(other.num_keys_),
         bitmap_size_(other.bitmap_size_),
