@@ -79,7 +79,7 @@ class LinearModel {
 
   LinearModel() = default; 
 
-  LinearModel(double a[], double b[], unsigned int max_key_length) : max_key_length_(max_key_length) {
+  LinearModel(double a[], double b, unsigned int max_key_length) : max_key_length_(max_key_length) {
     a_ = new double[max_key_length_];
     for (int i = 0; i < max_key_length_; i++) {
       a_[i] = a[i];
@@ -296,6 +296,11 @@ class AlexKey {
 
   AlexKey(double *key_arr, unsigned int max_key_length = 1)
       : key_arr_(key_arr), max_key_length_(max_key_length) {}
+
+  AlexKey(unsigned int max_key_length)
+      : max_key_length_(max_key_length) {
+    key_arr_ = nullptr;
+  }
 
   AlexKey(double data) {
     key_arr_ = new double[1];
