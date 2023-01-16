@@ -110,34 +110,46 @@ static double merge_nodes_upwards(
 // used_fanout_tree_nodes.
 // Assumes node has already been trained to produce a CDF value in the range [0,
 // 1).
-template <class T, class P, class Compare = std::less<T>>
-double compute_level(const std::pair<T, P> values[], int num_keys,
-                     const AlexNode<T, P>* node, int total_keys,
+template <class P>
+double compute_level(const std::pair<AlexKey, P> values[], int num_keys,
+                     const AlexNode<P>* node, int total_keys,
                      std::vector<FTNode>& used_fanout_tree_nodes, int level,
                      int max_data_node_keys, double expected_insert_frac = 0,
                      bool approximate_model_computation = true,
-                     bool approximate_cost_computation = false,
-                     Compare key_less = Compare()) {
+                     bool approximate_cost_computation = false) {
   int fanout = 1 << level;
   double cost = 0.0;
-  double a = node->model_.a_ * fanout;
+  double a[node->model_.max_key_length_]();
+  for (int i = 0; i < node->model_.max_key_length_; i++) {
+    a[i] = node->model_.a_[i] * fanout;
+  }
   double b = node->model_.b_ * fanout;
+  LinearModel newLModel = LinearModel(a, b, node->model_.max_key_length_);
   int left_boundary = 0;
   int right_boundary = 0;
   for (int i = 0; i < fanout; i++) {
     left_boundary = right_boundary;
-    right_boundary =
-        i == fanout - 1
-            ? num_keys
-            : static_cast<int>(
-                  std::lower_bound(values, values + num_keys, ((i + 1) - b) / a,
-                                   [key_less](auto const& a, auto const& b) {
-                                     return key_less(a.first, b);
-                                   }) -
-                  values);
+    /* some important change is made about right_boundary.
+     * We are trying to obtain the first AlexKey where prediction position results as 'i',
+     * considering the current model. Since we can't pinpoint the specific key for strings
+     * and since values are all sorted (upon research) when called, we try to find the first key
+     * that is equal or larger than position i. */
+    if (i == fanout - 1) {right_boundary = num_keys;}
+    else {
+      char flag = 1;
+      for (int idx = 0; idx < num_keys; idx++) {
+        int predicted_pos = newLModel.predict(values[i].first);
+        if (predicted_pos >= i+1) {
+          flag = 0;
+          right_boundary = idx;
+          break;
+        }
+      }
+      if (flag) {right_boundary = num_keys;}
+    }
     // Account for off-by-one errors due to floating-point precision issues.
     while (right_boundary < num_keys &&
-           static_cast<int>(a * values[right_boundary].first + b) <= i) {
+           (newLModel.predict(values[right_boundary].first) <= i)) {
       right_boundary++;
     }
     if (left_boundary == right_boundary) {
@@ -145,15 +157,15 @@ double compute_level(const std::pair<T, P> values[], int num_keys,
           {level, i, 0, left_boundary, right_boundary, false, 0, 0, 0, 0, 0});
       continue;
     }
-    LinearModel<T> model;
-    AlexDataNode<T, P>::build_model(values + left_boundary,
+    LinearModel model;
+    AlexDataNode<P>::build_model(values + left_boundary,
                                     right_boundary - left_boundary, &model,
                                     approximate_model_computation);
 
     DataNodeStats stats;
-    double node_cost = AlexDataNode<T, P>::compute_expected_cost(
+    double node_cost = AlexDataNode<P>::compute_expected_cost(
         values + left_boundary, right_boundary - left_boundary,
-        AlexDataNode<T, P>::kInitDensity_, expected_insert_frac, &model,
+        AlexDataNode<P>::kInitDensity_, expected_insert_frac, &model,
         approximate_cost_computation, &stats);
     // If the node is too big to be a data node, proactively incorporate an
     // extra tree traversal level into the cost.
@@ -171,7 +183,7 @@ double compute_level(const std::pair<T, P> values[], int num_keys,
   double traversal_cost =
       kNodeLookupsWeight +
       (kModelSizeWeight * fanout *
-       (sizeof(AlexDataNode<T, P>) + sizeof(void*)) * total_keys / num_keys);
+       (sizeof(AlexDataNode<P>) + sizeof(void*)) * total_keys / num_keys);
   cost += traversal_cost;
   return cost;
 }
@@ -182,13 +194,13 @@ double compute_level(const std::pair<T, P> values[], int num_keys,
 // 1).
 // Returns the depth of the best fanout tree and the total cost of the fanout
 // tree.
-template <class T, class P, class Compare = std::less<T>>
+template <class P>
 std::pair<int, double> find_best_fanout_bottom_up(
-    const std::pair<T, P> values[], int num_keys, const AlexNode<T, P>* node,
+    const std::pair<AlexKey, P> values[], int num_keys, const AlexNode<P>* node,
     int total_keys, std::vector<FTNode>& used_fanout_tree_nodes, int max_fanout,
     int max_data_node_keys, double expected_insert_frac = 0,
     bool approximate_model_computation = true,
-    bool approximate_cost_computation = false, Compare key_less = Compare()) {
+    bool approximate_cost_computation = false) {
   // Repeatedly add levels to the fanout tree until the overall cost of each
   // level starts to increase
   int best_level = 0;
@@ -201,10 +213,10 @@ std::pair<int, double> find_best_fanout_bottom_up(
   for (int fanout = 2, fanout_tree_level = 1; fanout <= max_fanout;
        fanout *= 2, fanout_tree_level++) {
     std::vector<FTNode> new_level;
-    double cost = compute_level<T, P, Compare>(
+    double cost = compute_level<P, Compare>(
         values, num_keys, node, total_keys, new_level, fanout_tree_level,
         max_data_node_keys, expected_insert_frac, approximate_model_computation,
-        approximate_cost_computation, key_less);
+        approximate_cost_computation);
     fanout_costs.push_back(cost);
     if (fanout_costs.size() >= 3 &&
         fanout_costs[fanout_costs.size() - 1] >
@@ -224,7 +236,7 @@ std::pair<int, double> find_best_fanout_bottom_up(
   }
 
   // Merge nodes to improve cost
-  best_cost = merge_nodes_upwards<T, P>(best_level, best_cost, num_keys,
+  best_cost = merge_nodes_upwards<P>(best_level, best_cost, num_keys,
                                         total_keys, fanout_tree);
 
   collect_used_nodes(fanout_tree, best_level, used_fanout_tree_nodes);
@@ -237,9 +249,9 @@ std::pair<int, double> find_best_fanout_bottom_up(
 // 1).
 // Returns the depth of the best fanout tree and the total cost of the fanout
 // tree.
-template <class T, class P, class Compare = std::less<T>>
+template <class P, class Compare = AlexCompare>
 std::pair<int, double> find_best_fanout_top_down(
-    const std::pair<T, P> values[], int num_keys, const AlexNode<T, P>* node,
+    const std::pair<AlexKey, P> values[], int num_keys, const AlexNode<P>* node,
     int total_keys, std::vector<FTNode>& used_fanout_tree_nodes, int max_fanout,
     double expected_insert_frac = 0, bool approximate_model_computation = true,
     bool approximate_cost_computation = false, Compare key_less = Compare()) {
@@ -260,21 +272,30 @@ std::pair<int, double> find_best_fanout_top_down(
       break;
     }
     std::vector<FTNode> new_level;
-    double a = node->model_.a_ * fanout;
+    double a[node->model_.max_key_length_]();
+    for (int i = 0; i < node->model_.max_key_length_; i++) {
+      a[i] = node->model_.a_[i] * fanout;
+    }
     double b = node->model_.b_ * fanout;
+    LinearModel newLModel = LinearModel(a, b, node->model_.max_key_length_);
     double cost_savings_from_level = 0;
+
     for (FTNode& tree_node : fanout_tree[fanout_tree_level - 1]) {
       if (tree_node.left_boundary == tree_node.right_boundary) {
         continue;
       }
-      int middle_boundary = static_cast<int>(
-          std::lower_bound(values + tree_node.left_boundary,
-                           values + tree_node.right_boundary,
-                           ((2 * tree_node.node_id + 1) - b) / a,
-                           [key_less](auto const& a, auto const& b) {
-                             return key_less(a.first, b);
-                           }) -
-          values);
+      int middle_boundary;
+      char flag = 1;
+      for (int idx = tree_node.left_boundary; idx < tree_node.right_boundary; idx++) {
+        int predicted_pos = newLModel.predict(values[i].first);
+        if (predicted_pos >= 2 * tree_node.node_id + 1) {
+          flag = 0;
+          middle_boundary = idx;
+          break;
+        }
+      }
+      if (flag) {middle_boundary = tree_node.right_boundary;}
+
       double node_split_cost = 0;
       int num_node_keys = tree_node.right_boundary - tree_node.left_boundary;
       int boundaries[] = {tree_node.left_boundary, middle_boundary,
@@ -288,15 +309,15 @@ std::pair<int, double> find_best_fanout_top_down(
         if (left == right) {
           continue;
         }
-        AlexDataNode<T, P>::build_model(values + left, right - left,
+        AlexDataNode<P>::build_model(values + left, right - left,
                                         &node_models[i],
                                         approximate_model_computation);
-        node_costs[i] = AlexDataNode<T, P>::compute_expected_cost(
-            values + left, right - left, AlexDataNode<T, P>::kInitDensity_,
+        node_costs[i] = AlexDataNode<P>::compute_expected_cost(
+            values + left, right - left, AlexDataNode<P>::kInitDensity_,
             expected_insert_frac, &node_models[i], approximate_cost_computation,
             &node_stats[i]);
       }
-      node_split_cost += sizeof(AlexDataNode<T, P>) * kModelSizeWeight *
+      node_split_cost += sizeof(AlexDataNode<P>) * kModelSizeWeight *
                          total_keys / num_node_keys;
       if (node_split_cost < tree_node.cost) {
         cost_savings_from_level +=
