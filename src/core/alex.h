@@ -218,10 +218,10 @@ class Alex {
   * 4) allocation function used for allocation. Default is basic allocator. */
   Alex() {
     // key_domain setup
-    key_domain_min_ = new double[1];
-    key_domain_min_[0] = std::numeric_limits<double>::min();
-    key_domain_max_ = new double[1];
-    key_domain_max_[0] = std::numeric_limits<double>::max();
+    istats_.key_domain_min_ = new double[1];
+    istats_.key_domain_min_[0] = std::numeric_limits<double>::min();
+    istats_.key_domain_max_ = new double[1];
+    istats_.key_domain_max_[0] = std::numeric_limits<double>::max();
     
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
@@ -236,28 +236,28 @@ class Alex {
        const Compare& comp = Compare(), const Alloc& alloc = Alloc())
     : max_key_length_(max_key_length), key_type_(key_type), key_less_(comp), allocator_(alloc) {
     // key_domain setup
-    key_domain_min_ = new double[1];
-    key_domain_max_ = new double[max_key_length_];
+    istats_.key_domain_min_ = new double[1];
+    istats_.key_domain_max_ = new double[max_key_length_];
     if (key_type_ == STRING) {
-      key_domain_min_[0] = 0.0;
+      istats_.key_domain_min_[0] = 0.0;
       for (int i = 0; i < max_key_length; i++) {
-        key_domain_max_[i] = 127.0
+        istats_.key_domain_max_[i] = 127.0
       }
     }
     else if (key_type_ == INTEGER) {
       assert(max_key_length_ == 1);
-      key_domain_min_[0] = (double) std::numeric_limits<int>::min();
-      key_domain_max_[0] = (double) std::numeric_limits<int>::max();
+      istats_.key_domain_min_[0] = (double) std::numeric_limits<int>::min();
+      istats_.key_domain_max_[0] = (double) std::numeric_limits<int>::max();
     }
     else {
       assert(max_key_length_ == 1);
-      key_domain_min_[0] = std::numeric_limits<double>::min();
-      key_domain_max_[0] = std::numeric_limits<double>::max();
+      istats_.key_domain_min_[0] = std::numeric_limits<double>::min();
+      istats_.key_domain_max_[0] = std::numeric_limits<double>::max();
     }
     
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
-        data_node_type(key_less_, allocator_);
+        data_node_type(max_key_length_, key_type_, key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     stats_.num_data_nodes++;
@@ -267,24 +267,24 @@ class Alex {
   Alex(int key_type, const Compare& comp = Compare(), const Alloc& alloc = Alloc())
     : key_type_(key_type), key_less_(comp), allocator_(alloc) {
     // key_domain setup
-    key_domain_min_ = new double[1];
-    key_domain_max_ = new double[1];
+    istats_.key_domain_min_ = new double[1];
+    istats_.key_domain_max_ = new double[1];
     if (key_type_ == STRING) {
-      key_domain_min_[0] = 0.0;
-      key_domain_max_[0] = 127.0
+      istats_.key_domain_min_[0] = 0.0;
+      istats_.key_domain_max_[0] = 127.0
     }
     else if (key_type_ == INTEGER) {
-      key_domain_min_[0] = (double) std::numeric_limits<int>::min();
-      key_domain_max_[0] = (double) std::numeric_limits<int>::max();
+      istats_.key_domain_min_[0] = (double) std::numeric_limits<int>::min();
+      istats_.key_domain_max_[0] = (double) std::numeric_limits<int>::max();
     }
     else {
-      key_domain_min_[0] = std::numeric_limits<double>::min();
-      key_domain_max_[0] = std::numeric_limits<double>::max();
+      istats_.key_domain_min_[0] = std::numeric_limits<double>::min();
+      istats_.key_domain_max_[0] = std::numeric_limits<double>::max();
     }
     
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
-        data_node_type(key_less_, allocator_);
+        data_node_type(max_key_length_, key_type_, key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     stats_.num_data_nodes++;
@@ -294,14 +294,14 @@ class Alex {
   Alex(const Compare& comp, const Alloc& alloc = Alloc())
       : key_less_(comp), allocator_(alloc) {
     // key_domain setup
-    key_domain_min_ = new double[1];
-    key_domain_max_ = new double[1];
-    key_domain_min_[0] = std::numeric_limits<double>::min();
-    key_domain_max_[0] = std::numeric_limits<double>::max();
+    istats_.key_domain_min_ = new double[1];
+    istats_.key_domain_max_ = new double[1];
+    istats_.key_domain_min_[0] = std::numeric_limits<double>::min();
+    istats_.key_domain_max_[0] = std::numeric_limits<double>::max();
 
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
-        data_node_type(key_less_, allocator_);
+        data_node_type(max_key_length_, key_type_, key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     stats_.num_data_nodes++;
@@ -310,14 +310,14 @@ class Alex {
 
   Alex(const Alloc& alloc) : allocator_(alloc) {
     // key_domain setup
-    key_domain_min_ = new double[1];
-    key_domain_max_ = new double[1];
-    key_domain_min_[0] = std::numeric_limits<double>::min();
-    key_domain_max_[0] = std::numeric_limits<double>::max();
+    istats_.key_domain_min_ = new double[1];
+    istats_.key_domain_max_ = new double[1];
+    istats_.key_domain_min_[0] = std::numeric_limits<double>::min();
+    istats_.key_domain_max_[0] = std::numeric_limits<double>::max();
 
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
-        data_node_type(key_less_, allocator_);
+        data_node_type(max_key_length_, key_type_, key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     stats_.num_data_nodes++;
@@ -345,19 +345,19 @@ class Alex {
       : max_key_length_(max_key_length), key_type_(key_type),
         key_less_(comp), allocator_(alloc) {
     // key_domain setup
-    key_domain_min_ = new double[1];
-    key_domain_max_ = new double[1];
+    istats_.key_domain_min_ = new double[1];
+    istats_.key_domain_max_ = new double[1];
     if (key_type_ == STRING) {
-      key_domain_min_[0] = 0.0;
-      key_domain_max_[0] = 127.0
+      istats_.key_domain_min_[0] = 0.0;
+      istats_.key_domain_max_[0] = 127.0
     }
     else if (key_type_ == INTEGER) {
-      key_domain_min_[0] = (double) std::numeric_limits<int>::min();
-      key_domain_max_[0] = (double) std::numeric_limits<int>::max();
+      istats_.key_domain_min_[0] = (double) std::numeric_limits<int>::min();
+      istats_.key_domain_max_[0] = (double) std::numeric_limits<int>::max();
     }
     else {
-      key_domain_min_[0] = std::numeric_limits<double>::min();
-      key_domain_max_[0] = std::numeric_limits<double>::max();
+      istats_.key_domain_min_[0] = std::numeric_limits<double>::min();
+      istats_.key_domain_max_[0] = std::numeric_limits<double>::max();
     }
 
     std::vector<V> values;
@@ -384,19 +384,19 @@ class Alex {
                 const Compare& comp = Compare(), const Alloc& alloc = Alloc())
       : key_type_(key_type), key_less_(comp), allocator_(alloc) {
     // key_domain setup
-    key_domain_min_ = new double[1];
-    key_domain_max_ = new double[1];
+    istats_.key_domain_min_ = new double[1];
+    istats_.key_domain_max_ = new double[1];
     if (key_type_ == STRING) {
-      key_domain_min_[0] = 0.0;
-      key_domain_max_[0] = 127.0
+      istats_.key_domain_min_[0] = 0.0;
+      istats_.key_domain_max_[0] = 127.0
     }
     else if (key_type_ == INTEGER) {
-      key_domain_min_[0] = (double) std::numeric_limits<int>::min();
-      key_domain_max_[0] = (double) std::numeric_limits<int>::max();
+      istats_.key_domain_min_[0] = (double) std::numeric_limits<int>::min();
+      istats_.key_domain_max_[0] = (double) std::numeric_limits<int>::max();
     }
     else {
-      key_domain_min_[0] = std::numeric_limits<double>::min();
-      key_domain_max_[0] = std::numeric_limits<double>::max();
+      istats_.key_domain_min_[0] = std::numeric_limits<double>::min();
+      istats_.key_domain_max_[0] = std::numeric_limits<double>::max();
     }
 
     std::vector<V> values;
@@ -424,10 +424,10 @@ class Alex {
       : key_less_(comp), allocator_(alloc) {
     
     // key_domain setup
-    key_domain_min_ = new double[1];
-    key_domain_max_ = new double[1];
-    key_domain_min_[0] = std::numeric_limits<double>::min();
-    key_domain_max_[0] = std::numeric_limits<double>::max();
+    istats_.key_domain_min_ = new double[1];
+    istats_.key_domain_max_ = new double[1];
+    istats_.key_domain_min_[0] = std::numeric_limits<double>::min();
+    istats_.key_domain_max_[0] = std::numeric_limits<double>::max();
 
     std::vector<V> values;
     for (auto it = first; it != last; ++it) {
@@ -453,10 +453,10 @@ class Alex {
                 const Alloc& alloc = Alloc())
       : allocator_(alloc) {
     // key_domain setup
-    key_domain_min_ = new double[1];
-    key_domain_max_ = new double[1];
-    key_domain_min_[0] = std::numeric_limits<double>::min();
-    key_domain_max_[0] = std::numeric_limits<double>::max();
+    istats_.key_domain_min_ = new double[1];
+    istats_.key_domain_max_ = new double[1];
+    istats_.key_domain_min_[0] = std::numeric_limits<double>::min();
+    istats_.key_domain_max_[0] = std::numeric_limits<double>::max();
 
     std::vector<V> values;
     for (auto it = first; it != last; ++it) {
@@ -487,11 +487,11 @@ class Alex {
         allocator_(other.allocator_),
         max_key_length_(other.max_key_length_),
         key_type_(other.key_type_) {
-    key_domain_min_ = new double[max_key_length_];
-    key_domain_max_ = new double[max_key_length_];
+    istats_.key_domain_min_ = new double[max_key_length_];
+    istats_.key_domain_max_ = new double[max_key_length_];
     for (int i = 0; i < max_key_length_; i++) {
-      key_domain_min_[i] = other.key_domain_min_[i];
-      key_domain_max_[i] = other.key_domain_max_[i];
+      istats_.key_domain_min_[i] = other.istats_.key_domain_min_[i];
+      istats_.key_domain_max_[i] = other.istats_.key_domain_max_[i];
     }
     superroot_ =
         static_cast<model_node_type*>(copy_tree_recursive(other.superroot_));
@@ -516,11 +516,11 @@ class Alex {
       allocator_ = other.allocator_;
       max_key_length_ = other.max_key_length_;
       key_type_ = other.key_type_;
-      key_domain_min_ = new double[max_key_length_];
-      key_domain_max_ = new double[max_key_length_];
+      istats_.key_domain_min_ = new double[max_key_length_];
+      istats_.key_domain_max_ = new double[max_key_length_];
       for (int i = 0; i < max_key_length_; i++) {
-        key_domain_min_[i] = other.key_domain_min_[i];
-        key_domain_max_[i] = other.key_domain_max_[i];
+        istats_.key_domain_min_[i] = other.istats_.key_domain_min_[i];
+        istats_.key_domain_max_[i] = other.istats_.key_domain_max_[i];
       }
       superroot_ =
           static_cast<model_node_type*>(copy_tree_recursive(other.superroot_));
@@ -539,8 +539,8 @@ class Alex {
     std::swap(allocator_, other.allocator_);
     std::swap(max_key_length_, other.max_key_length_);
     std::swap(key_type_, other.key_type_);
-    std::swap(key_domain_min_, other.key_domain_min_);
-    std::swap(key_domain_max_, other.key_domain_max_);
+    std::swap(istats_.key_domain_min_, other.istats_.key_domain_min_);
+    std::swap(istats_.key_domain_max_, other.istats_.key_domain_max_);
     std::swap(superroot_, other.superroot_);
     std::swap(root_node_, other.root_node_);
   }
