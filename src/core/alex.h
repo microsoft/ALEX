@@ -1380,7 +1380,7 @@ class Alex {
   // not.
   // Insert does not happen if duplicates are not allowed and duplicate is
   // found.
-  std::pair<Iterator, bool> insert(const T& key, const P& payload) {
+  std::pair<Iterator, bool> insert(const AlexKey& key, const P& payload) {
     // If enough keys fall outside the key domain, expand the root to expand the
     // key domain
     if (key > istats_.key_domain_max_) {
@@ -1431,11 +1431,11 @@ class Alex {
         } else if (experimental_params_.splitting_policy_method == 1) {
           // decide between no split (i.e., expand and retrain) or splitting in
           // 2
-          fanout_tree_depth = fanout_tree::find_best_fanout_existing_node<T, P>(
+          fanout_tree_depth = fanout_tree::find_best_fanout_existing_node<P>(
               parent, bucketID, stats_.num_keys, used_fanout_tree_nodes, 2);
         } else if (experimental_params_.splitting_policy_method == 2) {
           // use full fanout tree to decide fanout
-          fanout_tree_depth = fanout_tree::find_best_fanout_existing_node<T, P>(
+          fanout_tree_depth = fanout_tree::find_best_fanout_existing_node<P>(
               parent, bucketID, stats_.num_keys, used_fanout_tree_nodes,
               derived_params_.max_fanout);
         }
@@ -1556,7 +1556,7 @@ class Alex {
     std::vector<SplitDecisionCosts> traversal_costs;
     for (const TraversalNode& tn : traversal_path) {
       double stop_cost;
-      AlexNode<T, P>* next = tn.node->children_[tn.bucketID];
+      AlexNode<T>* next = tn.node->children_[tn.bucketID];
       if (next->duplication_factor_ > 0) {
         stop_cost = 0;
       } else {
@@ -1605,15 +1605,16 @@ class Alex {
   // Expands the root node (which is a model node).
   // If the root node is at the max node size, then we split the root and create
   // a new root node.
-  void expand_root(T key, bool expand_left) {
+  void expand_root(AlexKey key, bool expand_left) {
     auto root = static_cast<model_node_type*>(root_node_);
 
     // Find the new bounds of the key domain.
     // Need to be careful to avoid overflows in the key type.
-    T domain_size = istats_.key_domain_max_ - istats_.key_domain_min_;
+    // NEED TO MODIFY SEVERAL CODES BELOW FOR DOUBLE ARRAYS. 
+    double *domain_size = istats_.key_domain_max_ - istats_.key_domain_min_;
     int expansion_factor;
-    T new_domain_min = istats_.key_domain_min_;
-    T new_domain_max = istats_.key_domain_max_;
+    double *new_domain_min = istats_.key_domain_min_;
+    double *new_domain_max = istats_.key_domain_max_;
     data_node_type* outermost_node;
     if (expand_left) {
       auto key_difference = static_cast<double>(istats_.key_domain_min_ -
@@ -1622,6 +1623,7 @@ class Alex {
           std::ceil((key_difference + domain_size) / domain_size)));
       // Check for overflow. To avoid overflow on signed types while doing
       // this check, we do comparisons using half of the relevant quantities.
+      // NEED MODIFICATION
       T half_expandable_domain =
           istats_.key_domain_max_ / 2 - std::numeric_limits<T>::lowest() / 2;
       T half_expanded_domain_size = expansion_factor / 2 * domain_size;
@@ -1669,7 +1671,7 @@ class Alex {
 
       int new_num_children = root->num_children_ * expansion_factor;
       auto new_children = new (pointer_allocator().allocate(new_num_children))
-          AlexNode<T, P>*[new_num_children];
+          AlexNode<P>*[new_num_children];
       int copy_start;
       if (expand_left) {
         copy_start = new_num_children - root->num_children_;
@@ -1698,7 +1700,7 @@ class Alex {
       }
       new_root->num_children_ = expansion_factor;
       new_root->children_ = new (pointer_allocator().allocate(expansion_factor))
-          AlexNode<T, P>*[expansion_factor];
+          AlexNode<P>*[expansion_factor];
       if (expand_left) {
         new_root->children_[expansion_factor - 1] = root;
         new_nodes_start = 0;
