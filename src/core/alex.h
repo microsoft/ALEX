@@ -1830,17 +1830,18 @@ class Alex {
     // Create the new model node that will replace the current data node
     int fanout = 1 << fanout_tree_depth;
     auto new_node = new (model_node_allocator().allocate(1))
-        model_node_type(leaf->level_, allocator_);
+        model_node_type(leaf->level_, max_key_length_, allocator_);
     new_node->duplication_factor_ = leaf->duplication_factor_;
     new_node->num_children_ = fanout;
     new_node->children_ =
-        new (pointer_allocator().allocate(fanout)) AlexNode<T, P>*[fanout];
+        new (pointer_allocator().allocate(fanout)) AlexNode<P>*[fanout];
 
     int repeats = 1 << leaf->duplication_factor_;
     int start_bucketID =
         bucketID - (bucketID % repeats);  // first bucket with same child
     int end_bucketID =
         start_bucketID + repeats;  // first bucket with different child
+    //NEED TO MODIFY BELOW CODE FOR DOUBLE ARRAY.
     double left_boundary_value =
         (start_bucketID - parent->model_.b_) / parent->model_.a_;
     double right_boundary_value =
@@ -2064,7 +2065,7 @@ class Alex {
   // Of the two newly created data nodes, returns the one that key falls into.
   // Returns the parent model node of the new data nodes through new_parent.
   data_node_type* split_upwards(
-      T key, int stop_propagation_level,
+      AlexKey key, int stop_propagation_level,
       const std::vector<TraversalNode>& traversal_path, bool reuse_model,
       model_node_type** new_parent, bool verbose = false) {
     assert(stop_propagation_level >= root_node_->level_);
