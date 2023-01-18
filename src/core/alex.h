@@ -2409,7 +2409,7 @@ class Alex {
 
  public:
   // Erases the left-most key with the given key value
-  int erase_one(const T& key) {
+  int erase_one(const AlexKey& key) {
     data_node_type* leaf = get_leaf(key);
     int num_erased = leaf->erase_one(key);
     stats_.num_keys -= num_erased;
@@ -2425,7 +2425,7 @@ class Alex {
   }
 
   // Erases all keys with a certain key value
-  int erase(const T& key) {
+  int erase(const AlexKey& key) {
     data_node_type* leaf = get_leaf(key);
     int num_erased = leaf->erase(key);
     stats_.num_keys -= num_erased;
@@ -2445,7 +2445,7 @@ class Alex {
     if (it.is_end()) {
       return;
     }
-    T key = it.key();
+    AlexKey key = it.key();
     it.cur_leaf_->erase_one_at(it.cur_idx_);
     stats_.num_keys--;
     if (it.cur_leaf_->num_keys_ == 0) {
@@ -2475,7 +2475,7 @@ class Alex {
  private:
   // Try to merge empty leaf, which can be traversed to by looking up key
   // This may cause the parent node to merge up into its own parent
-  void merge(data_node_type* leaf, T key) {
+  void merge(data_node_type* leaf, AlexKey key) {
     // first save the complete path down to data node
     std::vector<TraversalNode> traversal_path;
     auto leaf_dup = get_leaf(key, &traversal_path);
@@ -2598,7 +2598,7 @@ class Alex {
     long long size = 0;
     for (NodeIterator node_it = NodeIterator(this); !node_it.is_end();
          node_it.next()) {
-      AlexNode<T, P>* cur = node_it.current();
+      AlexNode<P>* cur = node_it.current();
       if (cur->is_leaf_) {
         size += static_cast<data_node_type*>(cur)->data_size();
       }
@@ -2636,8 +2636,8 @@ class Alex {
   bool validate_structure(bool validate_data_nodes = false,
                           bool short_circuit = false) const {
     bool is_valid = true;
-    std::stack<AlexNode<T, P>*> node_stack;
-    AlexNode<T, P>* cur;
+    std::stack<AlexNode<P>*> node_stack;
+    AlexNode<P>* cur;
     node_stack.push(root_node_);
 
     while (!node_stack.empty()) {
@@ -2683,8 +2683,8 @@ class Alex {
               prev_nonempty_leaf = prev_nonempty_leaf->prev_leaf_;
             }
             if (prev_nonempty_leaf) {
-              T last_in_prev_leaf = prev_nonempty_leaf->last_key();
-              T first_in_cur_leaf = node->first_key();
+              AlexKey last_in_prev_leaf = prev_nonempty_leaf->last_key();
+              AlexKey first_in_cur_leaf = node->first_key();
               if (last_in_prev_leaf >= first_in_cur_leaf) {
                 std::cout
                     << "[Data node keys not in sorted order with prev node]"
@@ -2706,8 +2706,8 @@ class Alex {
               next_nonempty_leaf = next_nonempty_leaf->next_leaf_;
             }
             if (next_nonempty_leaf) {
-              T first_in_next_leaf = next_nonempty_leaf->first_key();
-              T last_in_cur_leaf = node->last_key();
+              AlexKey first_in_next_leaf = next_nonempty_leaf->first_key();
+              AlexKey last_in_cur_leaf = node->last_key();
               if (last_in_cur_leaf >= first_in_next_leaf) {
                 std::cout
                     << "[Data node keys not in sorted order with next node]"
@@ -2792,7 +2792,7 @@ class Alex {
     V& operator*() const { return cur_leaf_->data_slots_[cur_idx_]; }
 #endif
 
-    const T& key() const { return cur_leaf_->get_key(cur_idx_); }
+    const AlexKey& key() const { return cur_leaf_->get_key(cur_idx_); }
 
     P& payload() const { return cur_leaf_->get_payload(cur_idx_); }
 
@@ -2914,7 +2914,7 @@ class Alex {
     const V& operator*() const { return cur_leaf_->data_slots_[cur_idx_]; }
 #endif
 
-    const T& key() const { return cur_leaf_->get_key(cur_idx_); }
+    const AlexKey& key() const { return cur_leaf_->get_key(cur_idx_); }
 
     const P& payload() const { return cur_leaf_->get_payload(cur_idx_); }
 
@@ -3025,7 +3025,7 @@ class Alex {
     V& operator*() const { return cur_leaf_->data_slots_[cur_idx_]; }
 #endif
 
-    const T& key() const { return cur_leaf_->get_key(cur_idx_); }
+    const AlesKey& key() const { return cur_leaf_->get_key(cur_idx_); }
 
     P& payload() const { return cur_leaf_->get_payload(cur_idx_); }
 
@@ -3151,7 +3151,7 @@ class Alex {
     const V& operator*() const { return cur_leaf_->data_slots_[cur_idx_]; }
 #endif
 
-    const T& key() const { return cur_leaf_->get_key(cur_idx_); }
+    const AlexKey& key() const { return cur_leaf_->get_key(cur_idx_); }
 
     const P& payload() const { return cur_leaf_->get_payload(cur_idx_); }
 
@@ -3210,8 +3210,8 @@ class Alex {
   class NodeIterator {
    public:
     const self_type* index_;
-    AlexNode<T, P>* cur_node_;
-    std::stack<AlexNode<T, P>*> node_stack_;  // helps with traversal
+    AlexNode<P>* cur_node_;
+    std::stack<AlexNode<P>*> node_stack_;  // helps with traversal
 
     // Start with root as cur and all children of root in stack
     explicit NodeIterator(const self_type* index)
@@ -3227,9 +3227,9 @@ class Alex {
       }
     }
 
-    AlexNode<T, P>* current() const { return cur_node_; }
+    AlexNode<P>* current() const { return cur_node_; }
 
-    AlexNode<T, P>* next() {
+    AlexNode<P>* next() {
       if (node_stack_.empty()) {
         cur_node_ = nullptr;
         return nullptr;
