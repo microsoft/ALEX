@@ -15,19 +15,19 @@
 
 namespace alex {
 
-template <class T, class P, class Compare = AlexCompare,
-          class Alloc = std::allocator<std::pair<T, P>>>
+template <class P, class Compare = AlexCompare,
+          class Alloc = std::allocator<std::pair<AlexKey, P>>>
 class AlexMultimap {
-  static_assert(std::is_arithmetic<T>::value, "ALEX key type must be numeric.");
+  //static_assert(std::is_arithmetic<T>::value, "ALEX key type must be numeric.");
   static_assert(std::is_same<Compare,AlexCompare>::value, "Must use AlexCompare.");
 
  public:
   // Value type, returned by dereferencing an iterator
-  typedef std::pair<T, P> V;
+  typedef std::pair<AlexKey, P> V;
 
   // ALEX class aliases
-  typedef AlexMultimap<T, P, Compare, Alloc> self_type;
-  typedef Alex<T, P, Compare, Alloc, true> alex_impl;
+  typedef AlexMultimap<P, Compare, Alloc> self_type;
+  typedef Alex<P, Compare, Alloc, true> alex_impl;
   typedef typename alex_impl::Iterator iterator;
   typedef typename alex_impl::ConstIterator const_iterator;
   typedef typename alex_impl::ReverseIterator reverse_iterator;
@@ -41,6 +41,13 @@ class AlexMultimap {
  public:
   AlexMultimap() : alex_() {}
 
+  AlexMultimap(unsigned int max_key_length, int key_type = DOUBLE,
+    const Compare& comp, const Alloc& alloc = Alloc())
+      : alex_(max_key_length, key_type, comp, alloc) {}
+
+  AlexMultimap(int key_type, const Compare& comp, const Alloc& alloc = Alloc())
+      : alex_(key_type, comp, alloc) {}
+
   AlexMultimap(const Compare& comp, const Alloc& alloc = Alloc())
       : alex_(comp, alloc) {}
 
@@ -48,17 +55,26 @@ class AlexMultimap {
 
   ~AlexMultimap() {}
 
-  // Initializes with range [first, last). The range does not need to be
-  // sorted. This creates a temporary copy of the data. If possible, we
-  // recommend directly using bulk_load() instead.
+  // Below 4 constructors initializes with range [first, last). 
+  // The range does not need to be sorted. 
+  // This creates a temporary copy of the data. 
+  // If possible, we recommend directly using bulk_load() instead.
+  template <class InputIterator>
+  explicit AlexMultimap(InputIterator first, InputIterator last,
+                        unsigned int max_key_length, int key_type = DOUBLE,
+                        const Compare& comp, const Alloc& alloc = Alloc())
+      : alex_(first, last, max_key_length, key_type, comp, alloc) {}
+  
+  template <class InputIterator>
+  explicit AlexMultimap(InputIterator first, InputIterator last,
+                        int key_type, const Compare& comp, const Alloc& alloc = Alloc())
+      : alex_(first, last, key_type, comp, alloc) {}
+  
   template <class InputIterator>
   explicit AlexMultimap(InputIterator first, InputIterator last,
                         const Compare& comp, const Alloc& alloc = Alloc())
       : alex_(first, last, comp, alloc) {}
 
-  // Initializes with range [first, last). The range does not need to be
-  // sorted. This creates a temporary copy of the data. If possible, we
-  // recommend directly using bulk_load() instead.
   template <class InputIterator>
   explicit AlexMultimap(InputIterator first, InputIterator last,
                         const Alloc& alloc = Alloc())
@@ -131,31 +147,31 @@ class AlexMultimap {
   // right-most key
   // If you instead want an iterator to the left-most key with the input value,
   // use lower_bound()
-  iterator find(const T& key) { return alex_.find(key); }
+  iterator find(const AlexKey& key) { return alex_.find(key); }
 
-  const_iterator find(const T& key) const { return alex_.find(key); }
+  const_iterator find(const AlexKey& key) const { return alex_.find(key); }
 
-  size_t count(const T& key) { return alex_.size(key); }
+  size_t count(const AlexKey& key) { return alex_.size(key); }
 
   // Returns an iterator to the first key no less than the input value
-  iterator lower_bound(const T& key) { return alex_.lower_bound(key); }
+  iterator lower_bound(const AlexKey& key) { return alex_.lower_bound(key); }
 
-  const_iterator lower_bound(const T& key) const {
+  const_iterator lower_bound(const AlexKey& key) const {
     return alex_.lower_bound(key);
   }
 
   // Returns an iterator to the first key greater than the input value
-  iterator upper_bound(const T& key) { return alex_.upper_bound(key); }
+  iterator upper_bound(const AlexKey& key) { return alex_.upper_bound(key); }
 
-  const_iterator upper_bound(const T& key) const {
+  const_iterator upper_bound(const AlexKey& key) const {
     return alex_.upper_bound(key);
   }
 
-  std::pair<iterator, iterator> equal_range(const T& key) {
+  std::pair<iterator, iterator> equal_range(const AlexKey& key) {
     return alex_.equal_range(key);
   }
 
-  std::pair<const_iterator, const_iterator> equal_range(const T& key) const {
+  std::pair<const_iterator, const_iterator> equal_range(const AlexKey& key) const {
     return alex_.equal_range(key);
   }
 
@@ -188,7 +204,7 @@ class AlexMultimap {
   // This will NOT do an update of an existing key.
   // To perform an update or read-modify-write, do a lookup and modify the
   // payload's value.
-  iterator insert(const T& key, const P& payload) {
+  iterator insert(const AlexKey& key, const P& payload) {
     return alex_.insert(key, payload).first;
   }
 
@@ -196,7 +212,7 @@ class AlexMultimap {
 
  public:
   // Erases all keys with a certain key value
-  int erase(const T& key) { return alex_.erase(key); }
+  int erase(const AlexKey& key) { return alex_.erase(key); }
 
   // Erases element pointed to by iterator
   void erase(iterator it) { alex_.erase(it); }
