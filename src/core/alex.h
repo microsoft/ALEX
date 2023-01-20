@@ -1054,6 +1054,7 @@ class Alex {
 
       // Instantiate all the child nodes and recurse
       int cur = 0;
+      int idx = 0;
       for (fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {
         auto child_node = new (model_node_allocator().allocate(1))
             model_node_type(static_cast<short>(node->level_ + 1), max_key_length_, allocator_);
@@ -1063,11 +1064,21 @@ class Alex {
         int repeats = 1 << child_node->duplication_factor_;
         double left_value = static_cast<double>(cur) / fanout;
         double right_value = static_cast<double>(cur + repeats) / fanout;
-        // NOT FULLY IMPLEMENTED
-        // WE NEED TO FIND A WAY FOR OBTAINING LEFT_BOUNDARY_VALUE
-        double *left_boundary = (left_value - node->model_.b_) / node->model_.a_; /* wrong */
-        double *right_boundary =
-            (right_value - node->model_.b_) / node->model_.a_; /* wrong */
+        // NOTE THAT THIS IMPLEMENTATION MAY BE WRONG
+        double *left_boundary;
+        double *right_boundary;
+        for (idx; idx < num_keys; idx++) {
+          if (node->model_.predict(values[idx].first) >= left_value) {
+            left_boundary = values[idx].first;
+            break;
+          }
+        }
+        for (idx; idx < num_keys; idx++) {
+          if (node->model_.predict(values[idx].first) >= right_value) {
+            right_boundary = values[idx].first;
+            break;
+          }
+        }
 
         double *direction_vector_[child_node->max_key_length_]();
         double t_inverse_ = 0.0;
