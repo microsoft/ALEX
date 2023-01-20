@@ -87,6 +87,10 @@ class AlexModelNode : public AlexNode<P> {
   // Array of pointers to children
   AlexNode<P>** children_ = nullptr;
 
+  // Minimum / Maximum key's data in node
+  double *Mnode_min_key_ = nullptr;
+  double *Mnode_max_key_ = nullptr;
+
   explicit AlexModelNode(const Alloc& alloc = Alloc())
       : AlexNode<P>(0, false), allocator_(alloc) {}
 
@@ -98,10 +102,15 @@ class AlexModelNode : public AlexNode<P> {
       : AlexNode<P>(level, false, max_key_length), allocator_(alloc) {}
 
   ~AlexModelNode() {
-    if (children_ == nullptr) {
-      return;
+    if (children_ != nullptr) {
+      pointer_allocator().deallocate(children_, num_children_);
     }
-    pointer_allocator().deallocate(children_, num_children_);
+    if (Mnode_min_key_ != nullptr) {
+      delete[] Mnode_min_key_;
+    }
+    if (Mnode_max_key_ != nullptr) {
+      delete[] Mnode_max_key_;
+    }
   }
 
   AlexModelNode(const self_type& other)
@@ -113,12 +122,22 @@ class AlexModelNode : public AlexNode<P> {
         AlexNode<P>*[other.num_children_];
     std::copy(other.children_, other.children_ + other.num_children_,
               children_);
+    
     model_ = LinearModel(other.max_key_length_);
     model_.a_ = new double[max_key_length_]();
     for (int i = 0; i < max_key_length_; i++) {
       a_[i] = other.model_.a_[i];
     }
     model_.b_ = other.model_.b_;
+
+    if (other.Mnode_min_key != nullptr) {
+      Mnode_min_key_ = new double[max_key_length_];
+      std::copy(other.Mnode_min_key_, other.Mnode_min_key_ + max_key_length_, Mnode_min_key_);
+    }
+    if (other.Mnode_max_key != nullptr) {
+      Mnode_max_key_ = new double[max_key_length_];
+      std::copy(other.Mnode_max_key_, other.Mnode_max_key_ + max_key_length_, Mnode_max_key_);
+    }
   }
 
   // Given a key, traverses to the child node responsible for that key
