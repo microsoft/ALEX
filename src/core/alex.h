@@ -1944,13 +1944,27 @@ class Alex {
     int end_bucketID =
         start_bucketID + repeats;  // first bucket with different child
     //NEED TO MODIFY BELOW CODE FOR DOUBLE ARRAY.
-    double left_boundary_value =
-        (start_bucketID - parent->model_.b_) / parent->model_.a_;
-    double right_boundary_value =
-        (end_bucketID - parent->model_.b_) / parent->model_.a_;
-    new_node->model_.a_ =
-        1.0 / (right_boundary_value - left_boundary_value) * fanout;
-    new_node->model_.b_ = -new_node->model_.a_ * left_boundary_value;
+    //It's now fixed. Need to contain min/max key for each model node.
+    double left_boundary_value[max_key_length_];
+    double right_boundary_value[max_key_length_];
+
+    std::copy(parent->Mnode_min_key_, parent->Mnode_min_key_ + max_key_length_, left_boundary_value);
+    std::copy(parent->Mnode_max_key_, parent->Mnode_max_key_ + max_key_length_,
+        right_boundary_value);
+
+    LinearModel base_model = LinearModel(max_key_length_);
+    double *direction_vector_[max_key_length_]();
+    double t_inverse_ = 0.0;
+    for (int i = 0; i < base_model.max_key_length_; i++) {
+      direction_vector_[i] = right_boundary_value[i] - left_boundary_value[i];
+      t_inverse_ += direction_vector_[i] * direction_vector_[i];
+    }
+    double t = 1 / t_inverse_;
+    base_model.b_ = 0.0;
+    for (int i = 0; i < max_key_length_; i++) {
+      base_model.a_[i] = direction_vector_[i] * t * fanout;
+      base_model.b_ += t * direction_vector_[i] * left_boundary_value[i];
+    }
 
     // Create new data nodes
     if (used_fanout_tree_nodes.empty()) {
