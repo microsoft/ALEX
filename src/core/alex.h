@@ -996,7 +996,7 @@ class Alex {
           params_.expected_insert_frac, params_.approximate_model_computation,
           params_.approximate_cost_computation);
     } else if (experimental_params_.fanout_selection_method == 1) {
-      best_fanout_stats = fanout_tree::find_best_fanout_top_down<T>(
+      best_fanout_stats = fanout_tree::find_best_fanout_top_down(
           values, num_keys, node, total_keys, used_fanout_tree_nodes,
           derived_params_.max_fanout, params_.expected_insert_frac,
           params_.approximate_model_computation,
@@ -1040,6 +1040,17 @@ class Alex {
       model_node->num_children_ = fanout;
       model_node->children_ =
           new (pointer_allocator().allocate(fanout)) AlexNode<P>*[fanout];
+      //min/max key setup. Note that input datas of this function is sorted.
+      model_node->Mnode_min_key = new double[max_key_length_];
+      model_node->Mnode_max_key = new double[max_key_length_];
+      if (values[0].first.key_arr_ != nullptr) {
+      std::copy(values[0].first.key_arr_, values[0].first.key_arr_ + max_key_length_,
+        model_node->Mnode_min_key_);
+      }
+      if (values[total_keys-1].first.key_arr_ != nullptr) {
+      std::copy(values[total_keys-1].first.key_arr_, 
+        values[total_keys-1].first.key_arr_ + max_key_length_, model_node->Mnode_max_key_);
+      }
 
       // Instantiate all the child nodes and recurse
       int cur = 0;
@@ -1556,7 +1567,7 @@ class Alex {
     std::vector<SplitDecisionCosts> traversal_costs;
     for (const TraversalNode& tn : traversal_path) {
       double stop_cost;
-      AlexNode<T>* next = tn.node->children_[tn.bucketID];
+      AlexNode<P>* next = tn.node->children_[tn.bucketID];
       if (next->duplication_factor_ > 0) {
         stop_cost = 0;
       } else {
@@ -1835,6 +1846,15 @@ class Alex {
     new_node->num_children_ = fanout;
     new_node->children_ =
         new (pointer_allocator().allocate(fanout)) AlexNode<P>*[fanout];
+    new_node->Mnode_min_key_ = new double[max_key_length_];
+    new_node->Mnode_max_key_ = new double[max_key_length_];
+    double *first_k = leaf.first_key();
+    double *last_k = leaf.last_key();
+    std::copy(new_node->Mnode_min_key_, new_node->Mnode_min_key_ + max_key_length_,
+        first_k);
+    std::copy(new_node->Mnode_max_key_, new_node->Mnode_max_key_ + max_key_length_,
+        last_k);
+
 
     int repeats = 1 << leaf->duplication_factor_;
     int start_bucketID =
@@ -2069,7 +2089,7 @@ class Alex {
       const std::vector<TraversalNode>& traversal_path, bool reuse_model,
       model_node_type** new_parent, bool verbose = false) {
     assert(stop_propagation_level >= root_node_->level_);
-    std::vector<AlexNode<T, P>*> to_delete;  // nodes that need to be deleted
+    std::vector<AlexNode<P>*> to_delete;  // nodes that need to be deleted
 
     // Split the data node into two new data nodes
     const TraversalNode& parent_path_node = traversal_path.back();
@@ -2161,8 +2181,8 @@ class Alex {
     // is fine because we no longer use them.
     // Splitting an internal node involves dividing the child pointers into two
     // halves, and doubling the relevant half.
-    AlexNode<T, P>* prev_left_split = left_leaf;
-    AlexNode<T, P>* prev_right_split = right_leaf;
+    AlexNode<P>* prev_left_split = left_leaf;
+    AlexNode<P>* prev_right_split = right_leaf;
     int path_idx = static_cast<int>(traversal_path.size()) - 1;
     while (traversal_path[path_idx].node->level_ > stop_propagation_level) {
       // Decide which half to double
@@ -2177,8 +2197,8 @@ class Alex {
       // If one of the resulting halves will only have one child pointer, we
       // should "pull up" that child
       bool pull_up_left_child = false, pull_up_right_child = false;
-      AlexNode<T, P>* left_half_first_child = cur_node->children_[0];
-      AlexNode<T, P>* right_half_first_child =
+      AlexNode<P>* left_half_first_child = cur_node->children_[0];
+      AlexNode<P>* right_half_first_child =
           cur_node->children_[cur_node->num_children_ / 2];
       if (double_left_half &&
           (1 << right_half_first_child->duplication_factor_) ==
@@ -2202,8 +2222,8 @@ class Alex {
       }
 
       // Do the split
-      AlexNode<T, P>* next_left_split = nullptr;
-      AlexNode<T, P>* next_right_split = nullptr;
+      AlexNode<P>* next_left_split = nullptr;
+      AlexNode<P>* next_right_split = nullptr;
       if (double_left_half) {
         // double left half
         assert(left_split != nullptr);
@@ -2213,12 +2233,12 @@ class Alex {
         left_split->num_children_ = cur_node->num_children_;
         left_split->children_ =
             new (pointer_allocator().allocate(left_split->num_children_))
-                AlexNode<T, P>*[left_split->num_children_];
+                AlexNode<P>*[left_split->num_children_];
         left_split->model_.a_ = cur_node->model_.a_ * 2;
         left_split->model_.b_ = cur_node->model_.b_ * 2;
         int cur = 0;
         while (cur < cur_node->num_children_ / 2) {
-          AlexNode<T, P>* cur_child = cur_node->children_[cur];
+          AlexNode<P>* cur_child = cur_node->children_[cur];
           int cur_child_repeats = 1 << cur_child->duplication_factor_;
           for (int i = 2 * cur; i < 2 * (cur + cur_child_repeats); i++) {
             left_split->children_[i] = cur_child;
@@ -2235,7 +2255,7 @@ class Alex {
           right_split->num_children_ = cur_node->num_children_ / 2;
           right_split->children_ =
               new (pointer_allocator().allocate(right_split->num_children_))
-                  AlexNode<T, P>*[right_split->num_children_];
+                  AlexNode<P>*[right_split->num_children_];
           right_split->model_.a_ = cur_node->model_.a_;
           right_split->model_.b_ =
               cur_node->model_.b_ - cur_node->num_children_ / 2;
@@ -2276,7 +2296,7 @@ class Alex {
           left_split->num_children_ = cur_node->num_children_ / 2;
           left_split->children_ =
               new (pointer_allocator().allocate(left_split->num_children_))
-                  AlexNode<T, P>*[left_split->num_children_];
+                  AlexNode<P>*[left_split->num_children_];
           left_split->model_.a_ = cur_node->model_.a_;
           left_split->model_.b_ = cur_node->model_.b_;
           int j = 0;
@@ -2290,13 +2310,13 @@ class Alex {
         right_split->num_children_ = cur_node->num_children_;
         right_split->children_ =
             new (pointer_allocator().allocate(right_split->num_children_))
-                AlexNode<T, P>*[right_split->num_children_];
+                AlexNode<P>*[right_split->num_children_];
         right_split->model_.a_ = cur_node->model_.a_ * 2;
         right_split->model_.b_ =
             (cur_node->model_.b_ - cur_node->num_children_ / 2) * 2;
         int cur = cur_node->num_children_ / 2;
         while (cur < cur_node->num_children_) {
-          AlexNode<T, P>* cur_child = cur_node->children_[cur];
+          AlexNode<P>* cur_child = cur_node->children_[cur];
           int cur_child_repeats = 1 << cur_child->duplication_factor_;
           int right_child_idx = cur - cur_node->num_children_ / 2;
           for (int i = 2 * right_child_idx;
