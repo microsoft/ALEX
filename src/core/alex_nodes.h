@@ -1945,12 +1945,16 @@ class AlexDataNode : public AlexNode<P> {
     // Update stats
     num_keys_++;
     num_inserts_++;
-    if (key > max_key_) {
-      max_key_ = key;
+    if (Compare (max_key_, key)) {
+      for (int i = 0; i < max_key_length_; i++) {
+        max_key_[i] = key[i];
+      }
       num_right_out_of_bounds_inserts_++;
     }
-    if (key < min_key_) {
-      min_key_ = key;
+    if (Compare (key, min_key_)) {
+      for (int i = 0; i < max_key_length_; i++) {
+        min_key_[i] = key[i];
+      }
       num_left_out_of_bounds_inserts_++;
     }
     return {0, insertion_position};
@@ -2345,7 +2349,7 @@ class AlexDataNode : public AlexNode<P> {
   }
 
   // Erase the key at the given position
-  // CURRENTLY ASSUMING THAT DUPLICATE KEYS HAVE SEPARATE MEMORY... CHECK PLEASE
+  // CURRENTLY ASSUMING THAT DUPLICATE KEYS HAVE SEPARATE MEMORY... CHECK PLEASE (seems ok)
   void erase_one_at(int pos) {
     AlexKey next_key;
     if (pos == data_capacity_ - 1) {
