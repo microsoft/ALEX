@@ -877,13 +877,11 @@ class Alex {
     double t_inverse_ = 0.0;
     for (int i = 0; i < max_key_length_; i++) {
       direction_vector_[i] = max_key.key_arr_[i] - min_key.key_arr_[i];
-      t_inverse_ += direction_vector_[i] * direction_vector_[i];
     }
-    double t = 1 / t_inverse_;
     root_node_->model_.b_ = 0.0;
     for (int i = 0; i < max_key_length_; i++) {
-      root_node_->model_.a_[i] = direction_vector_[i] * t;
-      root_node_->model_.b_ += t * direction_vector_[i] * min_key.key_arr_[i];
+      root_node_->model_.a_[i] = 1 / direction_vector_[i];
+      root_node_->model_.b_ += (1 / direction_vector_[i]) * min_key.key_arr_[i];
     }
 
     // Compute cost of root node
@@ -942,13 +940,11 @@ class Alex {
     double t_inverse_ = 0.0;
     for (int i = 0; i < max_key_length_; i++) {
       direction_vector_[i] = istats_.key_domain_max_[i] - istats_.key_domain_min_[i];
-      t_inverse_ += direction_vector_[i] * direction_vector_[i];
     }
-    double t = 1 / t_inverse_;
     superroot_->model_.b_ = 0.0;
     for (int i = 0; i < max_key_length_; i++) {
-      superroot_->model_.a_[i] = direction_vector_[i] * t;
-      superroot_->model_.b_ += t * direction_vector_[i] * istats_.key_domain_min_[i];
+      superroot_->model_.a_[i] = 1 / direction_vector_[i];
+      superroot_->model_.b_ += (1 / direction_vector_[i]) * min_key.key_arr_[i];
     }
   }
 
@@ -1084,13 +1080,11 @@ class Alex {
         double t_inverse_ = 0.0;
         for (int i = 0; i < child_node->max_key_length_; i++) {
           direction_vector_[i] = right_boundary[i] - left_boundary[i];
-          t_inverse_ += direction_vector_[i] * direction_vector_[i];
         }
-        double t = 1 / t_inverse_;
         child_node->b_ = 0.0;
         for (int i = 0; i < max_key_length_; i++) {
-          child_node->a_[i] = direction_vector_[i] * t;
-          child_node->b_ += t * direction_vector_[i] * left_boundary[i];
+          child_node->a_[i] = 1 / direction_vector_[i];
+          child_node->b_ += (1 / direction_vector_[i]) * min_key.key_arr_[i];
         }
 
         model_node->children_[cur] = child_node;
@@ -1957,13 +1951,11 @@ class Alex {
     double t_inverse_ = 0.0;
     for (int i = 0; i < base_model.max_key_length_; i++) {
       direction_vector_[i] = right_boundary_value[i] - left_boundary_value[i];
-      t_inverse_ += direction_vector_[i] * direction_vector_[i];
     }
-    double t = 1 / t_inverse_;
     base_model.b_ = 0.0;
     for (int i = 0; i < max_key_length_; i++) {
-      base_model.a_[i] = direction_vector_[i] * t * fanout;
-      base_model.b_ += t * direction_vector_[i] * left_boundary_value[i];
+      base_model.a_[i] = 1 / direction_vector_[i] * fanout;
+      base_model.b_ += (1 / direction_vector_[i]) * left_boundary_value[i];
     }
 
     // Create new data nodes

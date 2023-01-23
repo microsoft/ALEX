@@ -401,13 +401,10 @@ int find_best_fanout_existing_node(const AlexModelNode<P>* parent,
   double t_inverse_ = 0.0;
   for (int i = 0; i < base_model.max_key_length_; i++) {
     direction_vector_[i] = right_boundary_value[i] - left_boundary_value[i];
-    t_inverse_ += direction_vector_[i] * direction_vector_[i];
   }
-  double t = 1 / t_inverse_;
-  base_model.b_ = 0.0;
   for (int i = 0; i < max_key_length_; i++) {
-    base_model.a_[i] = direction_vector_[i] * t;
-    base_model.b_ += t * direction_vector_[i] * left_boundary_value[i];
+    base_model.a_[i] = 1 / direction_vector_[i];
+    base_model.b_ += (1 / direction_vector_[i]) * left_boundary_value[i];
   }
 
   for (int fanout = 1, fanout_tree_level = 0; fanout <= max_fanout;
