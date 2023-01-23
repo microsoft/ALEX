@@ -176,6 +176,7 @@ class LinearModelBuilder {
 
     }
 
+    // trim down samples to avoid alrge memory usage
     size_t step = 1;
     if (training_keys_.size() > desired_training_key_n_) {
       step = training_keys_.size() / desired_training_key_n_;
@@ -195,7 +196,6 @@ class LinearModelBuilder {
     if (training_keys_.size() != 1 && useful_feat_index_.size() == 0) {
       std::cout<<"all feats are the same"<<std::endl;
     }
-
     size_t useful_feat_n_ = useful_feat_index_.size();
     bool use_bias_ = true;
 
@@ -204,7 +204,7 @@ class LinearModelBuilder {
     while (fitting_res != 0) {
       // use LAPACK to solve least square problem, i.e., to minimize ||b-Ax||_2
       // where b is the actual positions, A is inputmodel_keys
-      int m = training_keys_.size() / step;                  // number of samples
+      int m = training_keys_.size() / step;                     // number of samples
       int n = use_bias_ ? useful_feat_n_ + 1 : useful_feat_n_;  // number of features
       double *A = (double *) malloc(m * n * sizeof(double));
       double *b = (double *) malloc(std::max(m, n) * sizeof(double));
@@ -276,7 +276,6 @@ class LinearModelBuilder {
       free(b);
     }
     assert(fitting_res == 0);
-
   }
 
  private:
@@ -299,7 +298,6 @@ class AlexKey {
 
   AlexKey(unsigned int max_key_length)
       : max_key_length_(max_key_length) {
-    key_arr_ = nullptr;
   }
 
   AlexKey(double data) {
