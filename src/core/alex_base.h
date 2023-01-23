@@ -105,6 +105,7 @@ class LinearModel {
   }
 
   void expand(double expansion_factor) {
+    assert(a_ != nullptr);
     for (int i = 0; i < max_key_length_; i++) {
       a_[i] *= expansion_factor;
     }
@@ -112,6 +113,7 @@ class LinearModel {
   }
 
   inline int predict(AlexKey key) const {
+    assert(a_ != nullptr);
     assert (max_key_length_ == key.max_key_length_);
     double result = 0.0;
     for (int i = 0; i < max_key_length_; i++) {
@@ -121,6 +123,7 @@ class LinearModel {
   }
 
   inline double predict_double(AlexKey key) const {
+    assert(a_ != nullptr);
     assert (max_key_length_ == key.max_key_length_);
     double result = 0.0;
     for (int i = 0; i < max_key_length_; i++) {
