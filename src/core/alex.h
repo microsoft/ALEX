@@ -225,7 +225,7 @@ class Alex {
     
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
-        data_node_type(key_less_, allocator_);
+        data_node_type(1, DOUBLE, key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     stats_.num_data_nodes++;
@@ -236,11 +236,11 @@ class Alex {
        const Compare& comp = Compare(), const Alloc& alloc = Alloc())
     : max_key_length_(max_key_length), key_type_(key_type), key_less_(comp), allocator_(alloc) {
     // key_domain setup
-    istats_.key_domain_min_ = new double[1];
+    istats_.key_domain_min_ = new double[max_key_length_];
     istats_.key_domain_max_ = new double[max_key_length_];
     if (key_type_ == STRING) {
-      istats_.key_domain_min_[0] = 0.0;
       for (int i = 0; i < max_key_length; i++) {
+        istats_.key_domain_min_[0] = 0.0;
         istats_.key_domain_max_[i] = 127.0
       }
     }
@@ -284,7 +284,7 @@ class Alex {
     
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
-        data_node_type(max_key_length_, key_type_, key_less_, allocator_);
+        data_node_type(1, key_type_, key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     stats_.num_data_nodes++;
@@ -301,7 +301,7 @@ class Alex {
 
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
-        data_node_type(max_key_length_, key_type_, key_less_, allocator_);
+        data_node_type(1, DOUBLE, key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     stats_.num_data_nodes++;
@@ -317,7 +317,7 @@ class Alex {
 
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
-        data_node_type(max_key_length_, key_type_, key_less_, allocator_);
+        data_node_type(1, key_type_, key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     stats_.num_data_nodes++;
