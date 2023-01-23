@@ -585,15 +585,23 @@ class AlexDataNode : public AlexNode<P> {
     double *max_key_arr = new double[max_key_length_];
     double *min_key_arr = new double[max_key_length_];
     double *kEndSentinel_arr = new double[max_key_length_];
+    double *the_max_key_arr = new double[max_key_length_];
+    double *the_min_key_arr = new double[max_key_length_];
     std::copy(other.max_key_.key_arr_, other.max_key_.key_arr_ + max_key_length_,
         max_key_arr_);
     std::copy(other.min_key_.key_arr_, other.min_key_.key_arr_ + max_key_length_,
         min_key_arr_);
     std::copy(other.kEndSentinel_.key_arr_, other.kEndSentinel_.key_arr_ + max_key_length_,
         kEndSentinel_arr_);
+    std::copy(other.the_max_key_arr_, other.the_max_key_arr_ + max_key_length_,
+        the_max_key_arr);
+    std::copy(other.the_min_key_arr_, other.the_min_key_arr_ + max_key_length_,
+        the_min_key_arr);
     max_key_ = new AlexKey(max_key_arr, max_key_length_);
     min_key_ = new AlexKey(min_key_arr, max_key_length_);
     kEndSentinel = new AlexKey(kEndSentinel_arr, max_key_length);
+    the_max_key_arr_ = the_max_key_arr;
+    the_min_key_arr_ = the_min_key_arr;
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
     key_slots_ = new (key_allocator().allocate(other.data_capacity_))
@@ -674,7 +682,7 @@ class AlexDataNode : public AlexNode<P> {
     for (int i = 0; i < data_capacity_; i++) {
       if (check_exists(i)) return get_key_arr(i);
     }
-    return the_max_key_arr_;
+    return ;
   }
 
   // Value of last (i.e., max) key
