@@ -1343,6 +1343,7 @@ class AlexDataNode : public AlexNode<P> {
 
   // Assumes pretrained_model is trained on dense array of keys
   // I also assumed that all DataNodes have properly initialized key length limit. (max_key_length_)
+  // second condition must be handled when creating data node.
   void bulk_load(const V values[], int num_keys,
                  const LinearModel* pretrained_model = nullptr,
                  bool train_with_sample = false) {
@@ -1600,11 +1601,15 @@ class AlexDataNode : public AlexNode<P> {
       builder.add(values[i].first, i);
     }
     builder.build();
-    double prev_a = model->a_[0];
+    double *prev_a = model->a_;
     double prev_b = model->b_;
     if (verbose) {
       std::cout << "Build index, sample size: " << num_keys / step_size
-                << " (a, b): (" << prev_a << ", " << prev_b << ")" << std::endl;
+                << " a: ("
+      for (unsigned int i = 0; i < model->max_key_length_; i++) {
+        std::cout << prev_a[i];
+      } 
+      std::cout << "), b: " << prev_b << std::endl;
     }
 
     // Keep decreasing step size (increasing sample size) until model does not
@@ -1622,13 +1627,23 @@ class AlexDataNode : public AlexNode<P> {
       }
       builder.build();
 
-      double rel_change_in_a = std::abs((model->a_[0] - prev_a) / prev_a);
+      double rel_change_in_a[model->max_key_length_]();
+      for (int i = 0; i < model->max_key_length_; i++) {
+        rel_change_in_a[i] = std::abs((model->a_[i] - prev_a[i]) / prev_a[i]);
+      }
       double abs_change_in_b = std::abs(model->b_ - prev_b);
       double rel_change_in_b = std::abs(abs_change_in_b / prev_b);
       if (verbose) {
         std::cout << "Build index, sample size: " << num_keys / step_size
-                  << " (a, b): (" << model->a_[0] << ", " << model->b_ << ") ("
-                  << rel_change_in_a << ", " << rel_change_in_b << ")"
+                  << " new (a, b): (";
+        for (unsigned int i = 0; i < model->max_key_length_; i++) {
+          std::cout << model->a_[i];
+        }
+        std::cout << ", " << model->b_ << ") relative change : (";
+        for (unsigned int i = 0; i < model->max_key_length_; i++) {
+          std::cout << rel_change_in_a[i];
+        }
+        std::cout << ", " << rel_change_in_b << ")"
                   << std::endl;
       }
       if (rel_change_in_a < rel_change_threshold &&
@@ -1636,7 +1651,9 @@ class AlexDataNode : public AlexNode<P> {
            abs_change_in_b < abs_change_threshold)) {
         return;
       }
-      prev_a = model->a_[0];
+      for (int i = 0; i < max_key_length_; i++) {
+        prev_a[i] = model->a_[i];
+      }
       prev_b = model->b_;
     }
   }
