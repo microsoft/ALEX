@@ -1061,6 +1061,8 @@ class Alex {
         double left_value = static_cast<double>(cur) / fanout;
         double right_value = static_cast<double>(cur + repeats) / fanout;
         // NOTE THAT THIS IMPLEMENTATION MAY BE WRONG
+        // It tries to find the first value larg eo requal to left / right value.
+        // Then assumes those are the left/right boundary.
         double *left_boundary;
         double *right_boundary;
         for (idx; idx < num_keys; idx++) {
@@ -1088,7 +1090,7 @@ class Alex {
         }
 
         model_node->children_[cur] = child_node;
-        LinearModel child_data_node_model(tree_node.a, tree_node.b);
+        LinearModel child_data_node_model(tree_node.a, tree_node.b, max_key_length_);
         bulk_load_node(values + tree_node.left_boundary,
                        tree_node.right_boundary - tree_node.left_boundary,
                        model_node->children_[cur], total_keys,
@@ -1138,7 +1140,7 @@ class Alex {
     if (tree_node) {
       // Use the model and num_keys saved in the tree node so we don't have to
       // recompute it
-      LinearModel precomputed_model(tree_node->a, tree_node->b);
+      LinearModel precomputed_model(tree_node->a, tree_node->b, max_key_length_);
       node->bulk_load_from_existing(existing_node, left, right, keep_left,
                                     keep_right, &precomputed_model,
                                     tree_node->num_keys);
