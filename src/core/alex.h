@@ -1628,119 +1628,151 @@ class Alex {
 
     // Find the new bounds of the key domain.
     // Need to be careful to avoid overflows in the key type.
-    // NEED TO MODIFY SEVERAL CODES BELOW FOR DOUBLE ARRAYS. 
-    // This need additional modification. beware.
+    // NEED TO MODIFY SEVERAL CODES BELOW FOR DOUBLE ARRAYS.
+    // This may need additional modification. beware.
     // When modifying, please try to preserve the integer/double keys semantics.
     double domain_size;
     for (int i = 0; i < max_key_length; i++) {
       /* this needs to be fixed for lexiographic. 
        * we need to give weights for the first alphabet
-       * ex : zoo, apple, max length 5 : zoo needs to have much larger size than 26, which is simple difference. */
-      domain_size += istats_.key_domain_max_[i] - istats_.key_domain_min_[i];
+       * ex : zoo, apple, max length 5 : z needs to have much larger size than 26, which is simple difference. 
+       * assuming string only contains numbers and alphabets, this size doesn't overflow
+       * for up to 11 character strings... (max_key_length_ as 11) may need to edit. */
+      domain_size += (istats_.key_domain_max_[i] - istats_.key_domain_min_[i]) * pow(35, max_key_length - i - 1);
     }
     int expansion_factor;
-    double *new_domain_min = istats_.key_domain_min_;
-    double *new_domain_max = istats_.key_domain_max_;
+    double *new_domain_min = new double[max_key_length_];
+    double *new_domain_max = new double[max_key_length_];
+    std::copy(istats_.key_domain_min_, istats_.key_domain_min_ + max_key_length_,
+        new_domain_min);
+    std::copy(istats_.key_domain_max_, istats_.key_domain_max_ + max_key_length_,
+        new_domain_max);
     data_node_type* outermost_node;
     if (expand_left) {
-      double *min_key = std::min(key, get_min_key());
-      double key_difference[max_key_length_];
-      for (int i = 0; i < max_key_length_; i++) {
-        key_difference[i] = istats_.key_domain_min_[i] - min_key[i];
+      double *min_key;
+      double *cur_min_key = get_min_key();
+      /* weighted expansion rate similar to above lexiographic is also needed here. */
+      for (int i = 0; i < max_key_length; i++) {
+        if (key[i] < cur_min_key[i]) {min_key = key;}
+        else if (key[i] > cur_min_key[i]) {min_key = cur_min_key;}
       }
-      /* weighted expansion rate similar to above lexiographic is also needed here.
-         * we need to fix it. */
-      //for (int i = 0; i < max_key_length_; i++) {
-      //expansion_factor = pow_2_round_up(static_cast<int>(
-      //    std::ceil((key_difference + domain_size) / domain_size)));
-      //}
+      double key_difference;
+      for (int i = 0; i < max_key_length_; i++) {
+        key_difference[i] += istats_.key_domain_min_[i] - min_key[i] 
+          * pow(35, max_key_length_ - i - 1);
+      }
+      expansion_factor = pow_2_round_up(static_cast<int>(
+          std::ceil((key_difference + domain_size) / domain_size)));
+
       // Check for overflow. To avoid overflow on signed types while doing
       // this check, we do comparisons using half of the relevant quantities.
-      // NEED MODIFICATION
-      double half_expandable_domain;
-      double half_expanded_domain_size;
+      double half_expandable_domain = 0.0;
+      double half_expanded_domain_size = 0.0;
       if (key_type_ == STRING) {
-        /* need to fill this for correct integer. */
+        for (int i = 0; i < max_key_length_; i++) {
+          half_expandable_domain += 
+            (istats_.key_domain_max_[i] / 2) * pow(35, max_key_length_ - i - 1);
+        }
       }
-      else if (key_type_ == DOUBLE) {
-        half_expandable_domain = istats_.key_domain_max_[0] / 2 - std::numeric_limits<double>::lowest() / 2;
+      else if (key_type_ == INTEGER) {
+        half_expandable_domain += 
+          istats_.key_domain_max_[0] / 2 - std::numeric_limits<int>::lowest() / 2;
+
       }
       else {
-        half_expandable_domain = istats_.key_domain_max_[0] / 2 - std::numeric_limits<int>::lowest() / 2;
+        half_expandable_domain += 
+          istats_.key_domain_max_[0] / 2 - std::numeric_limits<double>::lowest() / 2;
       }
-      double half_expanded_domain_size = expansion-factor / 2 * domain_size;
+      half_expanded_domain_size = expansion_factor / 2 * domain_size;
+
       if (half_expandable_domain < half_expanded_domain_size) {
         if (key_type_ == STRING) {
           for (int i = 0; i < max_key_length_; i++) {
             new_domain_min[i] = 0.0;
           }
         }
-        else if (key_type_ == DOUBLE) {
-          new_domain_min = std::numeric_limits<double>::lowest();
+        else if (key_type_ == INTEGER) {
+          new_domain_min[i] = std::numeric_limits<int>::lowest();
         }
         else {
-          new_domain_min = std::numeric_limits<int>::lowest();
+          new_domain_min[i] = std::numeric_limits<double>::lowest();
         }
-      } else {
-        /* we also need to fill this for correct value */
-        //new_domain_min = istats_.key_domain_max_;
-        //new_domain_min -= half_expanded_domain_size;
-        //new_domain_min -= half_expanded_domain_size;
+      }
+      else {
+        new_domain_min = istats_.key_domain_max_;
+        for (int i = 0; i < max_key_length_; i++) {
+          //make a function to properly calculate this.
+          //new_domain_min -= half_expanded_domain_size / pow(35, max_key_length_ - i - 1);
+          //new_domain_min -= half_expanded_domain_size / pow(35, max_key_length_ - i - 1);
+          half_expanded_domain_size %= pow(35, max_key_length_ - i - 1);
+        }
       }
       istats_.num_keys_at_last_left_domain_resize = stats_.num_keys;
       istats_.num_keys_below_key_domain = 0;
       outermost_node = first_data_node();
-    } else {
-      double *max_key = std::max(key, get_max_key());
-      double key_difference[max_key_length_];
-      for (int i = 0; i < max_key_length_; i++) {
-        key_difference[i] = istats_.key_domain_max_[i] - max_key[i];
+    }
+    else {
+      double *max_key;
+      double *cur_max_key = get_max_key();
+      /* weighted expansion rate similar to above lexiographic is also needed here. */
+      for (int i = 0; i < max_key_length; i++) {
+        if (key[i] < cur_max_key[i]) {max_key = cur_max_key;}
+        else if (key[i] > cur_max_key[i]) {max_key = cur_max_key;}
       }
-      /* weighted expansion rate similar to above lexiographic is also needed here.
-         * we need to fix it. */
-      //for (int i = 0; i < max_key_length_; i++) {
-      //expansion_factor = pow_2_round_up(static_cast<int>(
-      //    std::ceil((key_difference + domain_size) / domain_size)));
-      //}
-      // Check for overflow. To avoid overflow on signed types while doing
-      // this check, we do comparisons using half of the relevant quantities.
-      // NEED MODIFICATION
+      double key_difference;
+      for (int i = 0; i < max_key_length_; i++) {
+        key_difference[i] += max_key[i] - istats_.key_domain_max_[i] 
+          * pow(35, max_key_length_ - i - 1);
+      }
+      expansion_factor = pow_2_round_up(static_cast<int>(
+          std::ceil((key_difference + domain_size) / domain_size)));
 
       // Check for overflow. To avoid overflow on signed types while doing
       // this check, we do comparisons using half of the relevant quantities.
-      double half_expandable_domain;
-      double half_expanded_domain_size;
+      double half_expandable_domain = 0.0;
+      double half_expanded_domain_size = 0.0;
       if (key_type_ == STRING) {
-        /* need to fill this for correct integer. */
+        for (int i = 0; i < max_key_length_; i++) {
+          half_expandable_domain += 
+            (127.0 / 2) - (istats_.key_domain_min_[i]) * pow(35, max_key_length_ - i - 1);
+        }
       }
-      else if (key_type_ == DOUBLE) {
-        half_expandable_domain = istats_.key_domain_max_[0] / 2 - std::numeric_limits<double>::max() / 2;
+      else if (key_type_ == INTEGER) {
+        half_expandable_domain += 
+          std::numeric_limits<int>::max() / 2 - istats_.key_domain_min_[0] / 2;
+
       }
       else {
-        half_expandable_domain = istats_.key_domain_max_[0] / 2 - std::numeric_limits<int>::max() / 2;
+        half_expandable_domain += 
+          std::numeric_limits<double>::max() / 2 - istats_.key_domain_min_[0] / 2;
       }
+      half_expanded_domain_size = expansion_factor / 2 * domain_size;
 
-      double half_expanded_domain_size = expansion-factor / 2 * domain_size;
       if (half_expandable_domain < half_expanded_domain_size) {
         if (key_type_ == STRING) {
           for (int i = 0; i < max_key_length_; i++) {
             new_domain_max[i] = 127.0;
           }
         }
-        else if (key_type_ == DOUBLE) {
-          new_domain_min = std::numeric_limits<double>::max();
+        else if (key_type_ == INTEGER) {
+          new_domain_max[i] = std::numeric_limits<int>::max();
         }
         else {
-          new_domain_min = std::numeric_limits<int>::max();
+          new_domain_max[i] = std::numeric_limits<double>::max();
         }
-      } else {
-        //new_domain_max = istats_.key_domain_min_;
-        //new_domain_max += half_expanded_domain_size;
-        //new_domain_max += half_expanded_domain_size;
       }
-      istats_.num_keys_at_last_right_domain_resize = stats_.num_keys;
-      istats_.num_keys_above_key_domain = 0;
-      outermost_node = last_data_node();
+      else {
+        new_domain_max = istats_.key_domain_min_;
+        for (int i = 0; i < max_key_length_; i++) {
+          //make a function to properly calculate this.
+          //new_domain_max += half_expanded_domain_size / pow(35, max_key_length_ - i - 1);
+          //new_domain_max += half_expanded_domain_size / pow(35, max_key_length_ - i - 1);
+          half_expanded_domain_size %= pow(35, max_key_length_ - i - 1);
+        }
+      }
+      istats_.num_keys_at_last_left_domain_resize = stats_.num_keys;
+      istats_.num_keys_below_key_domain = 0;
+      outermost_node = first_data_node();
     }
     assert(expansion_factor > 1);
 
@@ -1777,9 +1809,9 @@ class Alex {
       // Create new root node
       // we may need to fix the below parameter calculations. 
       auto new_root = new (model_node_allocator().allocate(1))
-          model_node_type(static_cast<short>(root->level_ - 1), allocator_);
+          model_node_type(static_cast<short>(root->level_ - 1), max_key_length_, allocator_);
       for (int i = 0; i < max_key_length_; i++) {
-        new_root->model_.a_ = root->model_.a_[i] / root->num_children_;
+        new_root->model_.a_[i] = root->model_.a_[i] / root->num_children_;
       }
       new_root->model_.b_ = root->model_.b_ / root->num_children_;
       if (expand_left) {
@@ -1824,8 +1856,9 @@ class Alex {
     auto new_node_duplication_factor =
         static_cast<uint8_t>(log_2_round_down(n));
     if (expand_left) {
-      T left_boundary_value = istats_.key_domain_min_;
-      int left_boundary = outermost_node->lower_bound(left_boundary_value);
+      double *left_boundary_value = istats_.key_domain_min_;
+      AlexKey left_boundary_key = AlexKey(left_boundary_value, max_key_length_);
+      int left_boundary = outermost_node->lower_bound(left_boundary_key);
       data_node_type* next = outermost_node;
       for (int i = new_nodes_end; i > new_nodes_start; i -= n) {
         if (i <= in_bounds_new_nodes_start) {
@@ -1836,8 +1869,10 @@ class Alex {
         if (i - n <= in_bounds_new_nodes_start) {
           left_boundary = 0;
         } else {
-          left_boundary_value -= domain_size;
-          left_boundary = outermost_node->lower_bound(left_boundary_value);
+          
+          //left_boundary_value -= domain_size; -> make function to properly calculate.
+          left_boundary_key = AlexKey(left_boundary_value, max_key_length_);
+          left_boundary = outermost_node->lower_bound(left_boundary_key);
         }
         data_node_type* new_node = bulk_load_leaf_node_from_existing(
             outermost_node, left_boundary, right_boundary, true);
@@ -1853,8 +1888,9 @@ class Alex {
         }
       }
     } else {
-      T right_boundary_value = istats_.key_domain_max_;
-      int right_boundary = outermost_node->lower_bound(right_boundary_value);
+      double *right_boundary_value = istats_.key_domain_max_;
+      AlexKey right_boundary_key = AlexKey(right-boundary_value, max_key_length_);
+      int right_boundary = outermost_node->lower_bound(right_boundary_key);
       data_node_type* prev = nullptr;
       for (int i = new_nodes_start; i < new_nodes_end; i += n) {
         if (i >= in_bounds_new_nodes_end) {
@@ -1865,7 +1901,8 @@ class Alex {
         if (i + n >= in_bounds_new_nodes_end) {
           right_boundary = outermost_node->data_capacity_;
         } else {
-          right_boundary_value += domain_size;
+          //right_boundary_value += domain_size; -> make function to properly calculate.
+          right_boundary_key = AlexKey(right_boundary-value, max_key_length_)
           right_boundary = outermost_node->lower_bound(right_boundary_value);
         }
         data_node_type* new_node = bulk_load_leaf_node_from_existing(
@@ -1900,6 +1937,17 @@ class Alex {
       first_new_leaf->prev_leaf_ = outermost_node;
     }
 
+    //update for istats and root
+    if (key_less_(new_domain_min_, root->Mnode_min_key_)) {
+      for (int i = 0; i < max_key_length_; i++) {
+        root->Mnode_min_key_[i] = new_domain_min_[i];
+      }
+    }
+    if (key_less_(root->Mnode_max_key_, new_domain_max_)) {
+      for (int i = 0; i < max_key_length_; i++) {
+        root->Mnode_max_key_[i] = new_domain_max_[i];
+      }
+    }
     istats_.key_domain_min_ = new_domain_min;
     istats_.key_domain_max_ = new_domain_max;
   }
