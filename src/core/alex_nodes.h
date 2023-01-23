@@ -949,6 +949,7 @@ class AlexDataNode : public AlexNode<P> {
     // Compute what the node's model would be
     LinearModel model;
     if (existing_model == nullptr) {
+      model.max_key_length_ = values[0].first.max_key_length_;
       build_model(values, num_keys, &model);
     } else {
       model.max_key_length_ = existing_model->max_key_length_;
@@ -1054,6 +1055,7 @@ class AlexDataNode : public AlexNode<P> {
 
     LinearModel model;  // trained for full dense array
     if (existing_model == nullptr) {
+      model.max_key_length_ = values[0].first.max_key_length_;
       build_model(values, num_keys, &model);
     } else {
       model.max_key_length_ = existing_model->max_key_length_;
@@ -1234,6 +1236,7 @@ class AlexDataNode : public AlexNode<P> {
     LinearModel model;
     int num_actual_keys = 0;
     if (existing_model == nullptr) {
+      model.max_key_length_ = node->max_key_length_;
       const_iterator_type it(node, left);
       LinearModelBuilder builder(&model);
       for (int i = 0; it.cur_idx_ < right && !it.is_end(); it++, i++) {
