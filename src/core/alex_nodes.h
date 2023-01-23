@@ -1945,15 +1945,15 @@ class AlexDataNode : public AlexNode<P> {
     // Update stats
     num_keys_++;
     num_inserts_++;
-    if (Compare (max_key_, key)) {
+    if (key_less_(max_key_, key)) {
       for (int i = 0; i < max_key_length_; i++) {
-        max_key_[i] = key[i];
+        max_key_->key_arr_[i] = key->key_arr_[i];
       }
       num_right_out_of_bounds_inserts_++;
     }
-    if (Compare (key, min_key_)) {
+    if (key_less_(key, min_key_)) {
       for (int i = 0; i < max_key_length_; i++) {
-        min_key_[i] = key[i];
+        min_key_->key_arr_[i] = key->key_arr_[i];
       }
       num_left_out_of_bounds_inserts_++;
     }
