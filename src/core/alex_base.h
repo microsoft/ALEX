@@ -89,7 +89,7 @@ class LinearModel {
 
   LinearModel(unsigned int max_key_length) : max_key_length_(max_key_length) {
     a_ = new double[max_key_length_]();
-    b_ - 0.0;
+    b_ = 0.0;
   }
 
   ~LinearModel() {
