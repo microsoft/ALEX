@@ -2101,8 +2101,7 @@ class Alex {
         std::max<int>(parent->model_.predict(old_node->min_key_), 0),
         parent->num_children_ - 1);
 
-    int right_boundary = old_node->lower_bound(
-        (mid_bucketID - parent->model_.b_) / parent->model_.a_);
+    int right_boundary = old_node->lower_bound(old_node->mid_key_);
     // Account for off-by-one errors due to floating-point precision issues.
     while (right_boundary < old_node->data_capacity_ &&
            old_node->get_key(right_boundary) != data_node_type::kEndSentinel_ &&
