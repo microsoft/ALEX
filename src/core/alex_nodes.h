@@ -406,7 +406,9 @@ class AlexDataNode : public AlexNode<P> {
   // max key in node, updates after inserts but not erases.
   AlexKey *max_key_ = new AlexKey(std::numeric_limits<double>::lowest()); 
   // min key in node, updates after inserts but not erases. 
-  AlexKey *min_key_ = new AlexKey(std::numeric_limits<double>::max()); 
+  AlexKey *min_key_ = new AlexKey(std::numeric_limits<double>::max());
+  // mid key in node, updates after inserts but not erases.
+  AlexKey *mid_key_ = new AlexKey(0); 
   int num_right_out_of_bounds_inserts_ =
       0;  // number of inserts that are larger than the max key
   int num_left_out_of_bounds_inserts_ =
@@ -439,11 +441,13 @@ class AlexDataNode : public AlexNode<P> {
       : AlexNode<P>(0, true, max_key_length), key_less_(comp), allocator_(alloc) {
     double *max_key_arr = new double[max_key_length_];
     double *min_key_arr = new double[max_key_length_];
+    double *mid_key_arr = new double[max_key_length_]();
     double *kEndSentinel_arr = new double[max_key_length_];
     the_max_key_arr_ = new double[max_key_length_];
     the_min_key_arr_ = new double[max_key_length_];
     min_key_ = new AlexKey(min_key_arr, max_key_length_);
     max_key_ = new AlexKey(max_key_arr, max_key_length_);
+    mid_key_ = new AlexKey(mid_key_arr, max_key_length_);
     kEndSentinel_ = new AlexKey(kEndSentinel_arr, max_key_length_);
 
     switch key_type_ {
@@ -474,6 +478,7 @@ class AlexDataNode : public AlexNode<P> {
       case STRING:
         std::fill(max_key_arr_, max_key_arr_+max_key_length_, 0.0);
         std::fill(min_key_arr_, min_key_arr_+max_key_length_, 127.0);
+        std::fill(mid_key_arr_, mid_key_arr_+max_key_length_, 63.0);
         std::fill(kEndSentinel_arr_, kEndSentinel_arr_+max_key_length_, 127.0);
         std::fill(the_max_key_arr_, the_max_key_arr_+max_key_length_, 127.0);
         std::fill(the_min_key_arr_, the_min__key_arr_+max_key_length_, 0.0);
@@ -492,11 +497,13 @@ class AlexDataNode : public AlexNode<P> {
         key_type_(key_type) {
     double *max_key_arr = new double[max_key_length_];
     double *min_key_arr = new double[max_key_length_];
+    double *mid_key_arr = new double[max_key_length_]();
     double *kEndSentinel_arr = new double[max_key_length_]
     the_max_key_arr_ = new double[max_key_length_];
     the_min_key_arr_ = new double[max_key_length_];
     min_key_ = new AlexKey(min_key_arr, max_key_length_);
     max_key_ = new AlexKey(max_key_arr, max_key_length_);
+    mid_key_ = new AlexKey(mid_key_arr, max_key_length_);
     kEndSentinel_ = new AlexKey(kEndSentinel_arr, max_key_length_);
 
     switch key_type_ {
@@ -527,6 +534,7 @@ class AlexDataNode : public AlexNode<P> {
       case STRING:
         std::fill(max_key_arr_, max_key_arr_+max_key_length_, 0.0);
         std::fill(min_key_arr_, min_key_arr_+max_key_length_, 127.0);
+        std::fill(mid_key_arr_, mid_key_arr_+max_key_length_, 63.0);
         std::fill(kEndSentinel_arr_, kEndSentinel_arr_+max_key_length_, 127.0);
         std::fill(the_max_key_arr_, the_max_key_arr_+max_key_length_, 127.0);
         std::fill(the_min_key_arr_, the_min__key_arr_+max_key_length_, 0.0);
@@ -550,6 +558,7 @@ class AlexDataNode : public AlexNode<P> {
     bitmap_allocator().deallocate(bitmap_, bitmap_size_);
     delete min_key_;
     delete max_key_;
+    delete mid_key_;
     delete kEndSentinel_;
     delete[] the_max_key_arr_;
     delete[] the_min_key_arr_;
@@ -583,6 +592,7 @@ class AlexDataNode : public AlexNode<P> {
      * would result to other one's key's data pointer invalid
      * for similar reason, kEndSentinel_ also needs deep copying. */
     double *max_key_arr = new double[max_key_length_];
+    double *mid_key_arr = new double[max_key_length_];
     double *min_key_arr = new double[max_key_length_];
     double *kEndSentinel_arr = new double[max_key_length_];
     double *the_max_key_arr = new double[max_key_length_];
@@ -591,6 +601,8 @@ class AlexDataNode : public AlexNode<P> {
         max_key_arr_);
     std::copy(other.min_key_.key_arr_, other.min_key_.key_arr_ + max_key_length_,
         min_key_arr_);
+    std::copy(other.mid_key_.key_arr_, other.mid_key_.key_arr_ + max_key_length_,
+        mid_key_arr_);
     std::copy(other.kEndSentinel_.key_arr_, other.kEndSentinel_.key_arr_ + max_key_length_,
         kEndSentinel_arr_);
     std::copy(other.the_max_key_arr_, other.the_max_key_arr_ + max_key_length_,
@@ -599,6 +611,7 @@ class AlexDataNode : public AlexNode<P> {
         the_min_key_arr);
     max_key_ = new AlexKey(max_key_arr, max_key_length_);
     min_key_ = new AlexKey(min_key_arr, max_key_length_);
+    mid_key_ = new AlexKey(mid_key_arr, max_key_length_);
     kEndSentinel = new AlexKey(kEndSentinel_arr, max_key_length);
     the_max_key_arr_ = the_max_key_arr;
     the_min_key_arr_ = the_min_key_arr;
@@ -1431,6 +1444,7 @@ class AlexDataNode : public AlexNode<P> {
     for (int i = 0; i < max_key_length_; i++) {
        min_key_->key_arr_[i] = values[0].first.key_arr_[i];
        max_key_->key_arr_[i] = values[num_keys-1].first.key_arr_[i];
+       mid_key_->key_arr_[i] = values[num_keys/2].first.key_arr_[i];
     }
   }
 
@@ -1498,6 +1512,13 @@ class AlexDataNode : public AlexNode<P> {
     for (; it.cur_idx_ < right && !it.is_end(); it++) {
       int position = this->model_.predict(it.key());
       position = std::max<int>(position, last_position + 1);
+
+      //mid_key update : first time when it is above the mid boundary.
+      if (position >= data_capacity_/2) {
+        for (int i = 0; i < max_key_length_; i++) {
+          mid_key_->key_arr_[i] = it.key().key_arr_[i];
+        }
+      }
 
       int positions_remaining = data_capacity_ - position;
       if (positions_remaining < keys_remaining) {
@@ -1957,6 +1978,48 @@ class AlexDataNode : public AlexNode<P> {
       }
       num_left_out_of_bounds_inserts_++;
     }
+    char mid_chg = 0, not_kEnd = 0;
+#if ALEX_DATA_NODE_SEP_ARRAYS
+    for (int i = 0; i < max_key_length_; i++) {
+      if (mid_key_->key_arr_[i] != key_slots_[data_capacith_/2].key_arr_[i]) {
+        mid_chg = 1;
+        break;
+      }
+    }
+    if (mid_chg) {
+      for (int i = 0; i < max_key_length_; i++) {
+        if (key_slots_[data_capacity_/2].key_arr_[i] != kEndSentinel->key_arr_[i]) {
+          not_kEnd = 1;
+          break;
+        }
+      }
+    }
+    if (not_kEnd) {
+      for (int i = 0; i < max_key_length_; i++) {
+        mid_key_->key_arr_[i] = key_slots_[data_capacity_/2].key_arr_[i];
+      }
+    }
+#else
+    for (int i = 0; i < max_key_length_; i++) {
+      if (mid_key_->key_arr_[i] != data_slots_[data_capacith_/2].first.key_arr_[i]) {
+        mid_chg = 1;
+        break;
+      }
+    }
+    if (mid_chg) {
+      for (int i = 0; i < max_key_length_; i++) {
+        if (data_slots_[data_capacity_/2].first.key_arr_[i] != kEndSentinel->key_arr_[i]) {
+          not_kEnd = 1;
+          break;
+        }
+      }
+    }
+    if (not_kEnd) {
+      for (int i = 0; i < max_key_length_; i++) {
+        mid_key_->key_arr_[i] = data_slots_[data_capacity_/2].first.key_arr_[i];
+      }
+    }
+#endif
 
     //need to update Mnodemin / max for all parent nodes
     //add code here.
