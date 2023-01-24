@@ -384,13 +384,12 @@ int find_best_fanout_existing_node(const AlexModelNode<P>* parent,
   int end_bucketID =
       start_bucketID + repeats;  // first bucket with different child
 
-  // NOT FULLY IMPLEMENTED
-  // WE NEED TO FIND A WAY FOR OBTAINING LEFT_BOUNDARY_VALUE
-
-  double *left_boundary_value =
-      (start_bucketID - parent->model_.b_) / parent->model_.a_; /* wrong */
-  double *right_boundary_value =
-      (end_bucketID - parent->model_.b_) / parent->model_.a_; /* wrong */
+  double left_boundary_value[parent->max_key_length_];
+  double right_boundary_value[parent->max_key_length];
+  std::copy(parent->Mnode_min_key_, parent->Mnode_min_key_ + parent->max_key_length_, 
+      left_boundary_value);
+  std::copy(parent->Mnode_max_key_, parent->Mnode_max_key_ + parent->max_key_length_,
+      right_boundary_value);
 
   /* needs change compared to original since we now we need length-dimension realted line.
      * steps are like this
