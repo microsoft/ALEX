@@ -439,7 +439,7 @@ class AlexDataNode : public AlexNode<P> {
       : AlexNode<P>(0, true, max_key_length), key_less_(comp), allocator_(alloc) {
     double *max_key_arr = new double[max_key_length_];
     double *min_key_arr = new double[max_key_length_];
-    double *kEndSentinel_arr = new double[max_key_length_]
+    double *kEndSentinel_arr = new double[max_key_length_];
     the_max_key_arr_ = new double[max_key_length_];
     the_min_key_arr_ = new double[max_key_length_];
     min_key_ = new AlexKey(min_key_arr, max_key_length_);
