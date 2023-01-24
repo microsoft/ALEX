@@ -59,7 +59,7 @@ class AlexNode {
   double cost_ = 0.0;
 
   //parent of current node. Root is nullptr. Need to be given by parameter.
-  AlexNode *parent_ = nullptr;
+  AlexModelNode *parent_ = nullptr;
 
   AlexNode() = default;
   explicit AlexNode(short level) : level_(level) {}
@@ -1457,6 +1457,56 @@ class AlexDataNode : public AlexNode<P> {
        max_key_->key_arr_[i] = values[num_keys-1].first.key_arr_[i];
        mid_key_->key_arr_[i] = values[num_keys/2].first.key_arr_[i];
     }
+
+    AlexModelNode *cur_parent = parent;
+    while (cur_parent != nullptr) {
+      char no_chg = 1;
+      if (MNode_key_min_ == nullptr) {
+        MNode_key_min_ = new double[max_key_length_];
+        for (int i = 0; i < max_key_length_; i++) {
+          MNode_key_min_[i] = min_key_->key_arr_[i];
+        }
+        no_chg = 0;
+      }
+      else {
+        char need_chg = 0;
+        for (int i = 0; i < max_key_length_; i++) {
+          if (min_key_->key_arr_[i] < MNode_key_min_[i]) {
+            need_chg = 1;
+            no_chg = 0;
+            break;
+          }
+        }
+        if (need_chg) {
+          for (int i = 0; i < max_key_length_; i++) {
+            MNode_key_min_[i] = min_key_->key_arr_[i];
+          }
+        }
+      }
+      if (MNode_key_max_ == nullptr) {
+        MNode_key_max_ = new double[max_key_length_];
+        for (int i = 0; i < max_key_length_; i++) {
+          MNode_key_max_[i] = max_key_->key_arr_[i];
+        }
+        no_chg = 0;
+      }
+      else {
+        char need_chg = 0;
+        for (int i = 0; i < max_key_length_; i++) {
+          if (MNode_key_max_[i] < max_key_->key_arr_[i]) {
+            need_chg = 1;
+            no_chg = 0;
+            break;
+          }
+        }
+        if (need_chg) {
+          for (int i = 0; i < max_key_length_; i++) {
+            MNode_key_max_[i] = max_key_->key_arr_[i];
+          }
+        }
+      }
+      if (no_chg) {break;}
+    }
   }
 
   // Bulk load using the keys between the left and right positions in
@@ -1573,7 +1623,7 @@ class AlexDataNode : public AlexNode<P> {
     }
 
     for (int i = 0; i < max_key_length_; i++) {
-      max_key_.key_arr_[i] = ALEX_DATA_NODE_KEY_AT(last_position).key_arr_[i];
+      max_key_->key_arr_[i] = ALEX_DATA_NODE_KEY_AT(last_position).key_arr_[i];
     }
 
     expansion_threshold_ =
@@ -1581,6 +1631,56 @@ class AlexDataNode : public AlexNode<P> {
                           static_cast<double>(num_keys_ + 1)),
                  static_cast<double>(data_capacity_));
     contraction_threshold_ = data_capacity_ * kMinDensity_;
+
+    AlexModelNode *cur_parent = parent;
+    while (cur_parent != nullptr) {
+      char no_chg = 1;
+      if (MNode_key_min_ == nullptr) {
+        MNode_key_min_ = new double[max_key_length_];
+        for (int i = 0; i < max_key_length_; i++) {
+          MNode_key_min_[i] = min_key_->key_arr_[i];
+        }
+        no_chg = 0;
+      }
+      else {
+        char need_chg = 0;
+        for (int i = 0; i < max_key_length_; i++) {
+          if (min_key_->key_arr_[i] < MNode_key_min_[i]) {
+            need_chg = 1;
+            no_chg = 0;
+            break;
+          }
+        }
+        if (need_chg) {
+          for (int i = 0; i < max_key_length_; i++) {
+            MNode_key_min_[i] = min_key_->key_arr_[i];
+          }
+        }
+      }
+      if (MNode_key_max_ == nullptr) {
+        MNode_key_max_ = new double[max_key_length_];
+        for (int i = 0; i < max_key_length_; i++) {
+          MNode_key_max_[i] = max_key_->key_arr_[i];
+        }
+        no_chg = 0;
+      }
+      else {
+        char need_chg = 0;
+        for (int i = 0; i < max_key_length_; i++) {
+          if (MNode_key_max_[i] < max_key_->key_arr_[i]) {
+            need_chg = 1;
+            no_chg = 0;
+            break;
+          }
+        }
+        if (need_chg) {
+          for (int i = 0; i < max_key_length_; i++) {
+            MNode_key_max_[i] = max_key_->key_arr_[i];
+          }
+        }
+      }
+      if (no_chg) {break;}
+    }
   }
 
   static void build_model(const V* values, int num_keys, LinearModel* model,
@@ -2032,8 +2132,55 @@ class AlexDataNode : public AlexNode<P> {
     }
 #endif
 
-    //need to update Mnodemin / max for all parent nodes
-    //add code here.
+    AlexModelNode *cur_parent = parent;
+    while (cur_parent != nullptr) {
+      char no_chg = 1;
+      if (MNode_key_min_ == nullptr) {
+        MNode_key_min_ = new double[max_key_length_];
+        for (int i = 0; i < max_key_length_; i++) {
+          MNode_key_min_[i] = min_key_->key_arr_[i];
+        }
+        no_chg = 0;
+      }
+      else {
+        char need_chg = 0;
+        for (int i = 0; i < max_key_length_; i++) {
+          if (min_key_->key_arr_[i] < MNode_key_min_[i]) {
+            need_chg = 1;
+            no_chg = 0;
+            break;
+          }
+        }
+        if (need_chg) {
+          for (int i = 0; i < max_key_length_; i++) {
+            MNode_key_min_[i] = min_key_->key_arr_[i];
+          }
+        }
+      }
+      if (MNode_key_max_ == nullptr) {
+        MNode_key_max_ = new double[max_key_length_];
+        for (int i = 0; i < max_key_length_; i++) {
+          MNode_key_max_[i] = max_key_->key_arr_[i];
+        }
+        no_chg = 0;
+      }
+      else {
+        char need_chg = 0;
+        for (int i = 0; i < max_key_length_; i++) {
+          if (MNode_key_max_[i] < max_key_->key_arr_[i]) {
+            need_chg = 1;
+            no_chg = 0;
+            break;
+          }
+        }
+        if (need_chg) {
+          for (int i = 0; i < max_key_length_; i++) {
+            MNode_key_max_[i] = max_key_->key_arr_[i];
+          }
+        }
+      }
+      if (no_chg) {break;}
+    }
     
     return {0, insertion_position};
   }
