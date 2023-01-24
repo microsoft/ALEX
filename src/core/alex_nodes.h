@@ -58,11 +58,17 @@ class AlexNode {
   // is used
   double cost_ = 0.0;
 
+  //parent of current node. Root is nullptr. Need to be given by parameter.
+  AlexNode *parent_ = nullptr;
+
   AlexNode() = default;
   explicit AlexNode(short level) : level_(level) {}
   AlexNode(short level, bool is_leaf) : is_leaf_(is_leaf), level_(level) {}
-  AlexNode(short level, bool is_leaf, unsigned int max_key_length) 
-        : is_leaf_(is_leaf), level_(level), max_key_length_(max_key_length) {
+  AlexNode(short level, bool is_leaf, AlexNode *parent)
+      : level_(level), is_leaf_(is_leaf), parent_(parent) {}
+  AlexNode(short level, bool is_leaf, 
+      AlexNode *parent, unsigned int max_key_length) 
+        : is_leaf_(is_leaf), level_(level), parent_(parent), max_key_length_(max_key_length) {
     model_ = LinearModel(max_key_length);
   }
   virtual ~AlexNode() = default;
@@ -96,10 +102,14 @@ class AlexModelNode : public AlexNode<P> {
 
   explicit AlexModelNode(short level, const Alloc& alloc = Alloc())
       : AlexNode<P>(level, false), allocator_(alloc) {}
-  
-  explicit AlexModelNode(short level, unsigned int max_key_length,
+
+  explicit AlexModelNode(short level, AlexModel *parent,
                          const Alloc& Alloc = Alloc())
-      : AlexNode<P>(level, false, max_key_length), allocator_(alloc) {}
+      : AlexNode<P>(level, false, parent), allocator_(alloc){}
+  
+  explicit AlexModelNode(short level, AlexModel *parent,
+                         unsigned int max_key_length, const Alloc& Alloc = Alloc())
+      : AlexNode<P>(level, false, parent, max_key_length), allocator_(alloc) {}
 
   ~AlexModelNode() {
     if (children_ != nullptr) {
@@ -117,7 +127,8 @@ class AlexModelNode : public AlexNode<P> {
       : AlexNode<P>(other),
         allocator_(other.allocator_),
         num_children_(other.num_children_),
-        max_key_length_(other.max_key_length_) {
+        max_key_length_(other.max_key_length_),
+        parent_(other.parent_) {
     children_ = new (pointer_allocator().allocate(other.num_children_))
         AlexNode<P>*[other.num_children_];
     std::copy(other.children_, other.children_ + other.num_children_,
@@ -436,9 +447,9 @@ class AlexDataNode : public AlexNode<P> {
     the_min_key_arr[0] = std::numeric_limits<double>::min();
   }
 
-  explicit AlexDataNode(unsigned int max_key_length, int key_type,
+  explicit AlexDataNode(unsigned int max_key_length, int key_type, AlexNode *parent,
         const Compare& comp = Compare(), const Alloc& alloc = Alloc())
-      : AlexNode<P>(0, true, max_key_length), key_less_(comp), allocator_(alloc) {
+      : AlexNode<P>(0, true, parent, max_key_length), key_less_(comp), allocator_(alloc) {
     double *max_key_arr = new double[max_key_length_];
     double *min_key_arr = new double[max_key_length_];
     double *mid_key_arr = new double[max_key_length_]();
@@ -487,9 +498,9 @@ class AlexDataNode : public AlexNode<P> {
   }
 
   AlexDataNode(short level, int max_data_node_slots,
-               unsigned int max_key_length, int key_type,
+               unsigned int max_key_length, int key_type, AlexNode *parent,
                const Compare& comp = Compare(), const Alloc& alloc = Alloc())
-      : AlexNode<P>(level, true, max_key_length),
+      : AlexNode<P>(level, true, parent, max_key_length),
         key_less_(comp),
         allocator_(alloc),
         max_slots_(max_data_node_slots),
