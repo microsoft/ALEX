@@ -1957,6 +1957,10 @@ class AlexDataNode : public AlexNode<P> {
       }
       num_left_out_of_bounds_inserts_++;
     }
+
+    //need to update Mnodemin / max for all parent nodes
+    //add code here.
+    
     return {0, insertion_position};
   }
 
