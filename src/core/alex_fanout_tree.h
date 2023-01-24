@@ -213,7 +213,7 @@ std::pair<int, double> find_best_fanout_bottom_up(
   for (int fanout = 2, fanout_tree_level = 1; fanout <= max_fanout;
        fanout *= 2, fanout_tree_level++) {
     std::vector<FTNode> new_level;
-    double cost = compute_level<P, Compare>(
+    double cost = compute_level<P>(
         values, num_keys, node, total_keys, new_level, fanout_tree_level,
         max_data_node_keys, expected_insert_frac, approximate_model_computation,
         approximate_cost_computation);
