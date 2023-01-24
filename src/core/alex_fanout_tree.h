@@ -287,7 +287,7 @@ std::pair<int, double> find_best_fanout_top_down(
       int middle_boundary;
       char flag = 1;
       for (int idx = tree_node.left_boundary; idx < tree_node.right_boundary; idx++) {
-        int predicted_pos = newLModel.predict(values[i].first);
+        int predicted_pos = newLModel.predict(values[idx].first);
         if (predicted_pos >= 2 * tree_node.node_id + 1) {
           flag = 0;
           middle_boundary = idx;
