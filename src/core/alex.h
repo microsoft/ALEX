@@ -225,7 +225,7 @@ class Alex {
     
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
-        data_node_type(1, DOUBLE, key_less_, allocator_);
+        data_node_type(1, DOUBLE, nullptr, key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     stats_.num_data_nodes++;
@@ -257,7 +257,7 @@ class Alex {
     
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
-        data_node_type(max_key_length_, key_type_, key_less_, allocator_);
+        data_node_type(max_key_length_, key_type_, nullptr, key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     stats_.num_data_nodes++;
@@ -284,7 +284,7 @@ class Alex {
     
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
-        data_node_type(1, key_type_, key_less_, allocator_);
+        data_node_type(1, key_type_, nullptr, key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     stats_.num_data_nodes++;
@@ -301,7 +301,7 @@ class Alex {
 
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
-        data_node_type(1, DOUBLE, key_less_, allocator_);
+        data_node_type(1, DOUBLE, nullptr, key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     stats_.num_data_nodes++;
@@ -317,7 +317,7 @@ class Alex {
 
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
-        data_node_type(1, key_type_, key_less_, allocator_);
+        data_node_type(1, key_type_, nullptr, key_less_, allocator_);
     empty_data_node->bulk_load(nullptr, 0);
     root_node_ = empty_data_node;
     stats_.num_data_nodes++;
@@ -867,7 +867,7 @@ class Alex {
 
     // Build temporary root model, which outputs a CDF in the range [0, 1]
     root_node_ =
-        new (model_node_allocator().allocate(1)) model_node_type(0, max_key_length_, allocator_);
+        new (model_node_allocator().allocate(1)) model_node_type(0, nullptr, max_key_length_, allocator_);
     AlexKey min_key = values[0].first;
     AlexKey max_key = values[num_keys - 1].first;
 
@@ -916,7 +916,7 @@ class Alex {
     if (!root_node_) return;
     delete_node(superroot_);
     superroot_ = new (model_node_allocator().allocate(1))
-        model_node_type(static_cast<short>(root_node_->level_ - 1), max_key_length_, allocator_);
+        model_node_type(static_cast<short>(root_node_->level_ - 1), nullptr, max_key_length_, allocator_);
     superroot_->num_children_ = 1;
     superroot_->children_ =
         new (pointer_allocator().allocate(1)) AlexNode<P>*[1];
@@ -1008,7 +1008,7 @@ class Alex {
       // Convert to model node based on the output of the fanout tree
       stats_.num_model_nodes++;
       auto model_node = new (model_node_allocator().allocate(1))
-          model_node_type(node->level_, max_key_length_, allocator_);
+          model_node_type(node->level_, max_key_length_, node, allocator_);
       if (best_fanout_tree_depth == 0) {
         // slightly hacky: we assume this means that the node is relatively
         // uniform but we need to split in
@@ -1053,7 +1053,7 @@ class Alex {
       int idx = 0;
       for (fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {
         auto child_node = new (model_node_allocator().allocate(1))
-            model_node_type(static_cast<short>(node->level_ + 1), max_key_length_, allocator_);
+            model_node_type(static_cast<short>(node->level_ + 1), max_key_length_, node, allocator_);
         child_node->cost_ = tree_node.cost;
         child_node->duplication_factor_ =
             static_cast<uint8_t>(best_fanout_tree_depth - tree_node.level);
@@ -1117,7 +1117,7 @@ class Alex {
       stats_.num_data_nodes++;
       auto data_node = new (data_node_allocator().allocate(1))
           data_node_type(node->level_, derived_params_.max_data_node_slots,
-                         max_key_length_, key_type_,
+                         max_key_length_, key_type_, node,
                          key_less_, allocator_);
       data_node->bulk_load(values, num_keys, data_node_model,
                            params_.approximate_model_computation);
@@ -1135,7 +1135,7 @@ class Alex {
       bool reuse_model = false, bool keep_left = false,
       bool keep_right = false) {
     auto node = new (data_node_allocator().allocate(1))
-        data_node_type(max_key_length_, key_type_, key_less_, allocator_);
+        data_node_type(max_key_length_, key_type_, existing_node->parent, key_less_, allocator_);
     stats_.num_data_nodes++;
     if (tree_node) {
       // Use the model and num_keys saved in the tree node so we don't have to
@@ -1809,7 +1809,7 @@ class Alex {
       // Create new root node
       // we may need to fix the below parameter calculations. 
       auto new_root = new (model_node_allocator().allocate(1))
-          model_node_type(static_cast<short>(root->level_ - 1), max_key_length_, allocator_);
+          model_node_type(static_cast<short>(root->level_ - 1), max_key_length_, nullptr, allocator_);
       for (int i = 0; i < max_key_length_; i++) {
         new_root->model_.a_[i] = root->model_.a_[i] / root->num_children_;
       }
@@ -1967,7 +1967,7 @@ class Alex {
     // Create the new model node that will replace the current data node
     int fanout = 1 << fanout_tree_depth;
     auto new_node = new (model_node_allocator().allocate(1))
-        model_node_type(leaf->level_, max_key_length_, allocator_);
+        model_node_type(leaf->level_, max_key_length_, parent, allocator_);
     new_node->duplication_factor_ = leaf->duplication_factor_;
     new_node->num_children_ = fanout;
     new_node->children_ =
@@ -2342,19 +2342,19 @@ class Alex {
         // pull up right child if all children in the right half are the same
         pull_up_right_child = true;
         left_split = new (model_node_allocator().allocate(1))
-            model_node_type(cur_node->level_, max_key_length_, allocator_, );
+            model_node_type(cur_node->level_, max_key_length_, cur_node->parent, allocator_, );
       } else if (!double_left_half &&
                  (1 << left_half_first_child->duplication_factor_) ==
                      cur_node->num_children_ / 2) {
         // pull up left child if all children in the left half are the same
         pull_up_left_child = true;
         right_split = new (model_node_allocator().allocate(1))
-            model_node_type(cur_node->level_, max_key_length_, allocator_);
+            model_node_type(cur_node->level_, max_key_length_, cur_node->parent,  allocator_);
       } else {
         left_split = new (model_node_allocator().allocate(1))
-            model_node_type(cur_node->level_, max_key_length_, allocator_);
+            model_node_type(cur_node->level_, max_key_length_, cur_node->parent, allocator_);
         right_split = new (model_node_allocator().allocate(1))
-            model_node_type(cur_node->level_, max_key_length_, allocator_);
+            model_node_type(cur_node->level_, max_key_length_, cur_node->parent, allocator_);
       }
 
       // Do the split
