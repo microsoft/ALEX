@@ -36,6 +36,9 @@ namespace alex {
 template <class P>
 class AlexNode {
  public:
+
+  typedef AlexNode<P> self_type;
+
   // Whether this node is a leaf (data) node
   bool is_leaf_ = false;
 
@@ -59,17 +62,34 @@ class AlexNode {
   double cost_ = 0.0;
 
   //parent of current node. Root is nullptr. Need to be given by parameter.
-  AlexModelNode *parent_ = nullptr;
+  AlexNode *parent_ = nullptr;
 
   AlexNode() = default;
   explicit AlexNode(short level) : level_(level) {}
   AlexNode(short level, bool is_leaf) : is_leaf_(is_leaf), level_(level) {}
-  AlexNode(short level, bool is_leaf, AlexNode *parent)
+  AlexNode(short level, bool is_leaf, self_type *parent)
       : level_(level), is_leaf_(is_leaf), parent_(parent) {}
   AlexNode(short level, bool is_leaf, 
-      AlexNode *parent, unsigned int max_key_length) 
+      self_type *parent, unsigned int max_key_length) 
         : is_leaf_(is_leaf), level_(level), parent_(parent), max_key_length_(max_key_length) {
     model_ = LinearModel(max_key_length);
+  }
+
+  AlexNode(const self_type& other)
+      : is_leaf_(other.is_leaf_),
+        duplication_factor_(other.duplication_factor_),
+        level_(other.level_),
+        max_key_length_(other.max_key_length_),
+        cost_(other.cost_),
+        parent_(other.parent_) {
+    model_ = LinearModel(other.max_key_length_);
+    if (other.model_.a_ != nullptr) {
+      model_.a_ = new double[max_key_length_]();
+      for (int i = 0; i < max_key_length_; i++) {
+        model_.a_[i] = other.model_.a_[i];
+      }
+    }
+    model_.b_ = other.model_.b_;
   }
   virtual ~AlexNode() = default;
 
@@ -80,6 +100,7 @@ class AlexNode {
 template <class P, class Alloc = std::allocator<std::pair<AlexKey, P>>>
 class AlexModelNode : public AlexNode<P> {
  public:
+  typedef AlexNode<P> basic_node_type;
   typedef AlexModelNode<P, Alloc> self_type;
   typedef typename Alloc::template rebind<self_type>::other alloc_type;
   typedef typename Alloc::template rebind<AlexNode<P>*>::other
@@ -103,12 +124,12 @@ class AlexModelNode : public AlexNode<P> {
   explicit AlexModelNode(short level, const Alloc& alloc = Alloc())
       : AlexNode<P>(level, false), allocator_(alloc) {}
 
-  explicit AlexModelNode(short level, AlexModel *parent,
-                         const Alloc& Alloc = Alloc())
+  explicit AlexModelNode(short level, basic_node_type *parent,
+                         const Alloc& alloc = Alloc())
       : AlexNode<P>(level, false, parent), allocator_(alloc){}
   
-  explicit AlexModelNode(short level, AlexModel *parent,
-                         unsigned int max_key_length, const Alloc& Alloc = Alloc())
+  explicit AlexModelNode(short level, basic_node_type *parent,
+                         unsigned int max_key_length, const Alloc& alloc = Alloc())
       : AlexNode<P>(level, false, parent, max_key_length), allocator_(alloc) {}
 
   ~AlexModelNode() {
@@ -126,28 +147,19 @@ class AlexModelNode : public AlexNode<P> {
   AlexModelNode(const self_type& other)
       : AlexNode<P>(other),
         allocator_(other.allocator_),
-        num_children_(other.num_children_),
-        max_key_length_(other.max_key_length_),
-        parent_(other.parent_) {
+        num_children_(other.num_children_) {
     children_ = new (pointer_allocator().allocate(other.num_children_))
         AlexNode<P>*[other.num_children_];
     std::copy(other.children_, other.children_ + other.num_children_,
               children_);
-    
-    model_ = LinearModel(other.max_key_length_);
-    model_.a_ = new double[max_key_length_]();
-    for (int i = 0; i < max_key_length_; i++) {
-      a_[i] = other.model_.a_[i];
-    }
-    model_.b_ = other.model_.b_;
 
     if (other.Mnode_min_key != nullptr) {
-      Mnode_min_key_ = new double[max_key_length_];
-      std::copy(other.Mnode_min_key_, other.Mnode_min_key_ + max_key_length_, Mnode_min_key_);
+      Mnode_min_key_ = new double[this->max_key_length_];
+      std::copy(other.Mnode_min_key_, other.Mnode_min_key_ + this->max_key_length_, Mnode_min_key_);
     }
     if (other.Mnode_max_key != nullptr) {
-      Mnode_max_key_ = new double[max_key_length_];
-      std::copy(other.Mnode_max_key_, other.Mnode_max_key_ + max_key_length_, Mnode_max_key_);
+      Mnode_max_key_ = new double[this->max_key_length_];
+      std::copy(other.Mnode_max_key_, other.Mnode_max_key_ + this->max_key_length_, Mnode_max_key_);
     }
   }
 
@@ -345,6 +357,7 @@ template <class P, class Compare = AlexCompare,
 class AlexDataNode : public AlexNode<P> {
  public:
   typedef std::pair<AlexKey, P> V;
+  typedef AlexNode<P> basic_node_type;
   typedef AlexDataNode<P, Compare, Alloc, allow_duplicates> self_type;
   typedef typename Alloc::template rebind<self_type>::other alloc_type;
   typedef typename Alloc::template rebind<AlexKey>::other key_alloc_type;
@@ -447,7 +460,7 @@ class AlexDataNode : public AlexNode<P> {
     the_min_key_arr[0] = std::numeric_limits<double>::min();
   }
 
-  explicit AlexDataNode(unsigned int max_key_length, int key_type, AlexNode *parent,
+  explicit AlexDataNode(unsigned int max_key_length, int key_type, basic_node_type *parent,
         const Compare& comp = Compare(), const Alloc& alloc = Alloc())
       : AlexNode<P>(0, true, parent, max_key_length), key_less_(comp), allocator_(alloc) {
     double *max_key_arr = new double[max_key_length_];
@@ -498,7 +511,7 @@ class AlexDataNode : public AlexNode<P> {
   }
 
   AlexDataNode(short level, int max_data_node_slots,
-               unsigned int max_key_length, int key_type, AlexNode *parent,
+               unsigned int max_key_length, int key_type, basic_node_type *parent,
                const Compare& comp = Compare(), const Alloc& alloc = Alloc())
       : AlexNode<P>(level, true, parent, max_key_length),
         key_less_(comp),
