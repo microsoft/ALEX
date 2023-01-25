@@ -65,6 +65,37 @@ static const size_t desired_training_key_n_ = 10000000; /* desired training key 
 /*** MAY BE USED UNDER CIRCUMSTANCES ***/
 //extern unsigned int max_key_length;
 
+/* AlexKey
+ * One important notice, the pointer given to AlexKey must be given by new.
+ * Also, the pointer should not be manually deleted (it is deleted automatically) */
+class AlexKey {
+ public:
+  double *key_arr_ = nullptr;
+  unsigned int max_key_length_ = 0;
+
+  AlexKey() = default;
+
+  AlexKey(double *key_arr, unsigned int max_key_length = 1)
+      : key_arr_(key_arr), max_key_length_(max_key_length) {}
+
+  AlexKey(unsigned int max_key_length)
+      : max_key_length_(max_key_length) {
+  }
+
+  AlexKey(double data) {
+    key_arr_ = new double[1];
+    key_arr_[0] = data;
+    max_key_length_ = 1;
+  }
+
+  ~AlexKey() {
+    if (key_arr_ != nullptr) {
+      delete[] key_arr_;
+    }
+  }
+
+};
+
 /*** Linear model and model builder ***/
 
 // Forward declaration
@@ -81,10 +112,10 @@ class LinearModel {
 
   LinearModel(double a[], double b, unsigned int max_key_length) : max_key_length_(max_key_length) {
     a_ = new double[max_key_length_];
-    for (int i = 0; i < max_key_length_; i++) {
+    for (unsigned int i = 0; i < max_key_length_; i++) {
       a_[i] = a[i];
     }
-    b_ = 0.0;
+    b_ = b;
   }
 
   LinearModel(unsigned int max_key_length) : max_key_length_(max_key_length) {
@@ -97,16 +128,16 @@ class LinearModel {
   }
 
   explicit LinearModel(const LinearModel& other) : 
-  max_key_length_(other.max_key_length_), b_(other.b_) {
-    a_ = new double[max_key_length_];
-    for (int i = 0; i < max_key_length_; i++) {
-      a_[i] = other.a_[i];
-    }
+    b_(other.b_), max_key_length_(other.max_key_length_) {
+      a_ = new double[max_key_length_];
+      for (unsigned int i = 0; i < max_key_length_; i++) {
+        a_[i] = other.a_[i];
+      }
   }
 
   void expand(double expansion_factor) {
     assert(a_ != nullptr);
-    for (int i = 0; i < max_key_length_; i++) {
+    for (unsigned int i = 0; i < max_key_length_; i++) {
       a_[i] *= expansion_factor;
     }
     b_ *= expansion_factor;
@@ -116,7 +147,7 @@ class LinearModel {
     assert(a_ != nullptr);
     assert (max_key_length_ == key.max_key_length_);
     double result = 0.0;
-    for (int i = 0; i < max_key_length_; i++) {
+    for (unsigned int i = 0; i < max_key_length_; i++) {
       result = key.key_arr_[i] * a_[i];
     }
     return static_cast<int>(result + b_);
@@ -126,7 +157,7 @@ class LinearModel {
     assert(a_ != nullptr);
     assert (max_key_length_ == key.max_key_length_);
     double result = 0.0;
-    for (int i = 0; i < max_key_length_; i++) {
+    for (unsigned int i = 0; i < max_key_length_; i++) {
       result = key.key_arr_[i] * a_[i];
     }
     return result + b_;
@@ -149,7 +180,7 @@ class LinearModelBuilder {
   void build() {
     if (positions_.size() == 0) {return;}
     if (positions_.size() == 1) {
-      for (int i = 0; i < model_->max_key_length_; i++) {
+      for (unsigned int i = 0; i < model_->max_key_length_; i++) {
         model_->a_[i] = 0.0;
       }
       model_->b_ = positions_[0];
@@ -286,37 +317,6 @@ class LinearModelBuilder {
   std::vector<int> positions_;
 };
 
-/* AlexKey
- * One important notice, the pointer given to AlexKey must be given by new.
- * Also, the pointer should not be manually deleted (it is deleted automatically) */
-class AlexKey {
- public:
-  double *key_arr_ = nullptr;
-  unsigned int max_key_length_ = 0;
-
-  AlexKey() = default;
-
-  AlexKey(double *key_arr, unsigned int max_key_length = 1)
-      : key_arr_(key_arr), max_key_length_(max_key_length) {}
-
-  AlexKey(unsigned int max_key_length)
-      : max_key_length_(max_key_length) {
-  }
-
-  AlexKey(double data) {
-    key_arr_ = new double[1];
-    key_arr_[0] = data;
-    max_key_length_ = 1;
-  }
-
-  ~AlexKey() {
-    if (key_arr_ != nullptr) {
-      delete[] key_arr_;
-    }
-  }
-
-};
-
 /*** Comparison ***/
 
 struct AlexCompare {
@@ -327,7 +327,7 @@ struct AlexCompare {
     assert(x.max_key_length_ == y.max_key_length_);
     auto x_key_ptr_ = x.key_arr_;
     auto y_key_ptr_ = y.key_arr_;
-    for (int i = 0; i < x.max_key_length_; i++) {
+    for (unsigned int i = 0; i < x.max_key_length_; i++) {
       if (x_key_ptr_[i] < y_key_ptr_[i]) {return true;}
       else if (x_key_ptr_[i] > y_key_ptr_[i]) {return false;}
     }
