@@ -1619,6 +1619,48 @@ class Alex {
     return best_path_level;
   }
 
+  //helper for expand_root
+  //decrease double array by specific value in string-like manner.
+  void decrease_double_arr (double *target, double size) {
+    //convert size (double value) to string-like array
+    double size_to_arr[max_key_length_]();
+    for (int i = 0; i < max_key_length_; i++) {
+      size_to_arr[i] = size / pow(35, max_key_length_ - i - 1);
+      size %= pow(35, max_key_length_ - i - 1);
+    }
+
+    //subtract string.
+    for (int i = 0; i < max_key_length_; i++) {
+      target[i] -= size_to_arr[i];
+      if (target[i] < 0) {
+        assert(i > 0);
+        target[i] += 35;
+        target[i-1] -= 1;
+      }
+    }
+  }
+
+  //helper for expand_root
+  //increase double array by specific value in string-like manner.
+  void increase_double_arr (double *target, double size) {
+    //convert size (double value) to string-like array
+    double size_to_arr[max_key_length_]();
+    for (int i = 0; i < max_key_length_; i++) {
+      size_to_arr[i] = size / pow(35, max_key_length_ - i - 1);
+      size %= pow(35, max_key_length_ - i - 1);
+    }
+
+    //add string.
+    for (int i = 0; i < max_key_length_; i++) {
+      target[i] += size_to_arr[i];
+      if (target[i] > 35) {
+        assert(i > 0);
+        target[i] -= 35;
+        target[i-1] += 1;
+      }
+    }
+  }
+
   // Expand the key value space that is covered by the index.
   // Expands the root node (which is a model node).
   // If the root node is at the max node size, then we split the root and create
@@ -1700,12 +1742,8 @@ class Alex {
       }
       else {
         new_domain_min = istats_.key_domain_max_;
-        for (int i = 0; i < max_key_length_; i++) {
-          //make a function to properly calculate this.
-          //new_domain_min -= half_expanded_domain_size / pow(35, max_key_length_ - i - 1);
-          //new_domain_min -= half_expanded_domain_size / pow(35, max_key_length_ - i - 1);
-          half_expanded_domain_size %= pow(35, max_key_length_ - i - 1);
-        }
+        decrease_double_arr(new_domain_min, half_expanded_domain_size);
+        decrease_double_arr(new_domain_min, half_expanded_domain_size);
       }
       istats_.num_keys_at_last_left_domain_resize = stats_.num_keys;
       istats_.num_keys_below_key_domain = 0;
@@ -1763,12 +1801,8 @@ class Alex {
       }
       else {
         new_domain_max = istats_.key_domain_min_;
-        for (int i = 0; i < max_key_length_; i++) {
-          //make a function to properly calculate this.
-          //new_domain_max += half_expanded_domain_size / pow(35, max_key_length_ - i - 1);
-          //new_domain_max += half_expanded_domain_size / pow(35, max_key_length_ - i - 1);
-          half_expanded_domain_size %= pow(35, max_key_length_ - i - 1);
-        }
+        increase_double_arr(new_domain_min, half_expanded_domain_size);
+        increase_double_arr(new_domain_min, half_expanded_domain_size);
       }
       istats_.num_keys_at_last_left_domain_resize = stats_.num_keys;
       istats_.num_keys_below_key_domain = 0;
@@ -1869,8 +1903,7 @@ class Alex {
         if (i - n <= in_bounds_new_nodes_start) {
           left_boundary = 0;
         } else {
-          
-          //left_boundary_value -= domain_size; -> make function to properly calculate.
+          decrease_double_arr(left_boundary_value, domain_size);
           left_boundary_key = AlexKey(left_boundary_value, max_key_length_);
           left_boundary = outermost_node->lower_bound(left_boundary_key);
         }
@@ -1901,7 +1934,7 @@ class Alex {
         if (i + n >= in_bounds_new_nodes_end) {
           right_boundary = outermost_node->data_capacity_;
         } else {
-          //right_boundary_value += domain_size; -> make function to properly calculate.
+          increase_double_arr(right_boundary_value, domain-size);
           right_boundary_key = AlexKey(right_boundary-value, max_key_length_)
           right_boundary = outermost_node->lower_bound(right_boundary_value);
         }
