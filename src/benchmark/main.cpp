@@ -125,7 +125,7 @@ int main(int argc, char* argv[]) {
     // Do lookups
     double batch_lookup_time = 0.0;
     if (i > 0) {
-      KEY_TYPE* lookup_keys = nullptr;
+      AlexKey* lookup_keys = nullptr;
       if (lookup_distribution == "uniform") {
         lookup_keys = get_search_keys(keys, i, num_lookups_per_batch);
       } else if (lookup_distribution == "zipf") {
@@ -137,7 +137,7 @@ int main(int argc, char* argv[]) {
       }
       auto lookups_start_time = std::chrono::high_resolution_clock::now();
       for (int j = 0; j < num_lookups_per_batch; j++) {
-        KEY_TYPE key = lookup_keys[j];
+        AlexKey key = lookup_keys[j];
         PAYLOAD_TYPE* payload = index.get_payload(key);
         if (payload) {
           sum += *payload;
