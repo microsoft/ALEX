@@ -32,12 +32,16 @@
 
 namespace alex {
 
+//forward declaration.
+template <class P, class Alloc> class AlexModelNode;
+
 // A parent class for both types of ALEX nodes
-template <class P>
+template <class P, class Alloc = std::allocator<std::pair<AlexKey, P>>>
 class AlexNode {
  public:
 
   typedef AlexNode<P> self_type;
+  typedef AlexModelNode<P, Alloc> model_node_type;
 
   // Whether this node is a leaf (data) node
   bool is_leaf_ = false;
@@ -62,7 +66,7 @@ class AlexNode {
   double cost_ = 0.0;
 
   //parent of current node. Root is nullptr. Need to be given by parameter.
-  AlexNode *parent_ = nullptr;
+  model_node_type *parent_ = nullptr;
 
   AlexNode() = default;
   explicit AlexNode(short level) : level_(level) {}
@@ -456,8 +460,8 @@ class AlexDataNode : public AlexNode<P> {
   AlexDataNode () : AlexNode<P>(0, true) {
     the_max_key_arr_ = new double[1];
     the_min_key_arr_ = new double[1];
-    the_max_key_arr[0] = std::numeric_limits<double>::max();
-    the_min_key_arr[0] = std::numeric_limits<double>::min();
+    the_max_key_arr_[0] = std::numeric_limits<double>::max();
+    the_min_key_arr_[0] = std::numeric_limits<double>::min();
   }
 
   explicit AlexDataNode(unsigned int max_key_length, int key_type, basic_node_type *parent,
