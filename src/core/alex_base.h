@@ -82,12 +82,6 @@ class AlexKey {
       : max_key_length_(max_key_length) {
   }
 
-  AlexKey(double data) {
-    key_arr_ = new double[1];
-    key_arr_[0] = data;
-    max_key_length_ = 1;
-  }
-
   ~AlexKey() {
     if (key_arr_ != nullptr) {
       delete[] key_arr_;
