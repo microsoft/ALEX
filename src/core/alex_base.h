@@ -75,7 +75,7 @@ class AlexKey {
 
   AlexKey() = default;
 
-  AlexKey(double *key_arr, unsigned int max_key_length = 1)
+  AlexKey(double *key_arr, unsigned int max_key_length)
       : key_arr_(key_arr), max_key_length_(max_key_length) {}
 
   AlexKey(unsigned int max_key_length)
