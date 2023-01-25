@@ -2751,15 +2751,21 @@ class AlexDataNode : public AlexNode<P> {
         return false;
       }
     }
-    if (ALEX_DATA_NODE_KEY_AT(data_capacity_ - 1) == kEndSentinel_ &&
-        check_exists(data_capacity_ - 1)) {
+    AlexKey end = ALEX_DATA_NODE_KEY_AT(data_capacity_ - 1);
+    char same = 0;
+    for (int i = 0; i < this->max_key_length_; i++) {
+      if (end.key_arr_[i] != kEndSentinel_->key_arr_[i]) {
+        same = 1;
+        break;
+      }
+    }
+    if (same && check_exists(data_capacity_ - 1)) {
       if (verbose) {
         std::cout << "The sentinel should not be a valid key" << std::endl;
       }
       return false;
     }
-    if (ALEX_DATA_NODE_KEY_AT(data_capacity_ - 1) != kEndSentinel_ &&
-        !check_exists(data_capacity_ - 1)) {
+    if (!same && !check_exists(data_capacity_ - 1)) {
       if (verbose) {
         std::cout << "The last key should be a valid key" << std::endl;
       }
@@ -2798,7 +2804,11 @@ class AlexDataNode : public AlexNode<P> {
            std::to_string(data_capacity_) + ", Expansion Threshold: " +
            std::to_string(expansion_threshold_) + "\n";
     for (int i = 0; i < data_capacity_; i++) {
-      str += (std::to_string(ALEX_DATA_NODE_KEY_AT(i)) + " ");
+      AlexKey cur_key = ALEX_DATA_NODE_KEY_AT(i);
+      for (int j = 0; j < cur_key.max_key_length_; j++) {
+        str += (std::to_string(cur_key.key_arr_[j]) + " ");
+      }
+      str += "\n";
     }
     return str;
   }
