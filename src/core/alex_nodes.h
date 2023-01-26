@@ -1007,7 +1007,7 @@ class AlexDataNode : public AlexNode<P> {
     } else {
       model.max_key_length_ = existing_model->max_key_length_;
       model.a_ = new double[model.max_key_length_];
-      for (int i = 0; i < model.max_key_length_; i++) {
+      for (unsigned int i = 0; i < model.max_key_length_; i++) {
         model.a_[i] = existing_model->a_[i];
       }
       model.b_ = existing_model->b_;
@@ -1487,21 +1487,21 @@ class AlexDataNode : public AlexNode<P> {
        mid_key_->key_arr_[i] = values[num_keys/2].first.key_arr_[i];
     }
 
-    //updating MNode_key_min_ / max_ for all parents of current data node
+    //updating Mnode_min_key_ / max_ for all parents of current data node
     AlexModelNode<P, Alloc> *cur_parent = this->parent_;
     while (cur_parent != nullptr) {
       char no_chg = 1;
-      if (cur_parent->MNode_key_min_ == nullptr) {
-        cur_parent->MNode_key_min_ = new double[cur_parent->max_key_length_];
+      if (cur_parent->Mnode_min_key_ == nullptr) {
+        cur_parent->Mnode_min_key_ = new double[cur_parent->max_key_length_];
         for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-          cur_parent->MNode_key_min_[i] = min_key_->key_arr_[i];
+          cur_parent->Mnode_min_key_[i] = min_key_->key_arr_[i];
         }
         no_chg = 0;
       }
       else {
         char need_chg = 0;
         for (unsigned int i = 0; i < this->max_key_length_; i++) {
-          if (min_key_->key_arr_[i] < cur_parent->MNode_key_min_[i]) {
+          if (min_key_->key_arr_[i] < cur_parent->Mnode_min_key_[i]) {
             need_chg = 1;
             no_chg = 0;
             break;
@@ -1509,21 +1509,21 @@ class AlexDataNode : public AlexNode<P> {
         }
         if (need_chg) {
           for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-            cur_parent->MNode_key_min_[i] = min_key_->key_arr_[i];
+            cur_parent->Mnode_min_key_[i] = min_key_->key_arr_[i];
           }
         }
       }
-      if (cur_parent->MNode_key_max_ == nullptr) {
-        cur_parent->MNode_key_max_ = new double[cur_parent->max_key_length_];
+      if (cur_parent->Mnode_max_key_ == nullptr) {
+        cur_parent->Mnode_max_key_ = new double[cur_parent->max_key_length_];
         for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-          cur_parent->MNode_key_max_[i] = max_key_->key_arr_[i];
+          cur_parent->Mnode_max_key_[i] = max_key_->key_arr_[i];
         }
         no_chg = 0;
       }
       else {
         char need_chg = 0;
         for (unsigned int i = 0; i < this->max_key_length_; i++) {
-          if (cur_parent->MNode_key_max_[i] < max_key_->key_arr_[i]) {
+          if (cur_parent->Mnode_max_key_[i] < max_key_->key_arr_[i]) {
             need_chg = 1;
             no_chg = 0;
             break;
@@ -1531,7 +1531,7 @@ class AlexDataNode : public AlexNode<P> {
         }
         if (need_chg) {
           for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-            cur_parent->MNode_key_max_[i] = max_key_->key_arr_[i];
+            cur_parent->Mnode_max_key_[i] = max_key_->key_arr_[i];
           }
         }
       }
@@ -1665,17 +1665,17 @@ class AlexDataNode : public AlexNode<P> {
     AlexModelNode<P, Alloc> *cur_parent = this->parent;
     while (cur_parent != nullptr) {
       char no_chg = 1;
-      if (cur_parent->MNode_key_min_ == nullptr) {
-        cur_parent->MNode_key_min_ = new double[cur_parent->max_key_length_];
+      if (cur_parent->Mnode_min_key_ == nullptr) {
+        cur_parent->Mnode_min_key_ = new double[cur_parent->max_key_length_];
         for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-          cur_parent->MNode_key_min_[i] = min_key_->key_arr_[i];
+          cur_parent->Mnode_min_key_[i] = min_key_->key_arr_[i];
         }
         no_chg = 0;
       }
       else {
         char need_chg = 0;
         for (unsigned int i = 0; i < this->max_key_length_; i++) {
-          if (min_key_->key_arr_[i] < cur_parent->MNode_key_min_[i]) {
+          if (min_key_->key_arr_[i] < cur_parent->Mnode_min_key_[i]) {
             need_chg = 1;
             no_chg = 0;
             break;
@@ -1683,21 +1683,21 @@ class AlexDataNode : public AlexNode<P> {
         }
         if (need_chg) {
           for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-            cur_parent->MNode_key_min_[i] = min_key_->key_arr_[i];
+            cur_parent->Mnode_min_key_[i] = min_key_->key_arr_[i];
           }
         }
       }
-      if (cur_parent->MNode_key_max_ == nullptr) {
-        cur_parent->MNode_key_max_ = new double[cur_parent->max_key_length_];
+      if (cur_parent->Mnode_max_key_ == nullptr) {
+        cur_parent->Mnode_max_key_ = new double[cur_parent->max_key_length_];
         for (int i = 0; i < cur_parent->max_key_length_; i++) {
-          cur_parent->MNode_key_max_[i] = max_key_->key_arr_[i];
+          cur_parent->Mnode_max_key_[i] = max_key_->key_arr_[i];
         }
         no_chg = 0;
       }
       else {
         char need_chg = 0;
         for (int i = 0; i < cur_parent->max_key_length_; i++) {
-          if (cur_parent->MNode_key_max_[i] < max_key_->key_arr_[i]) {
+          if (cur_parent->Mnode_max_key_[i] < max_key_->key_arr_[i]) {
             need_chg = 1;
             no_chg = 0;
             break;
@@ -1705,7 +1705,7 @@ class AlexDataNode : public AlexNode<P> {
         }
         if (need_chg) {
           for (int i = 0; i < cur_parent->max_key_length_; i++) {
-            cur_parent->MNode_key_max_[i] = max_key_->key_arr_[i];
+            cur_parent->Mnode_max_key_[i] = max_key_->key_arr_[i];
           }
         }
       }
@@ -2168,17 +2168,17 @@ class AlexDataNode : public AlexNode<P> {
     AlexModelNode<P, Alloc> *cur_parent = this->parent;
     while (cur_parent != nullptr) {
       char no_chg = 1;
-      if (cur_parent->MNode_key_min_ == nullptr) {
-        cur_parent->MNode_key_min_ = new double[cur_parent->max_key_length_];
+      if (cur_parent->Mnode_min_key_ == nullptr) {
+        cur_parent->Mnode_min_key_ = new double[cur_parent->max_key_length_];
         for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-          cur_parent->MNode_key_min_[i] = min_key_->key_arr_[i];
+          cur_parent->Mnode_min_key_[i] = min_key_->key_arr_[i];
         }
         no_chg = 0;
       }
       else {
         char need_chg = 0;
         for (unsigned int i = 0; i < this->max_key_length_; i++) {
-          if (min_key_->key_arr_[i] < cur_parent->MNode_key_min_[i]) {
+          if (min_key_->key_arr_[i] < cur_parent->Mnode_min_key_[i]) {
             need_chg = 1;
             no_chg = 0;
             break;
@@ -2186,21 +2186,21 @@ class AlexDataNode : public AlexNode<P> {
         }
         if (need_chg) {
           for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-            cur_parent->MNode_key_min_[i] = min_key_->key_arr_[i];
+            cur_parent->Mnode_min_key_[i] = min_key_->key_arr_[i];
           }
         }
       }
-      if (cur_parent->MNode_key_max_ == nullptr) {
-        cur_parent->MNode_key_max_ = new double[cur_parent->max_key_length_];
+      if (cur_parent->Mnode_max_key_ == nullptr) {
+        cur_parent->Mnode_max_key_ = new double[cur_parent->max_key_length_];
         for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-          cur_parent->MNode_key_max_[i] = max_key_->key_arr_[i];
+          cur_parent->Mnode_max_key_[i] = max_key_->key_arr_[i];
         }
         no_chg = 0;
       }
       else {
         char need_chg = 0;
         for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-          if (cur_parent->MNode_key_max_[i] < max_key_->key_arr_[i]) {
+          if (cur_parent->Mnode_max_key_[i] < max_key_->key_arr_[i]) {
             need_chg = 1;
             no_chg = 0;
             break;
@@ -2208,7 +2208,7 @@ class AlexDataNode : public AlexNode<P> {
         }
         if (need_chg) {
           for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-            cur_parent->MNode_key_max_[i] = max_key_->key_arr_[i];
+            cur_parent->Mnode_max_key_[i] = max_key_->key_arr_[i];
           }
         }
       }
