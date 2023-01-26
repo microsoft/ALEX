@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
   std::string lookup_distribution =
       get_with_default(flags, "lookup_distribution", "zipf");
   auto time_limit = stod(get_with_default(flags, "time_limit", "0.5"));
-  auto max_key_length = stoi(get_with_default(flags, "max_key_length", "1"));
+  auto max_key_length = (unsigned int) stoul(get_with_default(flags, "max_key_length", "1"));
   bool print_batch_stats = get_boolean_flag(flags, "print_batch_stats");
 
   // obtain type of key.
@@ -90,7 +90,7 @@ int main(int argc, char* argv[]) {
   }
 
   // Create ALEX and bulk load
-  alex::Alex<KEY_TYPE, PAYLOAD_TYPE> index;
+  alex::Alex<PAYLOAD_TYPE> index(max_key_length, key_type);
   std::sort(values, values + init_num_keys,
             [](auto const& a, auto const& b) {
               auto key1 = a.first;
@@ -125,7 +125,7 @@ int main(int argc, char* argv[]) {
     // Do lookups
     double batch_lookup_time = 0.0;
     if (i > 0) {
-      AlexKey* lookup_keys = nullptr;
+      alex::AlexKey* lookup_keys = nullptr;
       if (lookup_distribution == "uniform") {
         lookup_keys = get_search_keys(keys, i, num_lookups_per_batch);
       } else if (lookup_distribution == "zipf") {
@@ -137,7 +137,7 @@ int main(int argc, char* argv[]) {
       }
       auto lookups_start_time = std::chrono::high_resolution_clock::now();
       for (int j = 0; j < num_lookups_per_batch; j++) {
-        AlexKey key = lookup_keys[j];
+        alex::AlexKey key = lookup_keys[j];
         PAYLOAD_TYPE* payload = index.get_payload(key);
         if (payload) {
           sum += *payload;
