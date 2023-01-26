@@ -453,7 +453,7 @@ class AlexDataNode : public AlexNode<P> {
 
   // Placed at the end of the key/data slots if there are gaps after the max key.
   // It was originally static constexpr, but I changed to normal AlexKey.
-  AlexKey *kEndSentinel_; 
+  AlexKey kEndSentinel_; 
 
   /*** Constructors and destructors ***/
 
@@ -471,7 +471,8 @@ class AlexDataNode : public AlexNode<P> {
     kEndSentinel[0] = std::numeric_limits<double>::max();
     max_key_ = new AlexKey(max_key, 1);
     min_key_ = new AlexKey(min_key, 1);
-    kEndSentinel_ = new AlexKey(kEndSentinel, 1);
+    kEndSentinel_.key_arr_ = kEndSentinel;
+    kEndSentinel_.max_key_length_ = 1;
   }
 
   explicit AlexDataNode(unsigned int max_key_length, int key_type, basic_node_type *parent,
@@ -486,7 +487,8 @@ class AlexDataNode : public AlexNode<P> {
     min_key_ = new AlexKey(min_key_arr, this->max_key_length_);
     max_key_ = new AlexKey(max_key_arr, this->max_key_length_);
     mid_key_ = new AlexKey(mid_key_arr, this->max_key_length_);
-    kEndSentinel_ = new AlexKey(kEndSentinel_arr, this->max_key_length_);
+    kEndSentinel_.key_arr_ = kEndSentinel_arr;
+    kEndSentinel_.max_key_length_ = this->max_key_length_;
 
     switch (key_type) {
       case DOUBLE:
@@ -540,7 +542,8 @@ class AlexDataNode : public AlexNode<P> {
     min_key_ = new AlexKey(min_key_arr, this->max_key_length_);
     max_key_ = new AlexKey(max_key_arr, this->max_key_length_);
     mid_key_ = new AlexKey(mid_key_arr, this->max_key_length_);
-    kEndSentinel_ = new AlexKey(kEndSentinel_arr, this->max_key_length_);
+    kEndSentinel_.key_arr_ = kEndSentinel_arr;
+    kEndSentinel_.max_key_length_ = this->max_key_length_;
 
     switch (key_type) {
       case DOUBLE:
@@ -595,7 +598,7 @@ class AlexDataNode : public AlexNode<P> {
     delete min_key_;
     delete max_key_;
     delete mid_key_;
-    delete kEndSentinel_;
+    delete[] kEndSentinel_.key_arr_;
     delete[] the_max_key_arr_;
     delete[] the_min_key_arr_;
   }
@@ -639,7 +642,7 @@ class AlexDataNode : public AlexNode<P> {
         min_key_arr);
     std::copy(other.mid_key_->key_arr_, other.mid_key_->key_arr_ + this->max_key_length_,
         mid_key_arr);
-    std::copy(other.kEndSentinel_->key_arr_, other.kEndSentinel_->key_arr_ + this->max_key_length_,
+    std::copy(other.kEndSentinel_.key_arr_, other.kEndSentinel_.key_arr_ + this->max_key_length_,
         kEndSentinel_arr);
     std::copy(other.the_max_key_arr_, other.the_max_key_arr_ + this->max_key_length_,
         the_max_key_arr);
@@ -648,7 +651,8 @@ class AlexDataNode : public AlexNode<P> {
     max_key_ = new AlexKey(max_key_arr, this->max_key_length_);
     min_key_ = new AlexKey(min_key_arr, this->max_key_length_);
     mid_key_ = new AlexKey(mid_key_arr, this->max_key_length_);
-    kEndSentinel_ = new AlexKey(kEndSentinel_arr, this->max_key_length);
+    kEndSentinel_.key_arr_ = kEndSentinel_arr;
+    kEndSentinel_.max_key_length_ = this->max_key_length_;
     the_max_key_arr_ = the_max_key_arr;
     the_min_key_arr_ = the_min_key_arr;
 
@@ -2128,7 +2132,7 @@ class AlexDataNode : public AlexNode<P> {
     }
     if (mid_chg) {
       for (unsigned int i = 0; i < this->max_key_length_; i++) {
-        if (key_slots_[data_capacity_/2].key_arr_[i] != kEndSentinel_->key_arr_[i]) {
+        if (key_slots_[data_capacity_/2].key_arr_[i] != kEndSentinel_.key_arr_[i]) {
           not_kEnd = 1;
           break;
         }
@@ -2764,7 +2768,7 @@ class AlexDataNode : public AlexNode<P> {
     AlexKey end = ALEX_DATA_NODE_KEY_AT(data_capacity_ - 1);
     char same = 0;
     for (int i = 0; i < this->max_key_length_; i++) {
-      if (end.key_arr_[i] != kEndSentinel_->key_arr_[i]) {
+      if (end.key_arr_[i] != kEndSentinel_.key_arr_[i]) {
         same = 1;
         break;
       }
