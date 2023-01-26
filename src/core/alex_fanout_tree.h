@@ -388,17 +388,16 @@ int find_best_fanout_existing_node(const AlexModelNode<P>* parent,
       start_bucketID + repeats;  // first bucket with different child
 
   double left_boundary_value[parent->max_key_length_];
-  double right_boundary_value[parent->max_key_length];
-  parent->model_.find_minimum(parent->MNode_min_key_, start_bucketID, left_boundary_value, key_type);
+  double right_boundary_value[parent->max_key_length_];
+  parent->model_.find_minimum(parent->Mnode_min_key_, start_bucketID, left_boundary_value, key_type);
   parent->model_.find_minimum(left_boundary_value, end_bucketID, right_boundary_value, key_type);
 
   /* needs change compared to original since we now we need length-dimension realted line.
      * steps are like this
      * 1) obtain direction vector using min_key, max_key to find line going through those two.
      * 2) find t and v such that t(v(x-min_key)) = 0, and compute a_, b_ value. */
-  LinearModel base_model = LinearModel(parent->model_.max_key_length_);
-  double *direction_vector_[parent->max_key_length_] = {0.0};
-  double t_inverse_ = 0.0;
+  LinearModel base_model(parent->model_.max_key_length_);
+  double direction_vector_[parent->max_key_length_] = {0.0};
   for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
     direction_vector_[i] = right_boundary_value[i] - left_boundary_value[i];
   }
@@ -412,11 +411,11 @@ int find_best_fanout_existing_node(const AlexModelNode<P>* parent,
     std::vector<FTNode> new_level;
     double cost = 0.0;
     double a[base_model.max_key_length_] = {0.0};
-    for (int i = 0; i < base_model.max_key_length_; i++) {
+    for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
       a[i] = base_model.a_[i] * fanout;
     }
     double b = base_model.b_ * fanout;
-    LinearModel newLModel = LinearModel(a, b, base_model.max_key_length_);
+    LinearModel newLModel(a, b, base_model.max_key_length_);
     int left_boundary = 0;
     int right_boundary = 0;
     for (int i = 0; i < fanout; i++) {
@@ -434,7 +433,7 @@ int find_best_fanout_existing_node(const AlexModelNode<P>* parent,
         continue;
       }
       int num_actual_keys = 0;
-      LinearModel model = LinearModel(node->model_.max_key_length_);
+      LinearModel model(node->model_.max_key_length_);
       typename AlexDataNode<P>::const_iterator_type it(node, left_boundary);
       LinearModelBuilder builder(&model);
       for (int j = 0; it.cur_idx_ < right_boundary && !it.is_end(); it++, j++) {
