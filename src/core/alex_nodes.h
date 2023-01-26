@@ -432,9 +432,9 @@ class AlexDataNode : public AlexNode<P> {
 
   // Variables for determining append-mostly behavior
   // max key in node, updates after inserts but not erases.
-  AlexKey *max_key_ = new AlexKey(std::numeric_limits<double>::lowest()); 
+  AlexKey *max_key_; 
   // min key in node, updates after inserts but not erases. 
-  AlexKey *min_key_ = new AlexKey(std::numeric_limits<double>::max());
+  AlexKey *min_key_;
   // mid key in node, updates after inserts but not erases.
   AlexKey *mid_key_ = new AlexKey(0); 
   int num_right_out_of_bounds_inserts_ =
@@ -453,7 +453,7 @@ class AlexDataNode : public AlexNode<P> {
 
   // Placed at the end of the key/data slots if there are gaps after the max key.
   // It was originally static constexpr, but I changed to normal AlexKey.
-  AlexKey *kEndSentinel_ = new AlexKey(std::numeric_limits<double>::max()); 
+  AlexKey *kEndSentinel_; 
 
   /*** Constructors and destructors ***/
 
@@ -462,6 +462,16 @@ class AlexDataNode : public AlexNode<P> {
     the_min_key_arr_ = new double[1];
     the_max_key_arr_[0] = std::numeric_limits<double>::max();
     the_min_key_arr_[0] = std::numeric_limits<double>::min();
+
+    double *max_key = new double[1];
+    double *min_key = new double[1];
+    double *kEndSentinel = new double[1];
+    max_key[0] = std::numeric_limits<double>::max();
+    min_key[0] = std::numeric_limits<double>::lowest();
+    kEndSentinel[0] = std::numeric_limits<double>::max();
+    max_key_ = new AlexKey(max_key, 1);
+    min_key_ = new AlexKey(min_key, 1);
+    kEndSentinel_ = new AlexKey(kEndSentinel, 1);
   }
 
   explicit AlexDataNode(unsigned int max_key_length, int key_type, basic_node_type *parent,
