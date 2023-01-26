@@ -2329,7 +2329,7 @@ class Alex {
     bool left_half_appending_right = false, right_half_appending_right = false;
     if (append_mostly_right) {
       double appending_right_bucketID =
-          parent->model_.predict_double(leaf->max_key_);
+          parent->model_.predict_double(*(leaf->max_key_));
       if (appending_right_bucketID >= leaf_start_bucketID &&
           appending_right_bucketID < leaf_mid_bucketID) {
         left_half_appending_right = true;
@@ -2342,7 +2342,7 @@ class Alex {
     bool left_half_appending_left = false, right_half_appending_left = false;
     if (append_mostly_left) {
       double appending_left_bucketID =
-          parent->model_.predict_double(leaf->min_key_);
+          parent->model_.predict_double(*(leaf->min_key_));
       if (appending_left_bucketID >= leaf_start_bucketID &&
           appending_left_bucketID < leaf_mid_bucketID) {
         left_half_appending_left = true;
@@ -2352,7 +2352,7 @@ class Alex {
       }
     }
 
-    int mid_boundary = leaf->lower_bound(leaf->mid_key_);
+    int mid_boundary = leaf->lower_bound(*(leaf->mid_key_));
     data_node_type* left_leaf = bulk_load_leaf_node_from_existing(
         leaf, 0, mid_boundary, true, nullptr, reuse_model,
         append_mostly_right && left_half_appending_right,
@@ -2423,19 +2423,19 @@ class Alex {
         // pull up right child if all children in the right half are the same
         pull_up_right_child = true;
         left_split = new (model_node_allocator().allocate(1))
-            model_node_type(cur_node->level_, cur_node->parent, max_key_length_, allocator_);
+            model_node_type(cur_node->level_, cur_node->parent_, max_key_length_, allocator_);
       } else if (!double_left_half &&
                  (1 << left_half_first_child->duplication_factor_) ==
                      cur_node->num_children_ / 2) {
         // pull up left child if all children in the left half are the same
         pull_up_left_child = true;
         right_split = new (model_node_allocator().allocate(1))
-            model_node_type(cur_node->level_, cur_node->parent, max_key_length_, allocator_);
+            model_node_type(cur_node->level_, cur_node->parent_, max_key_length_, allocator_);
       } else {
         left_split = new (model_node_allocator().allocate(1))
-            model_node_type(cur_node->level_, cur_node->parent, max_key_length_, allocator_);
+            model_node_type(cur_node->level_, cur_node->parent_, max_key_length_, allocator_);
         right_split = new (model_node_allocator().allocate(1))
-            model_node_type(cur_node->level_, cur_node->parent, max_key_length_, allocator_);
+            model_node_type(cur_node->level_, cur_node->parent_, max_key_length_, allocator_);
       }
 
       // Do the split
@@ -2451,7 +2451,7 @@ class Alex {
         left_split->children_ =
             new (pointer_allocator().allocate(left_split->num_children_))
                 AlexNode<P>*[left_split->num_children_];
-        for (int i = 0; i < max_key_length_; i++) {
+        for (unsigned int i = 0; i < max_key_length_; i++) {
           left_split->model_.a_[i] = cur_node->model_.a_[i] * 2;
         }
         left_split->model_.b_ = cur_node->model_.b_ * 2;
@@ -2475,7 +2475,7 @@ class Alex {
           right_split->children_ =
               new (pointer_allocator().allocate(right_split->num_children_))
                   AlexNode<P>*[right_split->num_children_];
-          for (int i = 0; i < max_key_length_; i++) {
+          for (unsigned int i = 0; i < max_key_length_; i++) {
             right_split->model_.a_[i] = cur_node->model_.a_[i];
           }
           right_split->model_.b_ =
@@ -2518,7 +2518,7 @@ class Alex {
           left_split->children_ =
               new (pointer_allocator().allocate(left_split->num_children_))
                   AlexNode<P>*[left_split->num_children_];
-          for (int i = 0; i < max_key_length_; i++) {
+          for (unsigned int i = 0; i < max_key_length_; i++) {
             left_split->model_.a_[i] = cur_node->model_.a_[i];
           }
           left_split->model_.b_ = cur_node->model_.b_;
@@ -2534,7 +2534,7 @@ class Alex {
         right_split->children_ =
             new (pointer_allocator().allocate(right_split->num_children_))
                 AlexNode<P>*[right_split->num_children_];
-        for (int i = 0; i < max_key_length_; i++) {
+        for (unsigned int i = 0; i < max_key_length_; i++) {
           right_split->model_.a_[i] = cur_node->model_.a_[i] * 2;
         }
         right_split->model_.b_ =
