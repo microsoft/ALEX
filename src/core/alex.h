@@ -901,7 +901,7 @@ class Alex {
         params_.approximate_cost_computation, &stats);
 
     // Recursively bulk load
-    bulk_load_node(values, num_keys, root_node_, num_keys,
+    bulk_load_node(values, num_keys, root_node_, nullptr, num_keys,
                    &root_data_node_model);
 
     if (root_node_->is_leaf_) {
@@ -966,7 +966,7 @@ class Alex {
   // data_node_model is what the node's model would be if it were a data node of
   // dense keys.
   void bulk_load_node(const V values[], int num_keys, AlexNode<P>*& node,
-                      int total_keys,
+                      AlexModelNode<P, Alloc>* parent, int total_keys,
                       const LinearModel* data_node_model = nullptr) {
     // Automatically convert to data node when it is impossible to be better
     // than current cost
@@ -976,6 +976,7 @@ class Alex {
       stats_.num_data_nodes++;
       auto data_node = new (data_node_allocator().allocate(1))
           data_node_type(node->level_, derived_params_.max_data_node_slots,
+                         node->max_key_length_, this->key_type_, parent,
                          key_less_, allocator_);
       data_node->bulk_load(values, num_keys, data_node_model,
                            params_.approximate_model_computation);
@@ -1014,7 +1015,7 @@ class Alex {
       // Convert to model node based on the output of the fanout tree
       stats_.num_model_nodes++;
       auto model_node = new (model_node_allocator().allocate(1))
-          model_node_type(node->level_, max_key_length_, node, allocator_);
+          model_node_type(node->level_, parent, max_key_length_, allocator_);
       if (best_fanout_tree_depth == 0) {
         // slightly hacky: we assume this means that the node is relatively
         // uniform but we need to split in
@@ -1035,7 +1036,7 @@ class Alex {
             params_.approximate_cost_computation);
       }
       int fanout = 1 << best_fanout_tree_depth;
-      for (int i = 0; i < node->model_.a_.max_key_length_; i++) {
+      for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
         model_node->model_.a_[i] = node->model_.a_[i] * fanout;
       }
       model_node->model_.b_ = node->model_.b_ * fanout;
@@ -1043,8 +1044,8 @@ class Alex {
       model_node->children_ =
           new (pointer_allocator().allocate(fanout)) AlexNode<P>*[fanout];
       //min/max key setup. Note that input datas of this function is sorted.
-      model_node->Mnode_min_key = new double[max_key_length_];
-      model_node->Mnode_max_key = new double[max_key_length_];
+      model_node->Mnode_min_key_ = new double[max_key_length_];
+      model_node->Mnode_max_key_ = new double[max_key_length_];
       if (values[0].first.key_arr_ != nullptr) {
       std::copy(values[0].first.key_arr_, values[0].first.key_arr_ + max_key_length_,
         model_node->Mnode_min_key_);
@@ -1059,7 +1060,7 @@ class Alex {
       int idx = 0;
       for (fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {
         auto child_node = new (model_node_allocator().allocate(1))
-            model_node_type(static_cast<short>(node->level_ + 1), max_key_length_, node, allocator_);
+            model_node_type(static_cast<short>(node->level_ + 1), model_node, max_key_length_, allocator_);
         child_node->cost_ = tree_node.cost;
         child_node->duplication_factor_ =
             static_cast<uint8_t>(best_fanout_tree_depth - tree_node.level);
@@ -1071,35 +1072,34 @@ class Alex {
         // Then assumes those are the left/right boundary.
         double *left_boundary;
         double *right_boundary;
-        for (idx; idx < num_keys; idx++) {
+        for (; idx < num_keys; idx++) {
           if (node->model_.predict(values[idx].first) >= left_value) {
-            left_boundary = values[idx].first;
+            left_boundary = values[idx].first.key_arr_;
             break;
           }
         }
-        for (idx; idx < num_keys; idx++) {
+        for (; idx < num_keys; idx++) {
           if (node->model_.predict(values[idx].first) >= right_value) {
-            right_boundary = values[idx].first;
+            right_boundary = values[idx].first.key_arr_;
             break;
           }
         }
 
-        double *direction_vector_[child_node->max_key_length_] = {0.0};
-        double t_inverse_ = 0.0;
-        for (int i = 0; i < child_node->max_key_length_; i++) {
+        double direction_vector_[child_node->max_key_length_] = {0.0};
+        for (unsigned int i = 0; i < child_node->max_key_length_; i++) {
           direction_vector_[i] = right_boundary[i] - left_boundary[i];
         }
-        child_node->b_ = 0.0;
-        for (int i = 0; i < max_key_length_; i++) {
-          child_node->a_[i] = 1 / direction_vector_[i];
-          child_node->b_ += (1 / direction_vector_[i]) * left_boundary[i];
+        child_node->model_.b_ = 0.0;
+        for (unsigned int i = 0; i < max_key_length_; i++) {
+          child_node->model_.a_[i] = 1 / direction_vector_[i];
+          child_node->model_.b_ += (1 / direction_vector_[i]) * left_boundary[i];
         }
 
         model_node->children_[cur] = child_node;
         LinearModel child_data_node_model(tree_node.a, tree_node.b, max_key_length_);
         bulk_load_node(values + tree_node.left_boundary,
                        tree_node.right_boundary - tree_node.left_boundary,
-                       model_node->children_[cur], total_keys,
+                       model_node->children_[cur], model_node, total_keys,
                        &child_data_node_model);
         model_node->children_[cur]->duplication_factor_ =
             static_cast<uint8_t>(best_fanout_tree_depth - tree_node.level);
