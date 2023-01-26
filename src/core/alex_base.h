@@ -159,7 +159,7 @@ class LinearModel {
 
   //helper for find_best_fanout_existing_node
   //calculate the smallest double array resulting to result.
-  void find_minimum (double *start, int result, double *container, int key_type) {
+  void find_minimum (double *start, int result, double *container, int key_type) const {
     if (key_type != STRING) {
       container[0] = (result - b_) / a_[0];
     }
