@@ -1075,8 +1075,8 @@ class Alex {
         // NOTE THAT THIS IMPLEMENTATION MAY BE WRONG
         // It tries to find the first value larg eo requal to left / right value.
         // Then assumes those are the left/right boundary.
-        double *left_boundary;
-        double *right_boundary;
+        double *left_boundary = istats_.key_domain_min_;
+        double *right_boundary = istats_.key_domain_max_;
         for (; idx < num_keys; idx++) {
           if (node->model_.predict(values[idx].first) >= left_value) {
             left_boundary = values[idx].first.key_arr_;
@@ -1128,7 +1128,7 @@ class Alex {
       stats_.num_data_nodes++;
       auto data_node = new (data_node_allocator().allocate(1))
           data_node_type(node->level_, derived_params_.max_data_node_slots,
-                         max_key_length_, key_type_, node,
+                         max_key_length_, key_type_, parent,
                          key_less_, allocator_);
       data_node->bulk_load(values, num_keys, data_node_model,
                            params_.approximate_model_computation);
@@ -1146,7 +1146,7 @@ class Alex {
       bool reuse_model = false, bool keep_left = false,
       bool keep_right = false) {
     auto node = new (data_node_allocator().allocate(1))
-        data_node_type(max_key_length_, key_type_, existing_node->parent, key_less_, allocator_);
+        data_node_type(max_key_length_, key_type_, existing_node->parent_, key_less_, allocator_);
     stats_.num_data_nodes++;
     if (tree_node) {
       // Use the model and num_keys saved in the tree node so we don't have to
@@ -1645,7 +1645,7 @@ class Alex {
     else {
       //convert size (double value) to string-like array
       double size_to_arr[max_key_length_] = {0.0};
-      for (int i = 0; i < max_key_length_; i++) {
+      for (unsigned int i = 0; i < max_key_length_; i++) {
         double iter = pow(35, max_key_length_ - i - 1);
         size_to_arr[i] = size / iter;
         while (size > iter) {
@@ -1654,7 +1654,7 @@ class Alex {
       }
 
       //subtract string.
-      for (int i = 0; i < max_key_length_; i++) {
+      for (unsigned int i = 0; i < max_key_length_; i++) {
         target[i] -= size_to_arr[i];
         if (target[i] < 0) {
           assert(i > 0);
@@ -1674,7 +1674,7 @@ class Alex {
     else {
       //convert size (double value) to string-like array
       double size_to_arr[max_key_length_] = {0.0};
-      for (int i = 0; i < max_key_length_; i++) {
+      for (unsigned int i = 0; i < max_key_length_; i++) {
         double iter = pow(35, max_key_length_ - i - 1);
         size_to_arr[i] = size / iter;
         while (size > iter) {
@@ -1683,7 +1683,7 @@ class Alex {
       }
 
       //add string.
-      for (int i = 0; i < max_key_length_; i++) {
+      for (unsigned int i = 0; i < max_key_length_; i++) {
         target[i] += size_to_arr[i];
         if (target[i] > 35) {
           assert(i > 0);
@@ -1706,7 +1706,7 @@ class Alex {
     // NEED TO MODIFY SEVERAL CODES BELOW FOR DOUBLE ARRAYS.
     // This may need additional modification. beware.
     // When modifying, please try to preserve the integer/double keys semantics.
-    double domain_size;
+    double domain_size = 0.0;
     for (unsigned int i = 0; i < max_key_length_; i++) {
       /* this needs to be fixed for lexiographic. 
        * we need to give weights for the first alphabet
@@ -1724,14 +1724,14 @@ class Alex {
         new_domain_max);
     data_node_type* outermost_node;
     if (expand_left) {
-      double *min_key;
       double *cur_min_key = get_min_key();
+      double *min_key = cur_min_key;
       /* weighted expansion rate similar to above lexiographic is also needed here. */
       for (unsigned int i = 0; i < max_key_length_; i++) {
-        if (key.key_arr_[i] < cur_min_key[i]) {min_key = key.key_arr_;}
-        else if (key.key_arr_[i] > cur_min_key[i]) {min_key = cur_min_key;}
+        if (key.key_arr_[i] < cur_min_key[i]) {min_key = key.key_arr_; break;}
+        else if (key.key_arr_[i] > cur_min_key[i]) {break;}
       }
-      double key_difference;
+      double key_difference = 0.0;
       for (unsigned int i = 0; i < max_key_length_; i++) {
         key_difference += istats_.key_domain_min_[i] - min_key[i] 
           * pow(35, max_key_length_ - i - 1);
@@ -1787,14 +1787,14 @@ class Alex {
       outermost_node = first_data_node();
     }
     else {
-      double *max_key;
       double *cur_max_key = get_max_key();
+      double *max_key = cur_max_key;
       /* weighted expansion rate similar to above lexiographic is also needed here. */
       for (unsigned int i = 0; i < max_key_length_; i++) {
-        if (key.key_arr_[i] < cur_max_key[i]) {max_key = cur_max_key;}
-        else if (key.key_arr_[i] > cur_max_key[i]) {max_key = cur_max_key;}
+        if (key.key_arr_[i] < cur_max_key[i]) {break;}
+        else if (key.key_arr_[i] > cur_max_key[i]) {max_key = key.key_arr_; break;}
       }
-      double key_difference;
+      double key_difference = 0.0;
       for (unsigned int i = 0; i < max_key_length_; i++) {
         key_difference += max_key[i] - istats_.key_domain_max_[i] 
           * pow(35, max_key_length_ - i - 1);
@@ -2175,19 +2175,19 @@ class Alex {
 
     bool append_mostly_right = old_node->is_append_mostly_right();
     int appending_right_bucketID = std::min<int>(
-        std::max<int>(parent->model_.predict(old_node->max_key_), 0),
+        std::max<int>(parent->model_.predict(*(old_node->max_key_)), 0),
         parent->num_children_ - 1);
     bool append_mostly_left = old_node->is_append_mostly_left();
     int appending_left_bucketID = std::min<int>(
-        std::max<int>(parent->model_.predict(old_node->min_key_), 0),
+        std::max<int>(parent->model_.predict(*(old_node->min_key_)), 0),
         parent->num_children_ - 1);
 
-    int right_boundary = old_node->lower_bound(old_node->mid_key_);
+    int right_boundary = old_node->lower_bound(*(old_node->mid_key_));
     // Account for off-by-one errors due to floating-point precision issues.
-    while (right_boundary < old_node->data_capacity_ &&
-           old_node->get_key(right_boundary) != data_node_type::kEndSentinel_ &&
-           parent->model_.predict(old_node->get_key(right_boundary)) <
-               mid_bucketID) {
+    while (right_boundary < old_node->data_capacity_) {
+      AlexKey old_rbkey = old_node->get_key(right_boundary);
+      if (!key_equal(old_rbkey, old_node->kEndSentinel_)) {break;}
+      if (parent->model_.predict(old_node->get_key(right_boundary)) < mid_bucketID) {break;}
       right_boundary = std::min(
           old_node->get_next_filled_position(right_boundary, false) + 1,
           old_node->data_capacity_);
@@ -2233,11 +2233,11 @@ class Alex {
       int start_bucketID = 0, int extra_duplication_factor = 0) {
     bool append_mostly_right = old_node->is_append_mostly_right();
     int appending_right_bucketID = std::min<int>(
-        std::max<int>(parent->model_.predict(old_node->max_key_), 0),
+        std::max<int>(parent->model_.predict(*(old_node->max_key_)), 0),
         parent->num_children_ - 1);
     bool append_mostly_left = old_node->is_append_mostly_left();
     int appending_left_bucketID = std::min<int>(
-        std::max<int>(parent->model_.predict(old_node->min_key_), 0),
+        std::max<int>(parent->model_.predict(*(old_node->min_key_)), 0),
         parent->num_children_ - 1);
 
     // Create the new data nodes
@@ -2262,11 +2262,11 @@ class Alex {
       // Account for off-by-one errors due to floating-point precision issues.
       tree_node.num_keys -= num_reassigned_keys;
       num_reassigned_keys = 0;
-      while (right_boundary < old_node->data_capacity_ &&
-             old_node->get_key(right_boundary) !=
-                 data_node_type::kEndSentinel_ &&
-             parent->model_.predict(old_node->get_key(right_boundary)) <
-                 cur + child_node_repeats) {
+      while (right_boundary < old_node->data_capacity_) {
+        AlexKey old_node_rbkey = old_node->get_key(right_boundary);
+        if (!key_equal(old_node_rbkey, old_node->kEndSentinel_)) {break;}
+        if (parent->model_.predict(old_node->get_key(right_boundary)) <
+                 cur + child_node_repeats) {break;}
         num_reassigned_keys++;
         right_boundary = std::min(
             old_node->get_next_filled_position(right_boundary, false) + 1,

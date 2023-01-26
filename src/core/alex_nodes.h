@@ -527,7 +527,7 @@ class AlexDataNode : public AlexNode<P> {
   }
 
   AlexDataNode(short level, int max_data_node_slots,
-               unsigned int max_key_length, int key_type, basic_node_type *parent,
+               unsigned int max_key_length, int key_type, model_node_type *parent,
                const Compare& comp = Compare(), const Alloc& alloc = Alloc())
       : AlexNode<P>(level, true, parent, max_key_length),
         key_less_(comp),
@@ -1113,7 +1113,7 @@ class AlexDataNode : public AlexNode<P> {
     } else {
       model.max_key_length_ = existing_model->max_key_length_;
       model.a_ = new double[model.max_key_length_];
-      for (int i = 0; i < model.max_key_length_; i++) {
+      for (unsigned int i = 0; i < model.max_key_length_; i++) {
         model.a_[i] = existing_model->a_[i];
       }
       model.b_ = existing_model->b_;
@@ -1301,7 +1301,7 @@ class AlexDataNode : public AlexNode<P> {
       num_actual_keys = node->num_keys_in_range(left, right);
       model.max_key_length_ = existing_model->max_key_length_;
       model.a_ = new double[model.max_key_length_];
-      for (int i = 0; i < model.max_key_length_; i++) {
+      for (unsigned int i = 0; i < model.max_key_length_; i++) {
         model.a_[i] = existing_model->a_[i];
       }
       model.b_ = existing_model->b_;
@@ -1662,7 +1662,7 @@ class AlexDataNode : public AlexNode<P> {
                  static_cast<double>(data_capacity_));
     contraction_threshold_ = data_capacity_ * kMinDensity_;
 
-    AlexModelNode<P, Alloc> *cur_parent = this->parent;
+    AlexModelNode<P, Alloc> *cur_parent = this->parent_;
     while (cur_parent != nullptr) {
       char no_chg = 1;
       if (cur_parent->Mnode_min_key_ == nullptr) {
@@ -1689,14 +1689,14 @@ class AlexDataNode : public AlexNode<P> {
       }
       if (cur_parent->Mnode_max_key_ == nullptr) {
         cur_parent->Mnode_max_key_ = new double[cur_parent->max_key_length_];
-        for (int i = 0; i < cur_parent->max_key_length_; i++) {
+        for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
           cur_parent->Mnode_max_key_[i] = max_key_->key_arr_[i];
         }
         no_chg = 0;
       }
       else {
         char need_chg = 0;
-        for (int i = 0; i < cur_parent->max_key_length_; i++) {
+        for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
           if (cur_parent->Mnode_max_key_[i] < max_key_->key_arr_[i]) {
             need_chg = 1;
             no_chg = 0;
@@ -1704,7 +1704,7 @@ class AlexDataNode : public AlexNode<P> {
           }
         }
         if (need_chg) {
-          for (int i = 0; i < cur_parent->max_key_length_; i++) {
+          for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
             cur_parent->Mnode_max_key_[i] = max_key_->key_arr_[i];
           }
         }
@@ -2697,13 +2697,18 @@ class AlexDataNode : public AlexNode<P> {
       next_key = ALEX_DATA_NODE_KEY_AT(pos);
     }
     pos--;
+    double *prev_key_arr_ = nullptr;
     while (pos >= 0 &&
            key_greaterequal(ALEX_DATA_NODE_KEY_AT(pos), start_key)) {
-      delete ALEX_DATA_NODE_KEY_AT(pos);
+      double *cur_arr_ = ALEX_DATA_NODE_KEY_AT(pos).key_arr_;
+      if ((cur_arr_ != nullptr) && (cur_arr_ != prev_key_arr_)) {
+        delete cur_arr_;
+      }
       ALEX_DATA_NODE_KEY_AT(pos) = next_key;
       num_erased += check_exists(pos);
       unset_bit(pos);
       pos--;
+      prev_key_arr_ = cur_arr_;
     }
 
     num_keys_ -= num_erased;

@@ -120,11 +120,11 @@ double compute_level(const std::pair<AlexKey, P> values[], int num_keys,
   int fanout = 1 << level;
   double cost = 0.0;
   double a[node->model_.max_key_length_] = {0.0};
-  for (int i = 0; i < node->model_.max_key_length_; i++) {
+  for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
     a[i] = node->model_.a_[i] * fanout;
   }
   double b = node->model_.b_ * fanout;
-  LinearModel newLModel = LinearModel(a, b, node->model_.max_key_length_);
+  LinearModel newLModel(a, b, node->model_.max_key_length_);
   int left_boundary = 0;
   int right_boundary = 0;
   for (int i = 0; i < fanout; i++) {
@@ -158,7 +158,7 @@ double compute_level(const std::pair<AlexKey, P> values[], int num_keys,
           {level, i, 0, left_boundary, right_boundary, false, 0, 0, slope, 0, 0});
       continue;
     }
-    LinearModel model = LinearModel(node->model_.max_key_length_);
+    LinearModel model(node->model_.max_key_length_);
     AlexDataNode<P>::build_model(values + left_boundary,
                                     right_boundary - left_boundary, &model,
                                     approximate_model_computation);
@@ -276,11 +276,11 @@ std::pair<int, double> find_best_fanout_top_down(
     }
     std::vector<FTNode> new_level;
     double a[node->model_.max_key_length_] = {0.0};
-    for (int i = 0; i < node->model_.max_key_length_; i++) {
+    for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
       a[i] = node->model_.a_[i] * fanout;
     }
     double b = node->model_.b_ * fanout;
-    LinearModel newLModel = LinearModel(a, b, node->model_.max_key_length_);
+    LinearModel newLModel(a, b, node->model_.max_key_length_);
     double cost_savings_from_level = 0;
 
     for (FTNode& tree_node : fanout_tree[fanout_tree_level - 1]) {
@@ -305,7 +305,9 @@ std::pair<int, double> find_best_fanout_top_down(
                           tree_node.right_boundary};
       double node_costs[2];
       DataNodeStats node_stats[2];
-      LinearModel node_models[2] = {LinearModel(node->model_.max_key_length_)};
+      LinearModel node_models[2];
+      node_models[0].max_key_length_ = node->model_.max_key_length_;
+      node_models[1].max_key_length_ = node->model_.max_key_length_;
       for (int i = 0; i < 2; i++) {
         int left = boundaries[i];
         int right = boundaries[i + 1];
