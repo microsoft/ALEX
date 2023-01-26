@@ -2049,15 +2049,15 @@ class Alex {
     // Create the new model node that will replace the current data node
     int fanout = 1 << fanout_tree_depth;
     auto new_node = new (model_node_allocator().allocate(1))
-        model_node_type(leaf->level_, max_key_length_, parent, allocator_);
+        model_node_type(leaf->level_, parent, max_key_length_, allocator_);
     new_node->duplication_factor_ = leaf->duplication_factor_;
     new_node->num_children_ = fanout;
     new_node->children_ =
         new (pointer_allocator().allocate(fanout)) AlexNode<P>*[fanout];
     new_node->Mnode_min_key_ = new double[max_key_length_];
     new_node->Mnode_max_key_ = new double[max_key_length_];
-    double *first_k = leaf.first_key();
-    double *last_k = leaf.last_key();
+    double *first_k = leaf->first_key();
+    double *last_k = leaf->last_key();
     std::copy(new_node->Mnode_min_key_, new_node->Mnode_min_key_ + max_key_length_,
         first_k);
     std::copy(new_node->Mnode_max_key_, new_node->Mnode_max_key_ + max_key_length_,
@@ -2078,14 +2078,13 @@ class Alex {
     std::copy(parent->Mnode_max_key_, parent->Mnode_max_key_ + max_key_length_,
         right_boundary_value);
 
-    LinearModel base_model = LinearModel(max_key_length_);
+    LinearModel base_model(max_key_length_);
     double direction_vector_[max_key_length_] = {0.0};
-    double t_inverse_ = 0.0;
-    for (int i = 0; i < base_model.max_key_length_; i++) {
+    for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
       direction_vector_[i] = right_boundary_value[i] - left_boundary_value[i];
     }
     base_model.b_ = 0.0;
-    for (int i = 0; i < max_key_length_; i++) {
+    for (unsigned int i = 0; i < max_key_length_; i++) {
       base_model.a_[i] = 1 / direction_vector_[i] * fanout;
       base_model.b_ += (1 / direction_vector_[i]) * left_boundary_value[i];
     }
