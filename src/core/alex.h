@@ -239,7 +239,7 @@ class Alex {
     istats_.key_domain_min_ = new double[max_key_length_];
     istats_.key_domain_max_ = new double[max_key_length_];
     if (key_type_ == STRING) {
-      for (int i = 0; i < max_key_length; i++) {
+      for (unsigned int i = 0; i < max_key_length; i++) {
         istats_.key_domain_min_[0] = 0.0;
         istats_.key_domain_max_[i] = 127.0;
       }
@@ -880,13 +880,12 @@ class Alex {
 
     /* explanation in alex_fanout_tree.h, find_best_fanout_existing_node function. */
     root_node_->model_.a_ = new double[max_key_length_]();
-    double *direction_vector_[max_key_length_] = {0.0};
-    double t_inverse_ = 0.0;
-    for (int i = 0; i < max_key_length_; i++) {
+    double direction_vector_[max_key_length_] = {0.0};
+    for (unsigned int i = 0; i < max_key_length_; i++) {
       direction_vector_[i] = max_key.key_arr_[i] - min_key.key_arr_[i];
     }
     root_node_->model_.b_ = 0.0;
-    for (int i = 0; i < max_key_length_; i++) {
+    for (unsigned int i = 0; i < max_key_length_; i++) {
       root_node_->model_.a_[i] = 1 / direction_vector_[i];
       root_node_->model_.b_ += (1 / direction_vector_[i]) * min_key.key_arr_[i];
     }
@@ -1408,12 +1407,18 @@ class Alex {
   std::pair<Iterator, bool> insert(const AlexKey& key, const P& payload) {
     // If enough keys fall outside the key domain, expand the root to expand the
     // key domain
-    if (key > istats_.key_domain_max_) {
+    char larger_key = 0;
+    char smaller_key = 0;
+    for (unsigned int i = 0; i < key.max_key_length_; i++) {
+      if (key.key_arr_[i] > istats_.key_domain_max_[i]) {larger_key = 1; break;}
+      else if (key.key_arr_[i] < istats_.key_domain_max_[i]) {smaller_key = 1; break;}
+    }
+    if (larger_key) {
       istats_.num_keys_above_key_domain++;
       if (should_expand_right()) {
         expand_root(key, false);  // expand to the right
       }
-    } else if (key < istats_.key_domain_min_) {
+    } else if (smaller_key) {
       istats_.num_keys_below_key_domain++;
       if (should_expand_left()) {
         expand_root(key, true);  // expand to the left
