@@ -62,10 +62,10 @@ bool load_text_data(alex::AlexKey array[], int length, const std::string& file_p
   return true;
 }
 
-AlexKey* get_search_keys(AlexKey array[], int num_keys, int num_searches) {
+alex::AlexKey* get_search_keys(alex::AlexKey array[], int num_keys, int num_searches) {
   std::mt19937_64 gen(std::random_device{}());
   std::uniform_int_distribution<int> dis(0, num_keys - 1);
-  auto* keys = new AlexKey[num_searches];
+  auto* keys = new alex::AlexKey[num_searches];
   for (int i = 0; i < num_searches; i++) {
     int pos = dis(gen);
     keys[i] = array[pos];
@@ -73,8 +73,8 @@ AlexKey* get_search_keys(AlexKey array[], int num_keys, int num_searches) {
   return keys;
 }
 
-AlexKey* get_search_keys_zipf(AlexKey array[], int num_keys, int num_searches) {
-  auto* keys = new AlexKey[num_searches];
+alex::AlexKey* get_search_keys_zipf(alex::AlexKey array[], int num_keys, int num_searches) {
+  auto* keys = new alex::AlexKey[num_searches];
   ScrambledZipfianGenerator zipf_gen(num_keys);
   for (int i = 0; i < num_searches; i++) {
     int pos = zipf_gen.nextValue();
