@@ -2110,13 +2110,13 @@ class AlexDataNode : public AlexNode<P> {
     // Update stats
     num_keys_++;
     num_inserts_++;
-    if (key_less_(max_key_, key)) {
+    if (key_less_(*max_key_, key)) {
       for (unsigned int i = 0; i < this->max_key_length_; i++) {
         max_key_->key_arr_[i] = key.key_arr_[i];
       }
       num_right_out_of_bounds_inserts_++;
     }
-    if (key_less_(key, min_key_)) {
+    if (key_less_(key, *min_key_)) {
       for (unsigned int i = 0; i < this->max_key_length_; i++) {
         min_key_->key_arr_[i] = key.key_arr_[i];
       }
@@ -2165,7 +2165,7 @@ class AlexDataNode : public AlexNode<P> {
     }
 #endif
 
-    AlexModelNode<P, Alloc> *cur_parent = this->parent;
+    AlexModelNode<P, Alloc> *cur_parent = this->parent_;
     while (cur_parent != nullptr) {
       char no_chg = 1;
       if (cur_parent->Mnode_min_key_ == nullptr) {
