@@ -942,13 +942,12 @@ class Alex {
     istats_.num_keys_below_key_domain = 0;
 
     superroot_->model_.a_ = new double[max_key_length_]();
-    double *direction_vector_[max_key_length_] = {0.0};
-    double t_inverse_ = 0.0;
-    for (int i = 0; i < max_key_length_; i++) {
+    double direction_vector_[max_key_length_] = {0.0};
+    for (unsigned int i = 0; i < max_key_length_; i++) {
       direction_vector_[i] = istats_.key_domain_max_[i] - istats_.key_domain_min_[i];
     }
     superroot_->model_.b_ = 0.0;
-    for (int i = 0; i < max_key_length_; i++) {
+    for (unsigned int i = 0; i < max_key_length_; i++) {
       superroot_->model_.a_[i] = 1 / direction_vector_[i];
       superroot_->model_.b_ += (1 / direction_vector_[i]) * istats_.key_domain_min_[i];
     }
