@@ -74,10 +74,9 @@ class AlexNode {
   AlexNode(short level, bool is_leaf, self_type *parent)
       : level_(level), is_leaf_(is_leaf), parent_(parent) {}
   AlexNode(short level, bool is_leaf, 
-      self_type *parent, unsigned int max_key_length) 
-        : is_leaf_(is_leaf), level_(level), parent_(parent), max_key_length_(max_key_length) {
-    model_ = LinearModel(max_key_length);
-  }
+      model_node_type *parent, unsigned int max_key_length) 
+        : is_leaf_(is_leaf), level_(level), model_(max_key_length), 
+          max_key_length_(max_key_length), parent_(parent) {}
 
   AlexNode(const self_type& other)
       : is_leaf_(other.is_leaf_),
@@ -132,7 +131,7 @@ class AlexModelNode : public AlexNode<P> {
                          const Alloc& alloc = Alloc())
       : AlexNode<P>(level, false, parent), allocator_(alloc){}
   
-  explicit AlexModelNode(short level, basic_node_type *parent,
+  explicit AlexModelNode(short level, self_type *parent,
                          unsigned int max_key_length, const Alloc& alloc = Alloc())
       : AlexNode<P>(level, false, parent, max_key_length), allocator_(alloc) {}
 
@@ -362,6 +361,7 @@ class AlexDataNode : public AlexNode<P> {
  public:
   typedef std::pair<AlexKey, P> V;
   typedef AlexNode<P> basic_node_type;
+  typedef AlexModelNode<P, Alloc> model_node_type;
   typedef AlexDataNode<P, Compare, Alloc, allow_duplicates> self_type;
   typedef typename Alloc::template rebind<self_type>::other alloc_type;
   typedef typename Alloc::template rebind<AlexKey>::other key_alloc_type;
@@ -475,7 +475,7 @@ class AlexDataNode : public AlexNode<P> {
     kEndSentinel_.max_key_length_ = 1;
   }
 
-  explicit AlexDataNode(unsigned int max_key_length, int key_type, basic_node_type *parent,
+  explicit AlexDataNode(unsigned int max_key_length, int key_type, model_node_type *parent,
         const Compare& comp = Compare(), const Alloc& alloc = Alloc())
       : AlexNode<P>(0, true, parent, max_key_length), key_less_(comp), allocator_(alloc) {
     double *max_key_arr = new double[this->max_key_length_];
