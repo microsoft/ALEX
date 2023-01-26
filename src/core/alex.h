@@ -1450,12 +1450,12 @@ class Alex {
           // decide between no split (i.e., expand and retrain) or splitting in
           // 2
           fanout_tree_depth = fanout_tree::find_best_fanout_existing_node<P>(
-              parent, bucketID, stats_.num_keys, used_fanout_tree_nodes, 2);
+              parent, bucketID, stats_.num_keys, used_fanout_tree_nodes, 2, key_type_);
         } else if (experimental_params_.splitting_policy_method == 2) {
           // use full fanout tree to decide fanout
           fanout_tree_depth = fanout_tree::find_best_fanout_existing_node<P>(
               parent, bucketID, stats_.num_keys, used_fanout_tree_nodes,
-              derived_params_.max_fanout);
+              derived_params_.max_fanout, key_type_);
         }
         int best_fanout = 1 << fanout_tree_depth;
         stats_.cost_computation_time +=

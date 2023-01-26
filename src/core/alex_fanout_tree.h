@@ -119,7 +119,7 @@ double compute_level(const std::pair<AlexKey, P> values[], int num_keys,
                      bool approximate_cost_computation = false) {
   int fanout = 1 << level;
   double cost = 0.0;
-  double a[node->model_.max_key_length_]();
+  double a[node->model_.max_key_length_] = {0.0};
   for (int i = 0; i < node->model_.max_key_length_; i++) {
     a[i] = node->model_.a_[i] * fanout;
   }
@@ -153,8 +153,9 @@ double compute_level(const std::pair<AlexKey, P> values[], int num_keys,
       right_boundary++;
     }
     if (left_boundary == right_boundary) {
+      double *slope = new double[node->max_key_length_]();
       used_fanout_tree_nodes.push_back(
-          {level, i, 0, left_boundary, right_boundary, false, 0, 0, 0, 0, 0});
+          {level, i, 0, left_boundary, right_boundary, false, 0, 0, slope, 0, 0});
       continue;
     }
     LinearModel model = LinearModel(node->model_.max_key_length_);
@@ -208,8 +209,9 @@ std::pair<int, double> find_best_fanout_bottom_up(
   std::vector<double> fanout_costs;
   std::vector<std::vector<FTNode>> fanout_tree;
   fanout_costs.push_back(best_cost);
+  double *slope = new double[node->max_key_length_]();
   fanout_tree.push_back(
-      {{0, 0, best_cost, 0, num_keys, false, 0, 0, 0, 0, num_keys}});
+      {{0, 0, best_cost, 0, num_keys, false, 0, 0, slope, 0, num_keys}});
   for (int fanout = 2, fanout_tree_level = 1; fanout <= max_fanout;
        fanout *= 2, fanout_tree_level++) {
     std::vector<FTNode> new_level;
@@ -259,7 +261,8 @@ std::pair<int, double> find_best_fanout_top_down(
   // instead of complete levels at a time
   std::vector<std::vector<FTNode>> fanout_tree;
   double overall_cost = node->cost_ + kNodeLookupsWeight;
-  fanout_tree.push_back({{0, 0, overall_cost, 0, num_keys, true}});
+  double *slope = new double[node->max_key_length_]();
+  fanout_tree.push_back({{0, 0, overall_cost, 0, num_keys, true, 0, 0, slope, 0, 0}});
   int fanout_tree_level = 1;
   int fanout = 2;
   while (true) {
@@ -272,7 +275,7 @@ std::pair<int, double> find_best_fanout_top_down(
       break;
     }
     std::vector<FTNode> new_level;
-    double a[node->model_.max_key_length_]();
+    double a[node->model_.max_key_length_] = {0.0};
     for (int i = 0; i < node->model_.max_key_length_; i++) {
       a[i] = node->model_.a_[i] * fanout;
     }
@@ -302,7 +305,7 @@ std::pair<int, double> find_best_fanout_top_down(
                           tree_node.right_boundary};
       double node_costs[2];
       DataNodeStats node_stats[2];
-      LinearModel node_models(node->model_.max_key_length_)[2];
+      LinearModel node_models[2] = {LinearModel(node->model_.max_key_length_)};
       for (int i = 0; i < 2; i++) {
         int left = boundaries[i];
         int right = boundaries[i + 1];
@@ -368,7 +371,7 @@ template <class P>
 int find_best_fanout_existing_node(const AlexModelNode<P>* parent,
                                    int bucketID, int total_keys,
                                    std::vector<FTNode>& used_fanout_tree_nodes,
-                                   int max_fanout) {
+                                   int max_fanout, int key_type) {
   // Repeatedly add levels to the fanout tree until the overall cost of each
   // level starts to increase
   auto node = static_cast<AlexDataNode<P>*>(parent->children_[bucketID]);
@@ -386,22 +389,20 @@ int find_best_fanout_existing_node(const AlexModelNode<P>* parent,
 
   double left_boundary_value[parent->max_key_length_];
   double right_boundary_value[parent->max_key_length];
-  std::copy(parent->Mnode_min_key_, parent->Mnode_min_key_ + parent->max_key_length_, 
-      left_boundary_value);
-  std::copy(parent->Mnode_max_key_, parent->Mnode_max_key_ + parent->max_key_length_,
-      right_boundary_value);
+  parent->model_.find_minimum(parent->MNode_min_key_, start_bucketID, left_boundary_value, key_type);
+  parent->model_.find_minimum(left_boundary_value, end_bucketID, right_boundary_value, key_type);
 
   /* needs change compared to original since we now we need length-dimension realted line.
      * steps are like this
      * 1) obtain direction vector using min_key, max_key to find line going through those two.
      * 2) find t and v such that t(v(x-min_key)) = 0, and compute a_, b_ value. */
   LinearModel base_model = LinearModel(parent->model_.max_key_length_);
-  double *direction_vector_[max_key_length_]();
+  double *direction_vector_[parent->max_key_length_] = {0.0};
   double t_inverse_ = 0.0;
-  for (int i = 0; i < base_model.max_key_length_; i++) {
+  for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
     direction_vector_[i] = right_boundary_value[i] - left_boundary_value[i];
   }
-  for (int i = 0; i < max_key_length_; i++) {
+  for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
     base_model.a_[i] = 1 / direction_vector_[i];
     base_model.b_ += (1 / direction_vector_[i]) * left_boundary_value[i];
   }
@@ -410,7 +411,7 @@ int find_best_fanout_existing_node(const AlexModelNode<P>* parent,
        fanout *= 2, fanout_tree_level++) {
     std::vector<FTNode> new_level;
     double cost = 0.0;
-    double a[base_model.max_key_length_]();
+    double a[base_model.max_key_length_] = {0.0};
     for (int i = 0; i < base_model.max_key_length_; i++) {
       a[i] = base_model.a_[i] * fanout;
     }
@@ -420,18 +421,17 @@ int find_best_fanout_existing_node(const AlexModelNode<P>* parent,
     int right_boundary = 0;
     for (int i = 0; i < fanout; i++) {
       left_boundary = right_boundary;
-      if (i == fanout - 1) {right_boundary = num_keys;}
+      if (i == fanout - 1) {right_boundary = node->data_capacity_;}
       else {
-        char flag = 1;
-        for (int idx = 0; idx < num_keys; idx++) {
-          int predicted_pos = newLModel.predict(values[i].first);
-          if (predicted_pos >= i+1) {
-            flag = 0;
-            right_boundary = idx;
-            break;
-          }
-        }
-        if (flag) {right_boundary = num_keys;}
+        newLModel.find_minimum(left_boundary_value, i + 1, left_boundary_value, key_type);
+        AlexKey pos_find_key = AlexKey(left_boundary_value, node->max_key_length_);
+        right_boundary = node->lower_bound(pos_find_key);
+      }
+      if (left_boundary == right_boundary) {
+        double *slope = new double[parent->max_key_length_]();
+        new_level.push_back({fanout_tree_level, i, 0, left_boundary,
+                             right_boundary, false, 0, 0, slope, 0, 0});
+        continue;
       }
       int num_actual_keys = 0;
       LinearModel model = LinearModel(node->model_.max_key_length_);

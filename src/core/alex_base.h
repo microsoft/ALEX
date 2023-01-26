@@ -156,6 +156,33 @@ class LinearModel {
     }
     return result + b_;
   }
+
+  //helper for find_best_fanout_existing_node
+  //calculate the smallest double array resulting to result.
+  void find_minimum (double *start, int result, double *container, int key_type) {
+    if (key_type != STRING) {
+      container[0] = (result - b_) / a_[0];
+    }
+    else {
+      if (start != nullptr) {
+        std::copy(start, start + max_key_length_, container);
+      }
+      AlexKey tmpkey = AlexKey(container, max_key_length_);
+      while (container[0] != 36.0) {
+        if (predict(tmpkey) == result) {
+          break;
+        }
+        container[max_key_length_ - 1] += 1.0;
+        for (unsigned int i = max_key_length_ - 1; i > 0; i--) {
+          if (container [i] == 36.0) {
+            container[i] = 0.0;
+            container[i-1] += 1.0;
+          }
+          else {break;}
+        }
+      }
+    }
+  }
 };
 
 /* LinearModelBuilder acts very similar to XIndex model preparing. */
