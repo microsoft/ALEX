@@ -1763,7 +1763,7 @@ class AlexDataNode : public AlexNode<P> {
       builder.add(values[i].first, i);
     }
     builder.build();
-    double *prev_a[model->max_key_length_] = {0.0};
+    double prev_a[model->max_key_length_] = {0.0};
     for (unsigned int i = 0; i < model->max_key_length_; i++) {
       prev_a[i] = model->a_[i];
     }
@@ -1793,7 +1793,7 @@ class AlexDataNode : public AlexNode<P> {
       builder.build();
 
       double rel_change_in_a[model->max_key_length_] = {0.0};
-      for (int i = 0; i < model->max_key_length_; i++) {
+      for (unsigned int i = 0; i < model->max_key_length_; i++) {
         rel_change_in_a[i] = std::abs((model->a_[i] - prev_a[i]) / prev_a[i]);
       }
       double abs_change_in_b = std::abs(model->b_ - prev_b);
@@ -1811,7 +1811,14 @@ class AlexDataNode : public AlexNode<P> {
         std::cout << ", " << rel_change_in_b << ")"
                   << std::endl;
       }
-      if (rel_change_in_a < rel_change_threshold &&
+      char threshold = 1;
+      for (unsigned int i = 0; i < model->max_key_length_; i++) {
+        if (rel_change_in_a[i] > rel_change_threshold) {
+          threshold = 0;
+          break;
+        }
+      }
+      if (threshold &&
           (rel_change_in_b < rel_change_threshold ||
            abs_change_in_b < abs_change_threshold)) {
         return;
