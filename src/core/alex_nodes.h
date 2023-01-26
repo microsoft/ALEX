@@ -819,7 +819,7 @@ class AlexDataNode : public AlexNode<P> {
   }
 
   // True if a == b
-  template <class K>
+  //template <class K>
   forceinline bool key_equal(const AlexKey& a, const AlexKey& b) const {
     return !key_less_(a, b) && !key_less_(b, a);
   }
