@@ -653,20 +653,26 @@ class Alex {
         if (std::abs(bucketID_prediction - bucketID_prediction_rounded) <=
             tolerance) {
           if (bucketID_prediction_rounded <= bucketID_prediction) {
-            if (leaf->prev_leaf_ && leaf->prev_leaf_->last_key() >= key) {
-              if (traversal_path) {
-                // Correct the traversal path
-                correct_traversal_path(leaf, *traversal_path, true);
+            if (leaf->prev_leaf_) {
+              AlexKey tmp_key(leaf->prev_leaf_->last_key(), key.max_key_length_);
+              if (!key_less_(tmp_key, key)){
+                if (traversal_path) {
+                  // Correct the traversal path
+                  correct_traversal_path(leaf, *traversal_path, true);
+                }
+                return leaf->prev_leaf_;
               }
-              return leaf->prev_leaf_;
             }
           } else {
-            if (leaf->next_leaf_ && leaf->next_leaf_->first_key() <= key) {
-              if (traversal_path) {
-                // Correct the traversal path
-                correct_traversal_path(leaf, *traversal_path, false);
+            if (leaf->next_leaf_) {
+              AlexKey tmp_key(leaf->next_leaf_->first_key(), key.max_key_length_);
+              if (!key_less_(key, tmp_key)){
+                if (traversal_path) {
+                  // Correct the traversal path
+                  correct_traversal_path(leaf, *traversal_path, false);
+                }
+                return leaf->next_leaf_;
               }
-              return leaf->next_leaf_;
             }
           }
         }
