@@ -65,27 +65,52 @@ static const size_t desired_training_key_n_ = 10000000; /* desired training key 
 /*** MAY BE USED UNDER CIRCUMSTANCES ***/
 //extern unsigned int max_key_length;
 
-/* AlexKey
- * One important notice, the pointer given to AlexKey must be given by new.
- * Also, the pointer should not be manually deleted (it is deleted automatically) */
+/* AlexKey class. */
 class AlexKey {
  public:
   double *key_arr_ = nullptr;
-  unsigned int max_key_length_ = 0;
+  unsigned int max_key_length_ = 1;
 
-  AlexKey() = default;
+  AlexKey() {}
 
   AlexKey(double *key_arr, unsigned int max_key_length)
-      : key_arr_(key_arr), max_key_length_(max_key_length) {}
+      : max_key_length_(max_key_length) {
+    key_arr_ = new double[max_key_length_];
+    std::copy(key_arr, key_arr + max_key_length_, key_arr_);
+  }
 
   AlexKey(unsigned int max_key_length)
       : max_key_length_(max_key_length) {
+    key_arr_ = new double[max_key_length_]();
+  }
+
+  AlexKey(const AlexKey& copy)
+      : max_key_length_(copy.max_key_length_) {
+    key_arr_ = new double[max_key_length_]();
+    std::copy(copy.key_arr_, copy.key_arr_ + max_key_length_, key_arr_);
   }
 
   ~AlexKey() {
-    if (key_arr_ != nullptr) {
       delete[] key_arr_;
+  }
+
+  AlexKey& operator=(const AlexKey other) {
+    if (this != &other) {
+      delete []key_arr_;
+      max_key_length_ = other.max_key_length_;
+      key_arr_ = new double[other.max_key_length_];
+      std::copy(other.key_arr_, other.key_arr_ + other.max_key_length_, key_arr_);
     }
+    return *this;
+  }
+
+  bool operator< (const AlexKey& other) const {
+    assert(max_key_length_ == other.max_key_length_);
+    for (unsigned int i = 0; i < max_key_length_; i++) {
+      if (key_arr_[i] < other.key_arr_[i]) {return true;}
+      else if (key_arr_[i] > other.key_arr_[i]) {return false;}
+    }
+    return false;
   }
 
 };

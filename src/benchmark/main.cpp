@@ -92,17 +92,7 @@ int main(int argc, char* argv[]) {
   // Create ALEX and bulk load
   alex::Alex<PAYLOAD_TYPE> index(max_key_length, key_type);
   std::sort(values, values + init_num_keys,
-            [](auto const& a, auto const& b) {
-              auto key1 = a.first;
-              auto key2 = b.first;
-              assert(key1.max_key_length_ == key2.max_key_length_);
-              auto bound = key1.max_key_length_;
-              for (unsigned int i = 0; i < bound; i++) {
-                if (key1.key_arr_[i] < key2.key_arr_[i]) {return true;}
-                else if (key1.key_arr_[i] > key2.key_arr_[i]) {return false;}
-              }
-              return false;
-            });
+            [](auto const& a, auto const& b) {return a.first < b.first;});
   index.bulk_load(values, init_num_keys);
 
   // Run workload
@@ -217,6 +207,5 @@ int main(int argc, char* argv[]) {
             << cumulative_operations / cumulative_time * 1e9 << " ops/sec"
             << std::endl;
 
-  delete[] keys;
   delete[] values;
 }

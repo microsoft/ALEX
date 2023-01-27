@@ -365,17 +365,7 @@ class Alex {
       values.push_back(*it);
     }
     std::sort(values.begin(), values.end(),
-            [this](auto const& a, auto const& b) {
-              auto key1 = a.first;
-              auto key2 = b.first;
-              assert(key1.max_key_length_ == key2.max_key_length_);
-              auto bound = key1.max_key_length_;
-              for (unsigned int i = 0; i < bound; i++) {
-                if (key1.key_arr_[i] < key2.key_arr_[i]) {return true;}
-                else if (key1.key_arr_[i] > key2.key_arr_[i]) {return false;}
-              }
-              return false;
-            });
+            [this](auto const& a, auto const& b) {return a.first < b.first;});
     bulk_load(values.data(), static_cast<int>(values.size()));
   }
 
@@ -404,17 +394,7 @@ class Alex {
       values.push_back(*it);
     }
     std::sort(values.begin(), values.end(),
-            [this](auto const& a, auto const& b) {
-              auto key1 = a.first;
-              auto key2 = b.first;
-              assert(key1.max_key_length_ == key2.max_key_length_);
-              auto bound = key1.max_key_length_;
-              for (unsigned int i = 0; i < bound; i++) {
-                if (key1.key_arr_[i] < key2.key_arr_[i]) {return true;}
-                else if (key1.key_arr_[i] > key2.key_arr_[i]) {return false;}
-              }
-              return false;
-            });
+            [this](auto const& a, auto const& b) {return a.first < b.first;});
     bulk_load(values.data(), static_cast<int>(values.size()));
   }
 
@@ -434,17 +414,7 @@ class Alex {
       values.push_back(*it);
     }
     std::sort(values.begin(), values.end(),
-            [this](auto const& a, auto const& b) {
-              auto key1 = a.first;
-              auto key2 = b.first;
-              assert(key1.max_key_length_ == key2.max_key_length_);
-              auto bound = key1.max_key_length_;
-              for (unsigned int i = 0; i < bound; i++) {
-                if (key1.key_arr_[i] < key2.key_arr_[i]) {return true;}
-                else if (key1.key_arr_[i] > key2.key_arr_[i]) {return false;}
-              }
-              return false;
-            });
+            [this](auto const& a, auto const& b) {return a.first < b.first;});
     bulk_load(values.data(), static_cast<int>(values.size()));
   }
 
@@ -463,17 +433,7 @@ class Alex {
       values.push_back(*it);
     }
     std::sort(values.begin(), values.end(),
-            [this](auto const& a, auto const& b) {
-              auto key1 = a.first;
-              auto key2 = b.first;
-              assert(key1.max_key_length_ == key2.max_key_length_);
-              auto bound = key1.max_key_length_;
-              for (unsigned int i = 0; i < bound; i++) {
-                if (key1.key_arr_[i] < key2.key_arr_[i]) {return true;}
-                else if (key1.key_arr_[i] > key2.key_arr_[i]) {return false;}
-              }
-              return false;
-            });
+            [this](auto const& a, auto const& b) {return a.first < b.first;});
     bulk_load(values.data(), static_cast<int>(values.size()));
   }
 
