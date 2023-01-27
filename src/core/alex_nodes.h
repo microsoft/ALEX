@@ -1401,7 +1401,7 @@ class AlexDataNode : public AlexNode<P> {
                  const LinearModel* pretrained_model = nullptr,
                  bool train_with_sample = false) {
     /* minimal condition checking. */
-    if (num_keys != 0) {assert(values[0].first.max_key_length_ == max_key_length_);}
+    if (num_keys != 0) {assert(values[0].first.max_key_length_ == this->max_key_length_);}
     initialize(num_keys, kInitDensity_);
 
     if (num_keys == 0) {
@@ -1415,7 +1415,7 @@ class AlexDataNode : public AlexNode<P> {
 
     // Build model
     if (pretrained_model != nullptr) {
-      assert(pretrained_model->max_key_length_ == max_key_length_);
+      assert(pretrained_model->max_key_length_ == this->max_key_length_);
       this->model_.max_key_length_ = pretrained_model->max_key_length_;
       this->model_.a_ = new double[pretrained_model->max_key_length_];
       for (unsigned int i = 0; i < pretrained_model->max_key_length_; i++) {
@@ -1550,7 +1550,7 @@ class AlexDataNode : public AlexNode<P> {
       const LinearModel* precomputed_model = nullptr,
       int precomputed_num_actual_keys = -1) {
     assert(left >= 0 && right <= node->data_capacity_);
-    assert(node->max_key_length_ == max_key_length_);
+    assert(node->max_key_length_ == this->max_key_length_);
 
     // Build model
     int num_actual_keys = 0;
@@ -1563,7 +1563,7 @@ class AlexDataNode : public AlexNode<P> {
       }
       builder.build();
     } else {
-      assert(precomputed_model->max_key_length_ == max_key_length_);
+      assert(precomputed_model->max_key_length_ == this->max_key_length_);
       num_actual_keys = precomputed_num_actual_keys;
       this->model_.max_key_length_ = precomputed_model->max_key_length_;
       this->model_.a_ = new double[precomputed_model->max_key_length_];
