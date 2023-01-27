@@ -857,7 +857,7 @@ class Alex {
     }
 
     // Compute cost of root node
-    LinearModel root_data_node_model;
+    LinearModel root_data_node_model(max_key_length_);
     data_node_type::build_model(values, num_keys, &root_data_node_model,
                                 params_.approximate_model_computation);
     DataNodeStats stats;

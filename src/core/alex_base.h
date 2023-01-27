@@ -154,6 +154,17 @@ class LinearModel {
       }
   }
 
+  LinearModel& operator=(const LinearModel other) {
+    if (this != &other) {
+      delete []a_;
+      max_key_length_ = other.max_key_length_;
+      b_ = other.b_;
+      a_ = new double[other.max_key_length_];
+      std::copy(other.a_, other.a_ + other.max_key_length_, a_);
+    }
+    return *this;
+  }
+
   void expand(double expansion_factor) {
     assert(a_ != nullptr);
     for (unsigned int i = 0; i < max_key_length_; i++) {
