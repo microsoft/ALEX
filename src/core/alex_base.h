@@ -69,7 +69,7 @@ static const size_t desired_training_key_n_ = 10000000; /* desired training key 
 class AlexKey {
  public:
   double *key_arr_ = nullptr;
-  unsigned int max_key_length_ = 1;
+  unsigned int max_key_length_ = 0;
 
   AlexKey() {}
 
