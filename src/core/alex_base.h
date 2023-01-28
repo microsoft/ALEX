@@ -84,10 +84,10 @@ class AlexKey {
     key_arr_ = new double[max_key_length_]();
   }
 
-  AlexKey(const AlexKey& copy)
-      : max_key_length_(copy.max_key_length_) {
+  AlexKey(const AlexKey& other)
+      : max_key_length_(other.max_key_length_) {
     key_arr_ = new double[max_key_length_]();
-    std::copy(copy.key_arr_, copy.key_arr_ + max_key_length_, key_arr_);
+    std::copy(other.key_arr_, other.key_arr_ + max_key_length_, key_arr_);
   }
 
   ~AlexKey() {

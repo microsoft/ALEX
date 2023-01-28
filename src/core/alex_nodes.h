@@ -166,6 +166,27 @@ class AlexModelNode : public AlexNode<P> {
     }
   }
 
+  self_type& operator=(const self_type other) {
+    this->is_leaf_ = other.is_leaf_;
+    this->duplication_factor_ = other.duplication_factor_;
+    this->level_ = other.level_;
+    this->model_ = other.model_;
+    this->max_key_length_ = other.max_key_length_;
+    this->cost_ = other.cost_;
+    this->parent_ = other.parent_;
+
+    allocator_ = other.allocator_;
+    num_children_ = other.num_children_;
+
+    children_ = new AlexNode<P>*[other.num_children_];
+    std::copy(other.children_, other.children_ + other.num_children_, children_);
+
+    Mnode_max_key_ = new double[other.max_key_length_];
+    Mnode_min_key_ = new double[other.max_key_length_];
+    std::copy(other.Mnode_max_key_, other.Mnode_max_key_ + other.max_key_length_, Mnode_max_key_);
+    std::copy(other.Mnode_min_key_, other.Mnode_min_key_ + other.max_key_length_, Mnode_min_key_); 
+  }
+
   // Given a key, traverses to the child node responsible for that key
   inline AlexNode<P>* get_child_node(const AlexKey& key) {
     int bucketID = this->model_.predict(key);
@@ -633,7 +654,6 @@ class AlexDataNode : public AlexNode<P> {
     double *max_key_arr = new double[this->max_key_length_];
     double *mid_key_arr = new double[this->max_key_length_];
     double *min_key_arr = new double[this->max_key_length_];
-    double *kEndSentinel_arr = new double[this->max_key_length_];
     double *the_max_key_arr = new double[this->max_key_length_];
     double *the_min_key_arr = new double[this->max_key_length_];
     std::copy(other.max_key_->key_arr_, other.max_key_->key_arr_ + this->max_key_length_,
@@ -642,8 +662,6 @@ class AlexDataNode : public AlexNode<P> {
         min_key_arr);
     std::copy(other.mid_key_->key_arr_, other.mid_key_->key_arr_ + this->max_key_length_,
         mid_key_arr);
-    std::copy(other.kEndSentinel_.key_arr_, other.kEndSentinel_.key_arr_ + this->max_key_length_,
-        kEndSentinel_arr);
     std::copy(other.the_max_key_arr_, other.the_max_key_arr_ + this->max_key_length_,
         the_max_key_arr);
     std::copy(other.the_min_key_arr_, other.the_min_key_arr_ + this->max_key_length_,
@@ -651,8 +669,7 @@ class AlexDataNode : public AlexNode<P> {
     max_key_ = new AlexKey(max_key_arr, this->max_key_length_);
     min_key_ = new AlexKey(min_key_arr, this->max_key_length_);
     mid_key_ = new AlexKey(mid_key_arr, this->max_key_length_);
-    kEndSentinel_.key_arr_ = kEndSentinel_arr;
-    kEndSentinel_.max_key_length_ = this->max_key_length_;
+    kEndSentinel_ = other.kEndSentinel_;
     the_max_key_arr_ = the_max_key_arr;
     the_min_key_arr_ = the_min_key_arr;
 
