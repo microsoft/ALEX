@@ -845,12 +845,10 @@ class Alex {
     AlexKey max_key = values[num_keys - 1].first;
 
     /* explanation in alex_fanout_tree.h, find_best_fanout_existing_node function. */
-    root_node_->model_.a_ = new double[max_key_length_]();
     double direction_vector_[max_key_length_] = {0.0};
     for (unsigned int i = 0; i < max_key_length_; i++) {
       direction_vector_[i] = max_key.key_arr_[i] - min_key.key_arr_[i];
     }
-    root_node_->model_.b_ = 0.0;
     for (unsigned int i = 0; i < max_key_length_; i++) {
       root_node_->model_.a_[i] = 1 / direction_vector_[i];
       root_node_->model_.b_ += (1 / direction_vector_[i]) * min_key.key_arr_[i];
@@ -1690,7 +1688,7 @@ class Alex {
       for (unsigned int i = 0; i < max_key_length_; i++) {
         if (key.key_arr_[i] < cur_min_key[i]) {min_key = key.key_arr_; break;}
         else if (key.key_arr_[i] > cur_min_key[i]) {break;}
-      }
+      } 
       double key_difference = 0.0;
       for (unsigned int i = 0; i < max_key_length_; i++) {
         key_difference += istats_.key_domain_min_[i] - min_key[i] 
@@ -2034,9 +2032,14 @@ class Alex {
     double left_boundary_value[max_key_length_];
     double right_boundary_value[max_key_length_];
 
-    std::copy(parent->Mnode_min_key_, parent->Mnode_min_key_ + max_key_length_, left_boundary_value);
-    std::copy(parent->Mnode_max_key_, parent->Mnode_max_key_ + max_key_length_,
-        right_boundary_value);
+    if (parent == superroot_) {
+      std::copy(istats_.key_domain_min_, istats_.key_domain_min_ + max_key_length_, left_boundary_value);
+      std::copy(istats_.key_domain_max_, istats_.key_domain_max_ + max_key_length_, right_boundary_value);
+    }
+    else if (parent != nullptr) {
+      std::copy(parent->Mnode_min_key_, parent->Mnode_min_key_ + max_key_length_, left_boundary_value);
+      std::copy(parent->Mnode_max_key_, parent->Mnode_max_key_ + max_key_length_, right_boundary_value);
+    }
 
     LinearModel base_model(max_key_length_);
     double direction_vector_[max_key_length_] = {0.0};

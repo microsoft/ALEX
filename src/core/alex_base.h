@@ -228,7 +228,7 @@ class LinearModelBuilder {
 
   LinearModelBuilder (LinearModel* model) : model_(model) {}
 
-  inline void add(AlexKey x, int y) {
+  inline void add(const AlexKey& x, int y) {
     assert(model_->max_key_length_ == x.max_key_length_);
     training_keys_.push_back(x.key_arr_);
     positions_.push_back(y);
