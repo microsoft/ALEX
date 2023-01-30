@@ -208,4 +208,5 @@ int main(int argc, char* argv[]) {
             << std::endl;
 
   delete[] values;
+  delete[] keys;
 }

@@ -96,7 +96,7 @@ class AlexKey {
 
   AlexKey& operator=(const AlexKey other) {
     if (this != &other) {
-      delete []key_arr_;
+      delete[] key_arr_;
       max_key_length_ = other.max_key_length_;
       key_arr_ = new double[other.max_key_length_];
       std::copy(other.key_arr_, other.key_arr_ + other.max_key_length_, key_arr_);
