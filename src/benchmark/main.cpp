@@ -72,6 +72,7 @@ int main(int argc, char* argv[]) {
 
   // Read keys from file
   // PROBLEM : USING ASSERT DOESN'T CALL BELOW FUNCTIONS. NEEDTO FIND OUT WHY.
+  // ANSWER : Cmake build type is release, assert is not called (...)
   if (keys_file_type == "binary") {
     load_binary_data(keys, total_num_keys, keys_file_path, max_key_length, key_type);
   } else if (keys_file_type == "text") {
