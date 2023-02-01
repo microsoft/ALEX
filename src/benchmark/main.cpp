@@ -31,8 +31,9 @@
  * lookups)
  * --lookup_distribution    lookup keys distribution (options: uniform or zipf)
  * --time_limit             time limit, in minutes
- * --max_key_length             length of key for string type keys.
+ * --max_key_length         length of key for string type keys.
  * --print_batch_stats      whether to output stats for each batch
+ * --print_key_stats        key related stat print
  */
 int main(int argc, char* argv[]) {
   auto flags = parse_flags(argc, argv);
@@ -48,6 +49,7 @@ int main(int argc, char* argv[]) {
   auto time_limit = stod(get_with_default(flags, "time_limit", "0.5"));
   auto max_key_length = (unsigned int) stoul(get_with_default(flags, "max_key_length", "1"));
   bool print_batch_stats = get_boolean_flag(flags, "print_batch_stats");
+  bool print_key_stats = get_boolean_flag(flags, "print_key_stats");
 
   // obtain type of key.
   int key_type;
@@ -89,7 +91,14 @@ int main(int argc, char* argv[]) {
   for (int i = 0; i < init_num_keys; i++) {
     values[i].first = keys[i];
     values[i].second = static_cast<PAYLOAD_TYPE>(gen_payload());
-    //std::cout << "inserted key : " << values[i].first.key_arr_[0] << ", payload : " << values[i].second << std::endl;
+    if (print_key_stats) {
+      std::cout << "inserted key : ";
+      for (unsigned int j = 0; j < max_key_length; j++) {
+        if (key_type == STRING) {std::cout << (char) values[i].first.key_arr_[j];}
+        else {std::cout << values[i].first.key_arr_[j];}
+      } 
+      std::cout << ", payload : " << values[i].second << std::endl;
+    }
   }
 
   // Create ALEX and bulk load
@@ -132,9 +141,16 @@ int main(int argc, char* argv[]) {
       for (int j = 0; j < num_lookups_per_batch; j++) {
         alex::AlexKey key = lookup_keys[j];
         PAYLOAD_TYPE* payload = index.get_payload(key);
-        //std::cout << "lookup key : " << lookup_keys[j].key_arr_[0] << ", payload : " << *payload << std::endl;
-        if (payload) {
-          sum += *payload;
+        if (print_key_stats) {
+          std::cout << "lookup key : ";
+          for (unsigned int k = 0; k < max_key_length; k++) {
+            if (key_type == STRING) {std::cout << (char) lookup_keys[j].key_arr_[k];}
+            else {std::cout << lookup_keys[j].key_arr_[k];}
+          }
+          std::cout << ", payload : " << *payload << std::endl;
+          if (payload) {
+            sum += *payload;
+          }
         }
       }
       auto lookups_end_time = std::chrono::high_resolution_clock::now();
@@ -153,7 +169,14 @@ int main(int argc, char* argv[]) {
     auto inserts_start_time = std::chrono::high_resolution_clock::now();
     for (; i < num_keys_after_batch; i++) {
       index.insert(keys[i], static_cast<PAYLOAD_TYPE>(gen_payload()));
-      //std::cout << "insert key : " << keys[i].key_arr_[0] << std::endl;
+      if (print_key_stats) {
+        std::cout << "inserting key : ";
+        for (unsigned int j = 0; j < max_key_length; j++) {
+          if (key_type == STRING) {std::cout << (char) keys[i].key_arr_[j];}
+          else {std::cout << keys[i].key_arr_[j];}
+        }
+        std::cout << std::endl;
+      }
     }
     auto inserts_end_time = std::chrono::high_resolution_clock::now();
     double batch_insert_time =
