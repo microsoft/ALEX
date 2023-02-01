@@ -87,8 +87,7 @@ class AlexNode {
         parent_(other.parent_) {
     model_ = LinearModel(other.max_key_length_);
     if (other.model_.a_ != nullptr) {
-      model_.a_ = new double[max_key_length_]();
-      for (int i = 0; i < max_key_length_; i++) {
+      for (int i = 0; i < other.max_key_length_; i++) {
         model_.a_[i] = other.model_.a_[i];
       }
     }
@@ -162,7 +161,7 @@ class AlexModelNode : public AlexNode<P> {
     }
   }
 
-  self_type& operator=(const self_type other) {
+  self_type& operator=(const self_type& other) {
     this->is_leaf_ = other.is_leaf_;
     this->duplication_factor_ = other.duplication_factor_;
     this->level_ = other.level_;
@@ -174,7 +173,7 @@ class AlexModelNode : public AlexNode<P> {
     allocator_ = other.allocator_;
     num_children_ = other.num_children_;
 
-    // umm... shouldn't we deallocate?
+    pointer_allocator().deallocate(children_, num_children_);
     children_ = new AlexNode<P>*[other.num_children_];
     std::copy(other.children_, other.children_ + other.num_children_, children_);
 
@@ -483,14 +482,12 @@ class AlexDataNode : public AlexNode<P> {
     the_max_key_arr_[0] = std::numeric_limits<double>::max();
     the_min_key_arr_[0] = std::numeric_limits<double>::min();
 
-    double *max_key = new double[1];
-    double *min_key = new double[1];
     double *kEndSentinel = new double[1];
-    max_key[0] = std::numeric_limits<double>::max();
-    min_key[0] = std::numeric_limits<double>::lowest();
     kEndSentinel[0] = std::numeric_limits<double>::max();
-    max_key_ = new AlexKey(max_key, 1);
-    min_key_ = new AlexKey(min_key, 1);
+    max_key_ = new AlexKey(1);
+    min_key_ = new AlexKey(1);
+    max_key_->key_arr_[0] = std::numeric_limits<double>::lowest();
+    min_key_->key_arr_[0] = std::numeric_limits<double>::max();
     kEndSentinel_.key_arr_ = kEndSentinel;
     kEndSentinel_.max_key_length_ = 1;
   }
@@ -597,22 +594,20 @@ class AlexDataNode : public AlexNode<P> {
 
   ~AlexDataNode() {
 #if ALEX_DATA_NODE_SEP_ARRAYS
-    if (key_slots_ == nullptr) {
-      return;
+    if (key_slots_ != nullptr) {
+      key_allocator().deallocate(key_slots_, data_capacity_);
+      payload_allocator().deallocate(payload_slots_, data_capacity_);
+      bitmap_allocator().deallocate(bitmap_, bitmap_size_);
     }
-    key_allocator().deallocate(key_slots_, data_capacity_);
-    payload_allocator().deallocate(payload_slots_, data_capacity_);
 #else
-    if (data_slots_ == nullptr) {
-      return;
+    if (data_slots_ != nullptr) {
+      value_allocator().deallocate(data_slots_, data_capacity_);
+      bitmap_allocator().deallocate(bitmap_, bitmap_size_);
     }
-    value_allocator().deallocate(data_slots_, data_capacity_);
 #endif
-    bitmap_allocator().deallocate(bitmap_, bitmap_size_);
     delete min_key_;
     delete max_key_;
     delete mid_key_;
-    delete[] kEndSentinel_.key_arr_;
     delete[] the_max_key_arr_;
     delete[] the_min_key_arr_;
   }

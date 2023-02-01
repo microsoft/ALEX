@@ -12,7 +12,7 @@ bool load_binary_data(alex::AlexKey data[], int length, const std::string& file_
     return false;
   }
 
-  if (key_type == 0) { //string key reading. NEED TO HANDLE MACRO PROBLEM.
+  if (key_type == STRING) { //string key reading.
     for (int i = 0; i < length; i++) {
       for (unsigned int pos = 0; pos < key_length; pos++) { 
         /* NOTE : I'M ASSUMING THAT BINARY STRING DATA FILES DO ZERO PADDING
@@ -40,7 +40,7 @@ bool load_text_data(alex::AlexKey array[], int length, const std::string& file_p
   int i = 0;
   std::string str;
   
-  if (key_type == 0) { //string key reading. NEED TO HANDLE MACRO PROBLEM. 
+  if (key_type == STRING) { //string key reading.
     while (std::getline(is, str) && i < length) {
       if (str.size() > key_length) { /* size above limit */
         return false;

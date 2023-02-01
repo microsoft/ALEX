@@ -157,8 +157,8 @@ class Alex {
    * If enough keys fall outside the key domain, then we expand the key domain.
    */
   struct InternalStats {
-    double *key_domain_min_; // we need to initialize this for every initializer
-    double *key_domain_max_; // we need to initialize this for every initializer
+    double *key_domain_min_ = nullptr; // we need to initialize this for every initializer
+    double *key_domain_max_ = nullptr; // we need to initialize this for every initializer
     int num_keys_above_key_domain = 0;
     int num_keys_below_key_domain = 0;
     int num_keys_at_last_right_domain_resize = 0;
@@ -476,12 +476,12 @@ class Alex {
       allocator_ = other.allocator_;
       max_key_length_ = other.max_key_length_;
       key_type_ = other.key_type_;
-      istats_.key_domain_min_ = new double[max_key_length_];
-      istats_.key_domain_max_ = new double[max_key_length_];
-      for (int i = 0; i < max_key_length_; i++) {
-        istats_.key_domain_min_[i] = other.istats_.key_domain_min_[i];
-        istats_.key_domain_max_[i] = other.istats_.key_domain_max_[i];
-      }
+      istats_.key_domain_min_ = new double[other.max_key_length_];
+      istats_.key_domain_max_ = new double[other.max_key_length_];
+      std::copy(other.istats_.key_domain_min_, other.istats_.key_domain_min_ + other.max_key_length_,
+          istats_.key_domain_min_);
+      std::copy(other.istats_.key_domain_max_, other.istats_.key_domain_max_ + other.max_key_length_,
+          istats_.key_domain_max_);
       superroot_ =
           static_cast<model_node_type*>(copy_tree_recursive(other.superroot_));
       root_node_ = superroot_->children_[0];

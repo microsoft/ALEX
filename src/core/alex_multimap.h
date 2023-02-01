@@ -41,7 +41,7 @@ class AlexMultimap {
  public:
   AlexMultimap() : alex_() {}
 
-  AlexMultimap(unsigned int max_key_length, int key_type = DOUBLE,
+  AlexMultimap(unsigned int max_key_length, int key_type,
     const Compare& comp, const Alloc& alloc = Alloc())
       : alex_(max_key_length, key_type, comp, alloc) {}
 

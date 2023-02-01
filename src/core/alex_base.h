@@ -94,7 +94,7 @@ class AlexKey {
       delete[] key_arr_;
   }
 
-  AlexKey& operator=(const AlexKey other) {
+  AlexKey& operator=(const AlexKey& other) {
     if (this != &other) {
       delete[] key_arr_;
       max_key_length_ = other.max_key_length_;
@@ -154,9 +154,9 @@ class LinearModel {
       }
   }
 
-  LinearModel& operator=(const LinearModel other) {
+  LinearModel& operator=(const LinearModel& other) {
     if (this != &other) {
-      delete []a_;
+      delete[] a_;
       max_key_length_ = other.max_key_length_;
       b_ = other.b_;
       a_ = new double[other.max_key_length_];

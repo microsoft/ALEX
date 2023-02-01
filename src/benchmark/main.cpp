@@ -71,10 +71,11 @@ int main(int argc, char* argv[]) {
   }
 
   // Read keys from file
+  // PROBLEM : USING ASSERT DOESN'T CALL BELOW FUNCTIONS. NEEDTO FIND OUT WHY.
   if (keys_file_type == "binary") {
-    assert(load_binary_data(keys, total_num_keys, keys_file_path, max_key_length, key_type));
+    load_binary_data(keys, total_num_keys, keys_file_path, max_key_length, key_type);
   } else if (keys_file_type == "text") {
-    assert(load_text_data(keys, total_num_keys, keys_file_path, max_key_length, key_type));
+    load_text_data(keys, total_num_keys, keys_file_path, max_key_length, key_type);
   } else {
     std::cerr << "--keys_file_type must be either 'binary' or 'text'"
               << std::endl;
@@ -87,6 +88,7 @@ int main(int argc, char* argv[]) {
   for (int i = 0; i < init_num_keys; i++) {
     values[i].first = keys[i];
     values[i].second = static_cast<PAYLOAD_TYPE>(gen_payload());
+    //std::cout << "inserted key : " << values[i].first.key_arr_[0] << ", payload : " << values[i].second << std::endl;
   }
 
   // Create ALEX and bulk load
@@ -129,6 +131,7 @@ int main(int argc, char* argv[]) {
       for (int j = 0; j < num_lookups_per_batch; j++) {
         alex::AlexKey key = lookup_keys[j];
         PAYLOAD_TYPE* payload = index.get_payload(key);
+        //std::cout << "lookup key : " << lookup_keys[j].key_arr_[0] << ", payload : " << *payload << std::endl;
         if (payload) {
           sum += *payload;
         }
@@ -149,6 +152,7 @@ int main(int argc, char* argv[]) {
     auto inserts_start_time = std::chrono::high_resolution_clock::now();
     for (; i < num_keys_after_batch; i++) {
       index.insert(keys[i], static_cast<PAYLOAD_TYPE>(gen_payload()));
+      //std::cout << "insert key : " << keys[i].key_arr_[0] << std::endl;
     }
     auto inserts_end_time = std::chrono::high_resolution_clock::now();
     double batch_insert_time =
