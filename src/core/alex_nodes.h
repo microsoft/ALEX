@@ -1656,6 +1656,7 @@ class AlexDataNode : public AlexNode<P> {
                  static_cast<double>(data_capacity_));
     contraction_threshold_ = data_capacity_ * kMinDensity_;
 
+    //update new data node's parent's min/max key if needed.
     AlexModelNode<P, Alloc> *cur_parent = this->parent_;
     while (cur_parent != nullptr) {
       char no_chg = 1;
