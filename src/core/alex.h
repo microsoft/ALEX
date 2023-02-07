@@ -2047,29 +2047,21 @@ class Alex {
         bucketID - (bucketID % repeats);  // first bucket with same child
     int end_bucketID =
         start_bucketID + repeats;  // first bucket with different child
-    //NEED TO MODIFY BELOW CODE FOR DOUBLE ARRAY.
-    //It's now fixed. Need to contain min/max key for each model node.
+
+    //We need to find keys that result to start/end bucketID. (each is left, right boundary value.)
     double left_boundary_value[max_key_length_];
     double right_boundary_value[max_key_length_];
+    parent->model_.find_minimum(parent->Mnode_min_key_, start_bucketID, left_boundary_value, key_type_);
+    parent->model_.find_minimum(left_boundary_value, end_bucketID, right_boundary_value, key_type_);
 
-    if (parent == superroot_) {
-      std::copy(istats_.key_domain_min_, istats_.key_domain_min_ + max_key_length_, left_boundary_value);
-      std::copy(istats_.key_domain_max_, istats_.key_domain_max_ + max_key_length_, right_boundary_value);
-    }
-    else if (parent != nullptr) {
-      std::copy(parent->Mnode_min_key_, parent->Mnode_min_key_ + max_key_length_, left_boundary_value);
-      std::copy(parent->Mnode_max_key_, parent->Mnode_max_key_ + max_key_length_, right_boundary_value);
-    }
-
-    LinearModel base_model(max_key_length_);
     double direction_vector_[max_key_length_] = {0.0};
-    for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
+    for (unsigned int i = 0; i < new_node->model_.max_key_length_; i++) {
       direction_vector_[i] = right_boundary_value[i] - left_boundary_value[i];
     }
-    base_model.b_ = 0.0;
+    new_node->model_.b_ = 0.0;
     for (unsigned int i = 0; i < max_key_length_; i++) {
-      base_model.a_[i] = 1 / direction_vector_[i] * fanout;
-      base_model.b_ += (1 / direction_vector_[i]) * left_boundary_value[i];
+      new_node->model_.a_[i] = 1 / direction_vector_[i] * fanout;
+      new_node->model_.b_ += (1 / direction_vector_[i]) * left_boundary_value[i];
     }
 
     // Create new data nodes
