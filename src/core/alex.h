@@ -2239,8 +2239,8 @@ class Alex {
       num_reassigned_keys = 0;
       while (right_boundary < old_node->data_capacity_) {
         AlexKey old_node_rbkey = old_node->get_key(right_boundary);
-        if (!key_equal(old_node_rbkey, old_node->kEndSentinel_)) {break;}
-        if (parent->model_.predict(old_node->get_key(right_boundary)) <
+        if (key_equal(old_node_rbkey, old_node->kEndSentinel_)) {break;}
+        if (parent->model_.predict(old_node->get_key(right_boundary)) >=
                  cur + child_node_repeats) {break;}
         num_reassigned_keys++;
         right_boundary = std::min(
