@@ -2161,8 +2161,8 @@ class Alex {
     // Account for off-by-one errors due to floating-point precision issues.
     while (right_boundary < old_node->data_capacity_) {
       AlexKey old_rbkey = old_node->get_key(right_boundary);
-      if (!key_equal(old_rbkey, old_node->kEndSentinel_)) {break;}
-      if (parent->model_.predict(old_node->get_key(right_boundary)) < mid_bucketID) {break;}
+      if (key_equal(old_rbkey, old_node->kEndSentinel_)) {break;}
+      if (parent->model_.predict(old_node->get_key(right_boundary)) >= mid_bucketID) {break;}
       right_boundary = std::min(
           old_node->get_next_filled_position(right_boundary, false) + 1,
           old_node->data_capacity_);
