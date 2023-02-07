@@ -175,10 +175,12 @@ double compute_level(const std::pair<AlexKey, P> values[], int num_keys,
     }
 
     cost += node_cost * (right_boundary - left_boundary) / num_keys;
+    double *slope = new double[node->model_.max_key_length_]();
+    std::copy(model.a_, model.a_ + model.max_key_length_, slope);
 
     used_fanout_tree_nodes.push_back(
         {level, i, node_cost, left_boundary, right_boundary, false,
-         stats.num_search_iterations, stats.num_shifts, model.a_, model.b_,
+         stats.num_search_iterations, stats.num_shifts, slope, model.b_,
          right_boundary - left_boundary});
   }
   double traversal_cost =
@@ -328,10 +330,12 @@ std::pair<int, double> find_best_fanout_top_down(
         cost_savings_from_level +=
             (tree_node.cost - node_split_cost) * num_node_keys / num_keys;
         for (int i = 0; i < 2; i++) {
+          double *slope = new double[node_models[i].max_key_length_];
+          std::copy(node_models[i].a_, node_models[i].a_ + node_models[i].max_key_length_, slope);
           new_level.push_back({fanout_tree_level, 2 * tree_node.node_id + i,
                                node_costs[i], boundaries[i], boundaries[i + 1],
                                true, node_stats[i].num_search_iterations,
-                               node_stats[i].num_shifts, node_models[i].a_,
+                               node_stats[i].num_shifts, slope,
                                node_models[i].b_,
                                boundaries[i + 1] - boundaries[i]});
         }
@@ -454,9 +458,11 @@ int find_best_fanout_existing_node(const AlexModelNode<P>* parent,
 
       cost += node_cost * num_actual_keys / num_keys;
 
+      double *slope = new double[model.max_key_length_];
+      std::copy(model.a_, model.a_ + model.max_key_length_, slope);
       new_level.push_back({fanout_tree_level, i, node_cost, left_boundary,
                            right_boundary, false, stats.num_search_iterations,
-                           stats.num_shifts, model.a_, model.b_,
+                           stats.num_shifts, slope, model.b_,
                            num_actual_keys});
     }
     // model weight reflects that it has global effect, not local effect

@@ -989,7 +989,13 @@ class Alex {
             static_cast<int>(std::log2(static_cast<double>(num_keys) /
                                        derived_params_.max_data_node_slots)) +
             1;
-        used_fanout_tree_nodes.clear();
+        //clear pointers used in fanout_tree (O(N)), and then empty used_fanout_tree_nodes.
+        //used_fanout_tree_nodes.clear();
+        while (!used_fanout_tree_nodes.empty()) {
+          fanout_tree::FTNode end_FTnode = used_fanout_tree_nodes.back();
+          delete[] end_FTnode.a;
+          used_fanout_tree_nodes.pop_back();
+        }
         int max_data_node_keys = static_cast<int>(
             derived_params_.max_data_node_slots * data_node_type::kInitDensity_);
         fanout_tree::compute_level<P>(
@@ -1031,10 +1037,10 @@ class Alex {
         double left_value = static_cast<double>(cur) / fanout;
         double right_value = static_cast<double>(cur + repeats) / fanout;
         // NOTE THAT THIS IMPLEMENTATION MAY BE WRONG
-        // It tries to find the first value larg eo requal to left / right value.
+        // It tries to find the first value larger or equal to left / right value.
         // Then assumes those are the left/right boundary.
-        double *left_boundary = istats_.key_domain_min_;
-        double *right_boundary = istats_.key_domain_max_;
+        double *left_boundary = values[0].first.key_arr_;
+        double *right_boundary = values[num_keys-1].first.key_arr_;
         for (; idx < num_keys; idx++) {
           if (node->model_.predict(values[idx].first) >= left_value) {
             left_boundary = values[idx].first.key_arr_;
@@ -1093,6 +1099,13 @@ class Alex {
       data_node->cost_ = node->cost_;
       delete_node(node);
       node = data_node;
+    }
+
+    //empty used_fanout_tree_nodes for preventing memory leakage.
+    while (!used_fanout_tree_nodes.empty()) {
+      fanout_tree::FTNode end_FTnode = used_fanout_tree_nodes.back();
+      delete[] end_FTnode.a;
+      used_fanout_tree_nodes.pop_back();
     }
   }
 
@@ -1487,6 +1500,13 @@ class Alex {
         stats_.splitting_time +=
             std::chrono::duration_cast<std::chrono::nanoseconds>(duration)
                 .count();
+
+        //empty used_fanout_tree_nodes for preventing memory leakage.
+        while (!used_fanout_tree_nodes.empty()) {
+          fanout_tree::FTNode end_FTnode = used_fanout_tree_nodes.back();
+          delete[] end_FTnode.a;
+          used_fanout_tree_nodes.pop_back();
+        }
 
         // Try again to insert the key
         ret = leaf->insert(key, payload);
