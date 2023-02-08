@@ -1387,7 +1387,7 @@ class Alex {
     char smaller_key = 0;
     for (unsigned int i = 0; i < key.max_key_length_; i++) {
       if (key.key_arr_[i] > istats_.key_domain_max_[i]) {larger_key = 1; break;}
-      else if (key.key_arr_[i] < istats_.key_domain_max_[i]) {smaller_key = 1; break;}
+      else if (key.key_arr_[i] < istats_.key_domain_min_[i]) {smaller_key = 1; break;}
     }
     if (larger_key) {
       istats_.num_keys_above_key_domain++;
@@ -1730,7 +1730,6 @@ class Alex {
       else if (key_type_ == INTEGER) {
         half_expandable_domain += 
           istats_.key_domain_max_[0] / 2 - std::numeric_limits<int>::lowest() / 2;
-
       }
       else {
         half_expandable_domain += 
@@ -2008,8 +2007,8 @@ class Alex {
         root->Mnode_max_key_[i] = new_domain_max[i];
       }
     }
-    istats_.key_domain_min_ = new_domain_min;
-    istats_.key_domain_max_ = new_domain_max;
+    std::copy(new_domain_min, new_domain_min + max_key_length_, istats_.key_domain_min_);
+    std::copy(new_domain_max, new_domain_max + max_key_length_, istats_.key_domain_max_);
   }
 
   // Splits downwards in the manner determined by the fanout tree and updates
@@ -2186,6 +2185,8 @@ class Alex {
         static_cast<uint8_t>(duplication_factor - 1);
     right_leaf->duplication_factor_ =
         static_cast<uint8_t>(duplication_factor - 1);
+    left_leaf->parent_ = parent;
+    right_leaf->parent_ = parent;
 
     for (int i = start_bucketID; i < mid_bucketID; i++) {
       parent->children_[i] = left_leaf;
@@ -2261,6 +2262,7 @@ class Alex {
       if (prev_leaf != nullptr) {
         prev_leaf->next_leaf_ = child_node;
       }
+      child_node->parent_ = parent;
       for (int i = cur; i < cur + child_node_repeats; i++) {
         parent->children_[i] = child_node;
       }
