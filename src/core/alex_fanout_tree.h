@@ -401,16 +401,18 @@ int find_best_fanout_existing_node(const AlexModelNode<P>* parent,
   /* needs change compared to original since we now we need length-dimension realted line.
      * steps are like this
      * 1) obtain direction vector using min_key, max_key to find line going through those two.
-     * 2) find t and v such that t(v(x-min_key)) = 0, and compute a_, b_ value. */
+     * 2) find t and v such that t(v(x-min_key)) = 0, and compute a_, b_ value. 
+     * some linear algebra method used for finding t and v. */
   LinearModel base_model(parent->model_.max_key_length_);
   double direction_vector_[parent->max_key_length_] = {0.0};
   for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
     direction_vector_[i] = right_boundary_value[i] - left_boundary_value[i];
   }
   for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
-    base_model.a_[i] = 1 / direction_vector_[i];
-    base_model.b_ += (1 / direction_vector_[i]) * left_boundary_value[i];
+    base_model.a_[i] = 1 / (direction_vector_[i] * base_model.max_key_length_);
+    base_model.b_ -= left_boundary_value[i] / (direction_vector_[i]);
   }
+  base_model.b_ /= base_model.max_key_length_;
 
   for (int fanout = 1, fanout_tree_level = 0; fanout <= max_fanout;
        fanout *= 2, fanout_tree_level++) {

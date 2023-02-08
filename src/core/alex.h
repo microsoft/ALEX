@@ -849,10 +849,12 @@ class Alex {
     for (unsigned int i = 0; i < max_key_length_; i++) {
       direction_vector_[i] = max_key.key_arr_[i] - min_key.key_arr_[i];
     }
+    root_node_->model_.b_ = 0.0;
     for (unsigned int i = 0; i < max_key_length_; i++) {
-      root_node_->model_.a_[i] = 1 / direction_vector_[i];
-      root_node_->model_.b_ += (1 / direction_vector_[i]) * min_key.key_arr_[i];
+      root_node_->model_.a_[i] = 1 / (direction_vector_[i] * max_key_length_);
+      root_node_->model_.b_ -= min_key.key_arr_[i] / direction_vector_[i];
     }
+    root_node_->model_.b_ /= max_key_length_;
 
     // Compute cost of root node
     LinearModel root_data_node_model(max_key_length_);
@@ -905,16 +907,16 @@ class Alex {
     istats_.num_keys_above_key_domain = 0;
     istats_.num_keys_below_key_domain = 0;
 
-    superroot_->model_.a_ = new double[max_key_length_]();
     double direction_vector_[max_key_length_] = {0.0};
     for (unsigned int i = 0; i < max_key_length_; i++) {
       direction_vector_[i] = istats_.key_domain_max_[i] - istats_.key_domain_min_[i];
     }
     superroot_->model_.b_ = 0.0;
     for (unsigned int i = 0; i < max_key_length_; i++) {
-      superroot_->model_.a_[i] = 1 / direction_vector_[i];
-      superroot_->model_.b_ += (1 / direction_vector_[i]) * istats_.key_domain_min_[i];
+      superroot_->model_.a_[i] = 1 / (direction_vector_[i] * max_key_length_);
+      superroot_->model_.b_ -= istats_.key_domain_min_[i] / direction_vector_[i];
     }
+    superroot_->model_.b_ /= max_key_length_;
   }
 
   void update_superroot_pointer() {
@@ -1060,9 +1062,10 @@ class Alex {
         }
         child_node->model_.b_ = 0.0;
         for (unsigned int i = 0; i < max_key_length_; i++) {
-          child_node->model_.a_[i] = 1 / direction_vector_[i];
-          child_node->model_.b_ += (1 / direction_vector_[i]) * left_boundary[i];
+          child_node->model_.a_[i] = 1 / (direction_vector_[i] * max_key_length_);
+          child_node->model_.b_ -= left_boundary[i] / direction_vector_[i];
         }
+        child_node->model_.b_ /= max_key_length_;
 
         model_node->children_[cur] = child_node;
         LinearModel child_data_node_model(tree_node.a, tree_node.b, max_key_length_);
@@ -2059,9 +2062,10 @@ class Alex {
     }
     new_node->model_.b_ = 0.0;
     for (unsigned int i = 0; i < max_key_length_; i++) {
-      new_node->model_.a_[i] = 1 / direction_vector_[i] * fanout;
-      new_node->model_.b_ += (1 / direction_vector_[i]) * left_boundary_value[i];
+      new_node->model_.a_[i] = fanout / (direction_vector_[i] * max_key_length_);
+      new_node->model_.b_ -= (left_boundary_value[i] * fanout) / direction_vector_[i];
     }
+    new_node->model_.b_ /= max_key_length_;
 
     // Create new data nodes
     if (used_fanout_tree_nodes.empty()) {
