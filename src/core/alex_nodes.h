@@ -1410,8 +1410,6 @@ class AlexDataNode : public AlexNode<P> {
     // Build model
     if (pretrained_model != nullptr) {
       assert(pretrained_model->max_key_length_ == this->max_key_length_);
-      this->model_.max_key_length_ = pretrained_model->max_key_length_;
-      this->model_.a_ = new double[pretrained_model->max_key_length_];
       for (unsigned int i = 0; i < pretrained_model->max_key_length_; i++) {
         this->model_.a_[i] = pretrained_model->a_[i];
       }
@@ -1530,6 +1528,7 @@ class AlexDataNode : public AlexNode<P> {
         }
       }
       if (no_chg) {break;}
+      cur_parent = cur_parent->parent_;
     }
   }
 
@@ -1705,6 +1704,7 @@ class AlexDataNode : public AlexNode<P> {
         }
       }
       if (no_chg) {break;}
+      cur_parent = cur_parent->parent_;
     }
   }
 
@@ -2216,6 +2216,7 @@ class AlexDataNode : public AlexNode<P> {
         }
       }
       if (no_chg) {break;}
+      cur_parent = cur_parent->parent_;
     }
     
     return {0, insertion_position};
