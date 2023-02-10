@@ -1465,7 +1465,7 @@ class Alex {
                 .count();
 
         if (fanout_tree_depth == 0) {
-          std::cout << "failed and decided to expand" << std::endl;
+          //std::cout << "failed and decided to expand" << std::endl;
           // expand existing data node and retrain model
           leaf->resize(data_node_type::kMinDensity_, true,
                        leaf->is_append_mostly_right(),
