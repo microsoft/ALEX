@@ -143,7 +143,7 @@ class LinearModel {
   }
 
   ~LinearModel() {
-    if (a_ != nullptr) {delete[] a_;}
+    delete[] a_;
   }
 
   explicit LinearModel(const LinearModel& other) : 

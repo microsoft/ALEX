@@ -152,12 +152,12 @@ class AlexModelNode : public AlexNode<P> {
               children_);
 
     if (other.Mnode_min_key != nullptr) {
-      Mnode_min_key_ = new double[this->max_key_length_];
-      std::copy(other.Mnode_min_key_, other.Mnode_min_key_ + this->max_key_length_, Mnode_min_key_);
+      Mnode_min_key_ = new double[other.max_key_length_];
+      std::copy(other.Mnode_min_key_, other.Mnode_min_key_ + other.max_key_length_, Mnode_min_key_);
     }
     if (other.Mnode_max_key != nullptr) {
-      Mnode_max_key_ = new double[this->max_key_length_];
-      std::copy(other.Mnode_max_key_, other.Mnode_max_key_ + this->max_key_length_, Mnode_max_key_);
+      Mnode_max_key_ = new double[other.max_key_length_];
+      std::copy(other.Mnode_max_key_, other.Mnode_max_key_ + other.max_key_length_, Mnode_max_key_);
     }
   }
 
@@ -476,7 +476,7 @@ class AlexDataNode : public AlexNode<P> {
 
   /*** Constructors and destructors ***/
 
-  AlexDataNode () : AlexNode<P>(0, true) {
+  AlexDataNode () : AlexNode<P>(0, true, nullptr, 1) {
     the_max_key_arr_ = new double[1];
     the_min_key_arr_ = new double[1];
     the_max_key_arr_[0] = std::numeric_limits<double>::max();
@@ -495,47 +495,47 @@ class AlexDataNode : public AlexNode<P> {
   explicit AlexDataNode(unsigned int max_key_length, int key_type, model_node_type *parent,
         const Compare& comp = Compare(), const Alloc& alloc = Alloc())
       : AlexNode<P>(0, true, parent, max_key_length), key_less_(comp), allocator_(alloc) {
-    double *kEndSentinel_arr = new double[this->max_key_length_];
-    the_max_key_arr_ = new double[this->max_key_length_];
-    the_min_key_arr_ = new double[this->max_key_length_];
-    min_key_ = new AlexKey(this->max_key_length_);
-    max_key_ = new AlexKey(this->max_key_length_);
-    mid_key_ = new AlexKey(this->max_key_length_);
+    double *kEndSentinel_arr = new double[max_key_length];
+    the_max_key_arr_ = new double[max_key_length];
+    the_min_key_arr_ = new double[max_key_length];
+    min_key_ = new AlexKey(max_key_length);
+    max_key_ = new AlexKey(max_key_length);
+    mid_key_ = new AlexKey(max_key_length);
     kEndSentinel_.key_arr_ = kEndSentinel_arr;
-    kEndSentinel_.max_key_length_ = this->max_key_length_;
+    kEndSentinel_.max_key_length_ = max_key_length;
 
     switch (key_type) {
       case DOUBLE:
-        std::fill(max_key_->key_arr_, max_key_->key_arr_ + this->max_key_length_,
+        std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length,
             std::numeric_limits<double>::lowest());
-        std::fill(min_key_->key_arr_, min_key_->key_arr_ + this->max_key_length_,
+        std::fill(min_key_->key_arr_, min_key_->key_arr_ + max_key_length,
             std::numeric_limits<double>::max());
-        std::fill(kEndSentinel_arr, kEndSentinel_arr + this->max_key_length_,
+        std::fill(kEndSentinel_arr, kEndSentinel_arr + max_key_length,
             std::numeric_limits<double>::max());
-        std::fill(the_max_key_arr_, the_max_key_arr_ + this->max_key_length_,
+        std::fill(the_max_key_arr_, the_max_key_arr_ + max_key_length,
             std::numeric_limits<double>::max());
-        std::fill(the_min_key_arr_, the_min_key_arr_ + this->max_key_length_,
+        std::fill(the_min_key_arr_, the_min_key_arr_ + max_key_length,
             std::numeric_limits<double>::lowest());
         break;
       case INTEGER:
-        std::fill(max_key_->key_arr_, max_key_->key_arr_ + this->max_key_length_,
+        std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length,
             std::numeric_limits<int>::lowest());
-        std::fill(min_key_->key_arr_, min_key_->key_arr_ + this->max_key_length_,
+        std::fill(min_key_->key_arr_, min_key_->key_arr_ + max_key_length,
             std::numeric_limits<int>::max());
-        std::fill(kEndSentinel_arr, kEndSentinel_arr + this->max_key_length_,
+        std::fill(kEndSentinel_arr, kEndSentinel_arr + max_key_length,
             std::numeric_limits<int>::max());
-        std::fill(the_max_key_arr_, the_max_key_arr_ + this->max_key_length_,
+        std::fill(the_max_key_arr_, the_max_key_arr_ + max_key_length,
             std::numeric_limits<int>::max());
-        std::fill(the_min_key_arr_, the_min_key_arr_ + this->max_key_length_,
+        std::fill(the_min_key_arr_, the_min_key_arr_ + max_key_length,
             std::numeric_limits<int>::lowest());
         break;
       case STRING:
-        std::fill(max_key_->key_arr_, max_key_->key_arr_ + this->max_key_length_, 0.0);
-        std::fill(min_key_->key_arr_, min_key_->key_arr_ + this->max_key_length_, 127.0);
-        std::fill(mid_key_->key_arr_, mid_key_->key_arr_ + this->max_key_length_, 63.0);
-        std::fill(kEndSentinel_arr, kEndSentinel_arr + this->max_key_length_, 127.0);
-        std::fill(the_max_key_arr_, the_max_key_arr_ + this->max_key_length_, 127.0);
-        std::fill(the_min_key_arr_, the_min_key_arr_ + this->max_key_length_, 0.0);
+        std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length, 0.0);
+        std::fill(min_key_->key_arr_, min_key_->key_arr_ + max_key_length, 127.0);
+        std::fill(mid_key_->key_arr_, mid_key_->key_arr_ + max_key_length, 63.0);
+        std::fill(kEndSentinel_arr, kEndSentinel_arr + max_key_length, 127.0);
+        std::fill(the_max_key_arr_, the_max_key_arr_ + max_key_length, 127.0);
+        std::fill(the_min_key_arr_, the_min_key_arr_ + max_key_length, 0.0);
         break;  
     }
   }
@@ -547,47 +547,47 @@ class AlexDataNode : public AlexNode<P> {
         key_less_(comp),
         allocator_(alloc),
         max_slots_(max_data_node_slots) {
-    double *kEndSentinel_arr = new double[this->max_key_length_];
-    the_max_key_arr_ = new double[this->max_key_length_];
-    the_min_key_arr_ = new double[this->max_key_length_];
-    min_key_ = new AlexKey(this->max_key_length_);
-    max_key_ = new AlexKey(this->max_key_length_);
-    mid_key_ = new AlexKey(this->max_key_length_);
+    double *kEndSentinel_arr = new double[max_key_length];
+    the_max_key_arr_ = new double[max_key_length];
+    the_min_key_arr_ = new double[max_key_length];
+    min_key_ = new AlexKey(max_key_length);
+    max_key_ = new AlexKey(max_key_length);
+    mid_key_ = new AlexKey(max_key_length);
     kEndSentinel_.key_arr_ = kEndSentinel_arr;
-    kEndSentinel_.max_key_length_ = this->max_key_length_;
+    kEndSentinel_.max_key_length_ = max_key_length;
 
     switch (key_type) {
       case DOUBLE:
-        std::fill(max_key_->key_arr_, max_key_->key_arr_ + this->max_key_length_,
+        std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length,
             std::numeric_limits<double>::lowest());
-        std::fill(min_key_->key_arr_, min_key_->key_arr_ + this->max_key_length_,
+        std::fill(min_key_->key_arr_, min_key_->key_arr_ + max_key_length,
             std::numeric_limits<double>::max());
-        std::fill(kEndSentinel_arr, kEndSentinel_arr + this->max_key_length_,
+        std::fill(kEndSentinel_arr, kEndSentinel_arr + max_key_length,
             std::numeric_limits<double>::max());
-        std::fill(the_max_key_arr_, the_max_key_arr_ + this->max_key_length_,
+        std::fill(the_max_key_arr_, the_max_key_arr_ + max_key_length,
             std::numeric_limits<double>::max());
-        std::fill(the_min_key_arr_, the_min_key_arr_ + this->max_key_length_,
+        std::fill(the_min_key_arr_, the_min_key_arr_ + max_key_length,
             std::numeric_limits<double>::lowest());
         break;
       case INTEGER:
-        std::fill(max_key_->key_arr_, max_key_->key_arr_ + this->max_key_length_,
+        std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length,
             std::numeric_limits<int>::lowest());
-        std::fill(min_key_->key_arr_, min_key_->key_arr_ + this->max_key_length_,
+        std::fill(min_key_->key_arr_, min_key_->key_arr_ + max_key_length,
             std::numeric_limits<int>::max());
-        std::fill(kEndSentinel_arr, kEndSentinel_arr + this->max_key_length_,
+        std::fill(kEndSentinel_arr, kEndSentinel_arr + max_key_length,
             std::numeric_limits<int>::max());
-        std::fill(the_max_key_arr_, the_max_key_arr_ + this->max_key_length_,
+        std::fill(the_max_key_arr_, the_max_key_arr_ + max_key_length,
             std::numeric_limits<int>::max());
-        std::fill(the_min_key_arr_, the_min_key_arr_ + this->max_key_length_,
+        std::fill(the_min_key_arr_, the_min_key_arr_ + max_key_length,
             std::numeric_limits<int>::lowest());
         break;
       case STRING:
-        std::fill(max_key_->key_arr_, max_key_->key_arr_ + this->max_key_length_, 0.0);
-        std::fill(min_key_->key_arr_, min_key_->key_arr_ + this->max_key_length_, 127.0);
-        std::fill(mid_key_->key_arr_, mid_key_->key_arr_ + this->max_key_length_, 63.0);
-        std::fill(kEndSentinel_arr, kEndSentinel_arr + this->max_key_length_, 127.0);
-        std::fill(the_max_key_arr_, the_max_key_arr_ + this->max_key_length_, 127.0);
-        std::fill(the_min_key_arr_, the_min_key_arr_ + this->max_key_length_, 0.0);
+        std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length, 0.0);
+        std::fill(min_key_->key_arr_, min_key_->key_arr_ + max_key_length, 127.0);
+        std::fill(mid_key_->key_arr_, mid_key_->key_arr_ + max_key_length, 63.0);
+        std::fill(kEndSentinel_arr, kEndSentinel_arr + max_key_length, 127.0);
+        std::fill(the_max_key_arr_, the_max_key_arr_ + max_key_length, 127.0);
+        std::fill(the_min_key_arr_, the_min_key_arr_ + max_key_length, 0.0);
         break;  
     }
   }
@@ -2071,6 +2071,7 @@ class AlexDataNode : public AlexNode<P> {
   // -1 if no insertion.
   std::pair<int, int> insert(const AlexKey& key, const P& payload) {
     // Periodically check for catastrophe
+    std::cout << "expected_avg_shifts_ : " << expected_avg_shifts_ << std::endl;
     if (num_inserts_ % 64 == 0 && catastrophic_cost()) {
       return {2, -1};
     }
