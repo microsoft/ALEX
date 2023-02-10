@@ -2071,7 +2071,7 @@ class AlexDataNode : public AlexNode<P> {
   // -1 if no insertion.
   std::pair<int, int> insert(const AlexKey& key, const P& payload) {
     // Periodically check for catastrophe
-    std::cout << "expected_avg_shifts_ : " << expected_avg_shifts_ << std::endl;
+    //std::cout << "expected_avg_shifts_ : " << expected_avg_shifts_ << std::endl;
     if (num_inserts_ % 64 == 0 && catastrophic_cost()) {
       return {2, -1};
     }
