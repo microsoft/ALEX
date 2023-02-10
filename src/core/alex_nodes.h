@@ -476,7 +476,7 @@ class AlexDataNode : public AlexNode<P> {
 
   /*** Constructors and destructors ***/
 
-  AlexDataNode () : AlexNode<P>(0, true, nullptr, 1) {
+  AlexDataNode () : AlexNode<P>(0, true) {
     the_max_key_arr_ = new double[1];
     the_min_key_arr_ = new double[1];
     the_max_key_arr_[0] = std::numeric_limits<double>::max();
