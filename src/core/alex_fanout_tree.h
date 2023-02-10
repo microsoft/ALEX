@@ -127,6 +127,7 @@ double compute_level(const std::pair<AlexKey, P> values[], int num_keys,
   LinearModel newLModel(a, b, node->model_.max_key_length_);
   int left_boundary = 0;
   int right_boundary = 0;
+  //std::cout << "compute_level searching for boundary" << std::endl;
   for (int i = 0; i < fanout; i++) {
     left_boundary = right_boundary;
     /* some important change is made about right_boundary.
@@ -137,8 +138,8 @@ double compute_level(const std::pair<AlexKey, P> values[], int num_keys,
     if (i == fanout - 1) {right_boundary = num_keys;}
     else {
       char flag = 1;
-      for (int idx = 0; idx < num_keys; idx++) {
-        int predicted_pos = newLModel.predict(values[i].first);
+      for (int idx = left_boundary; idx < num_keys; idx++) {
+        int predicted_pos = newLModel.predict(values[idx].first);
         if (predicted_pos >= i+1) {
           flag = 0;
           right_boundary = idx;
@@ -147,6 +148,7 @@ double compute_level(const std::pair<AlexKey, P> values[], int num_keys,
       }
       if (flag) {right_boundary = num_keys;}
     }
+    //std::cout << "compute_level boundary searching finished for fanout " << fanout << std::endl;
     // Account for off-by-one errors due to floating-point precision issues.
     while (right_boundary < num_keys &&
            (newLModel.predict(values[right_boundary].first) <= i)) {
@@ -206,6 +208,7 @@ std::pair<int, double> find_best_fanout_bottom_up(
     bool approximate_cost_computation = false) {
   // Repeatedly add levels to the fanout tree until the overall cost of each
   // level starts to increase
+  //std::cout << "called find_best_fanout_bottom_up" << std::endl;
   int best_level = 0;
   double best_cost = node->cost_ + kNodeLookupsWeight;
   std::vector<double> fanout_costs;
@@ -244,6 +247,7 @@ std::pair<int, double> find_best_fanout_bottom_up(
                                         total_keys, fanout_tree);
 
   collect_used_nodes(fanout_tree, best_level, used_fanout_tree_nodes);
+  //std::cout << "find_best_fanout_bottom_up finished" << std::endl;
   return std::make_pair(best_level, best_cost);
 }
 

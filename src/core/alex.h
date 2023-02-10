@@ -935,6 +935,7 @@ class Alex {
                       const LinearModel* data_node_model = nullptr) {
     // Automatically convert to data node when it is impossible to be better
     // than current cost
+    //std::cout << "called bulk_load_node!" << std::endl;
     if (num_keys <= derived_params_.max_data_node_slots *
                         data_node_type::kInitDensity_ &&
         (node->cost_ < kNodeLookupsWeight || node->model_.a_ == 0)) {
@@ -948,6 +949,7 @@ class Alex {
       data_node->cost_ = node->cost_;
       delete_node(node);
       node = data_node;
+      //std::cout << "returned because it can't be better" << std::endl;
       return;
     }
 
@@ -977,6 +979,7 @@ class Alex {
     if (best_fanout_tree_cost < node->cost_ ||
         num_keys > derived_params_.max_data_node_slots *
                        data_node_type::kInitDensity_) {
+      //std::cout << "decided that current bulk_load_node calling node should be model node" << std::endl;
       // Convert to model node based on the output of the fanout tree
       stats_.num_model_nodes++;
       auto model_node = new (model_node_allocator().allocate(1))
@@ -1000,11 +1003,13 @@ class Alex {
         }
         int max_data_node_keys = static_cast<int>(
             derived_params_.max_data_node_slots * data_node_type::kInitDensity_);
+        //std::cout << "computing level for depth 0" << std::endl;
         fanout_tree::compute_level<P>(
             values, num_keys, node, total_keys, used_fanout_tree_nodes,
             best_fanout_tree_depth, max_data_node_keys,
             params_.expected_insert_frac, params_.approximate_model_computation,
             params_.approximate_cost_computation);
+        //std::cout << "finished level computing" << std::endl;
       }
       int fanout = 1 << best_fanout_tree_depth;
       for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
@@ -1018,12 +1023,12 @@ class Alex {
       model_node->Mnode_min_key_ = new double[max_key_length_];
       model_node->Mnode_max_key_ = new double[max_key_length_];
       if (values[0].first.key_arr_ != nullptr) {
-      std::copy(values[0].first.key_arr_, values[0].first.key_arr_ + max_key_length_,
-        model_node->Mnode_min_key_);
+        std::copy(values[0].first.key_arr_, values[0].first.key_arr_ + max_key_length_,
+          model_node->Mnode_min_key_);
       }
       if (values[total_keys-1].first.key_arr_ != nullptr) {
-      std::copy(values[total_keys-1].first.key_arr_, 
-        values[total_keys-1].first.key_arr_ + max_key_length_, model_node->Mnode_max_key_);
+        std::copy(values[total_keys-1].first.key_arr_, 
+          values[total_keys-1].first.key_arr_ + max_key_length_, model_node->Mnode_max_key_);
       }
 
       // Instantiate all the child nodes and recurse
@@ -1041,6 +1046,7 @@ class Alex {
         // NOTE THAT THIS IMPLEMENTATION MAY BE WRONG
         // It tries to find the first value larger or equal to left / right value.
         // Then assumes those are the left/right boundary.
+        //std::cout << "started finding boundary..." << std::endl;
         double *left_boundary = values[0].first.key_arr_;
         double *right_boundary = values[num_keys-1].first.key_arr_;
         for (; idx < num_keys; idx++) {
@@ -1055,6 +1061,7 @@ class Alex {
             break;
           }
         }
+        //std::cout << "finished finding boundary..." << std::endl;
 
         double direction_vector_[child_node->max_key_length_] = {0.0};
         for (unsigned int i = 0; i < child_node->max_key_length_; i++) {
@@ -1091,6 +1098,7 @@ class Alex {
       delete_node(node);
       node = model_node;
     } else {
+      //std::cout << "decided that current bulk_load_node calling node should be data node" << std::endl;
       // Convert to data node
       stats_.num_data_nodes++;
       auto data_node = new (data_node_allocator().allocate(1))
@@ -1110,6 +1118,8 @@ class Alex {
       delete[] end_FTnode.a;
       used_fanout_tree_nodes.pop_back();
     }
+
+    //std::cout << "returned using fanout" << std::endl;
   }
 
   // Caller needs to set the level, duplication factor, and neighbor pointers of
@@ -1455,6 +1465,7 @@ class Alex {
                 .count();
 
         if (fanout_tree_depth == 0) {
+          std::cout << "failed and decided to expand" << std::endl;
           // expand existing data node and retrain model
           leaf->resize(data_node_type::kMinDensity_, true,
                        leaf->is_append_mostly_right(),
@@ -1489,9 +1500,11 @@ class Alex {
                      derived_params_.max_fanout ||
                  parent->level_ == superroot_->level_);
             if (should_split_downwards) {
+              //std::cout << "failed and decided to split downwards" << std::endl;
               parent = split_downwards(parent, bucketID, fanout_tree_depth,
                                        used_fanout_tree_nodes, reuse_model);
             } else {
+              //std::cout << "failed and decided to split sideways" << std::endl;
               split_sideways(parent, bucketID, fanout_tree_depth,
                              used_fanout_tree_nodes, reuse_model);
             }
