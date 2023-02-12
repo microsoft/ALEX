@@ -34,6 +34,7 @@
 #include <iostream>
 #include <stack>
 #include <type_traits>
+#include <iomanip> //only for printing some debugging message.
 
 #include "alex_base.h"
 #include "alex_fanout_tree.h"
@@ -1012,6 +1013,7 @@ class Alex {
         //std::cout << "finished level computing" << std::endl;
       }
       int fanout = 1 << best_fanout_tree_depth;
+      //std::cout << "chosen fanout is... : " << fanout << std::endl;
       for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
         model_node->model_.a_[i] = node->model_.a_[i] * fanout;
       }
@@ -1026,9 +1028,9 @@ class Alex {
         std::copy(values[0].first.key_arr_, values[0].first.key_arr_ + max_key_length_,
           model_node->Mnode_min_key_);
       }
-      if (values[total_keys-1].first.key_arr_ != nullptr) {
-        std::copy(values[total_keys-1].first.key_arr_, 
-          values[total_keys-1].first.key_arr_ + max_key_length_, model_node->Mnode_max_key_);
+      if (values[num_keys-1].first.key_arr_ != nullptr) {
+        std::copy(values[num_keys-1].first.key_arr_, 
+          values[num_keys-1].first.key_arr_ + max_key_length_, model_node->Mnode_max_key_);
       }
 
       // Instantiate all the child nodes and recurse
@@ -1047,21 +1049,27 @@ class Alex {
         // It tries to find the first value larger or equal to left / right value.
         // Then assumes those are the left/right boundary.
         //std::cout << "started finding boundary..." << std::endl;
-        double *left_boundary = values[0].first.key_arr_;
-        double *right_boundary = values[num_keys-1].first.key_arr_;
+        //std::cout << "for left_value with : " << left_value << std::endl;
+        //std::cout << "and right_value with : " << right_value << std::endl;
+        double *left_boundary = nullptr;
+        double *right_boundary = nullptr;
         for (; idx < num_keys; idx++) {
-          if (node->model_.predict(values[idx].first) >= left_value) {
+          if (node->model_.predict_double(values[idx].first) >= left_value) {
             left_boundary = values[idx].first.key_arr_;
             break;
           }
         }
+        if (left_boundary == nullptr) {left_boundary = values[num_keys-1].first.key_arr_;}
         for (; idx < num_keys; idx++) {
-          if (node->model_.predict(values[idx].first) >= right_value) {
+          if (node->model_.predict_double(values[idx].first) >= right_value) {
             right_boundary = values[idx].first.key_arr_;
             break;
           }
         }
+        if (right_boundary == nullptr) {right_boundary = values[num_keys-1].first.key_arr_;}
         //std::cout << "finished finding boundary..." << std::endl;
+        //std::cout << "left boundary is : " << std::setprecision (17) << left_boundary[0] << std::endl;
+        //std::cout << "right boundary is : " << std::setprecision (17) << right_boundary[0] << std::endl;
 
         double direction_vector_[child_node->max_key_length_] = {0.0};
         for (unsigned int i = 0; i < child_node->max_key_length_; i++) {
@@ -1500,7 +1508,7 @@ class Alex {
                      derived_params_.max_fanout ||
                  parent->level_ == superroot_->level_);
             if (should_split_downwards) {
-              //std::cout << "failed and decided to split downwards" << std::endl;
+             //std::cout << "failed and decided to split downwards" << std::endl;
               parent = split_downwards(parent, bucketID, fanout_tree_depth,
                                        used_fanout_tree_nodes, reuse_model);
             } else {

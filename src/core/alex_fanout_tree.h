@@ -127,7 +127,7 @@ double compute_level(const std::pair<AlexKey, P> values[], int num_keys,
   LinearModel newLModel(a, b, node->model_.max_key_length_);
   int left_boundary = 0;
   int right_boundary = 0;
-  //std::cout << "compute_level searching for boundary" << std::endl;
+  //std::cout << "compute_level searching for boundary with fanout : " << fanout << std::endl;
   for (int i = 0; i < fanout; i++) {
     left_boundary = right_boundary;
     /* some important change is made about right_boundary.
@@ -139,8 +139,8 @@ double compute_level(const std::pair<AlexKey, P> values[], int num_keys,
     else {
       char flag = 1;
       for (int idx = left_boundary; idx < num_keys; idx++) {
-        int predicted_pos = newLModel.predict(values[idx].first);
-        if (predicted_pos >= i+1) {
+        double predicted_pos = newLModel.predict_double(values[idx].first);
+        if (predicted_pos >= (double) i+1) {
           flag = 0;
           right_boundary = idx;
           break;
@@ -149,6 +149,8 @@ double compute_level(const std::pair<AlexKey, P> values[], int num_keys,
       if (flag) {right_boundary = num_keys;}
     }
     //std::cout << "compute_level boundary searching finished for fanout " << fanout << std::endl;
+    //std::cout << "left_boundary is : " <<  left_boundary << std::endl;
+    //std::cout << "right_boundary is : " << right_boundary << std::endl;
     // Account for off-by-one errors due to floating-point precision issues.
     while (right_boundary < num_keys &&
            (newLModel.predict(values[right_boundary].first) <= i)) {
