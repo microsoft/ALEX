@@ -519,15 +519,15 @@ class AlexDataNode : public AlexNode<P> {
         break;
       case INTEGER:
         std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length,
-            std::numeric_limits<int>::lowest());
+            std::numeric_limits<int64_t>::lowest());
         std::fill(min_key_->key_arr_, min_key_->key_arr_ + max_key_length,
-            std::numeric_limits<int>::max());
+            std::numeric_limits<int64_t>::max());
         std::fill(kEndSentinel_arr, kEndSentinel_arr + max_key_length,
-            std::numeric_limits<int>::max());
+            std::numeric_limits<int64_t>::max());
         std::fill(the_max_key_arr_, the_max_key_arr_ + max_key_length,
-            std::numeric_limits<int>::max());
+            std::numeric_limits<int64_t>::max());
         std::fill(the_min_key_arr_, the_min_key_arr_ + max_key_length,
-            std::numeric_limits<int>::lowest());
+            std::numeric_limits<int64_t>::lowest());
         break;
       case STRING:
         std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length, 0.0);
@@ -571,15 +571,15 @@ class AlexDataNode : public AlexNode<P> {
         break;
       case INTEGER:
         std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length,
-            std::numeric_limits<int>::lowest());
+            std::numeric_limits<int64_t>::lowest());
         std::fill(min_key_->key_arr_, min_key_->key_arr_ + max_key_length,
-            std::numeric_limits<int>::max());
+            std::numeric_limits<int64_t>::max());
         std::fill(kEndSentinel_arr, kEndSentinel_arr + max_key_length,
-            std::numeric_limits<int>::max());
+            std::numeric_limits<int64_t>::max());
         std::fill(the_max_key_arr_, the_max_key_arr_ + max_key_length,
-            std::numeric_limits<int>::max());
+            std::numeric_limits<int64_t>::max());
         std::fill(the_min_key_arr_, the_min_key_arr_ + max_key_length,
-            std::numeric_limits<int>::lowest());
+            std::numeric_limits<int64_t>::lowest());
         break;
       case STRING:
         std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length, 0.0);

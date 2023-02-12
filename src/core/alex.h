@@ -247,8 +247,8 @@ class Alex {
     }
     else if (key_type_ == INTEGER) {
       assert(max_key_length_ == 1);
-      istats_.key_domain_min_[0] = (double) std::numeric_limits<int>::min();
-      istats_.key_domain_max_[0] = (double) std::numeric_limits<int>::max();
+      istats_.key_domain_min_[0] = (double) std::numeric_limits<int64_t>::min();
+      istats_.key_domain_max_[0] = (double) std::numeric_limits<int64_t>::max();
     }
     else {
       assert(max_key_length_ == 1);
@@ -275,8 +275,8 @@ class Alex {
       istats_.key_domain_max_[0] = 127.0;
     }
     else if (key_type_ == INTEGER) {
-      istats_.key_domain_min_[0] = (double) std::numeric_limits<int>::min();
-      istats_.key_domain_max_[0] = (double) std::numeric_limits<int>::max();
+      istats_.key_domain_min_[0] = (double) std::numeric_limits<int64_t>::min();
+      istats_.key_domain_max_[0] = (double) std::numeric_limits<int64_t>::max();
     }
     else {
       istats_.key_domain_min_[0] = std::numeric_limits<double>::min();
@@ -353,8 +353,8 @@ class Alex {
       istats_.key_domain_max_[0] = 127.0;
     }
     else if (key_type_ == INTEGER) {
-      istats_.key_domain_min_[0] = (double) std::numeric_limits<int>::min();
-      istats_.key_domain_max_[0] = (double) std::numeric_limits<int>::max();
+      istats_.key_domain_min_[0] = (double) std::numeric_limits<int64_t>::min();
+      istats_.key_domain_max_[0] = (double) std::numeric_limits<int64_t>::max();
     }
     else {
       istats_.key_domain_min_[0] = std::numeric_limits<double>::min();
@@ -382,8 +382,8 @@ class Alex {
       istats_.key_domain_max_[0] = 127.0;
     }
     else if (key_type_ == INTEGER) {
-      istats_.key_domain_min_[0] = (double) std::numeric_limits<int>::min();
-      istats_.key_domain_max_[0] = (double) std::numeric_limits<int>::max();
+      istats_.key_domain_min_[0] = (double) std::numeric_limits<int64_t>::min();
+      istats_.key_domain_max_[0] = (double) std::numeric_limits<int64_t>::max();
     }
     else {
       istats_.key_domain_min_[0] = std::numeric_limits<double>::min();
@@ -1753,7 +1753,7 @@ class Alex {
       }
       else if (key_type_ == INTEGER) {
         half_expandable_domain += 
-          istats_.key_domain_max_[0] / 2 - std::numeric_limits<int>::lowest() / 2;
+          istats_.key_domain_max_[0] / 2 - std::numeric_limits<int64_t>::lowest() / 2;
       }
       else {
         half_expandable_domain += 
@@ -1769,7 +1769,7 @@ class Alex {
         }
         else if (key_type_ == INTEGER) {
           for (unsigned int i = 0; i < max_key_length_; i++) {
-            new_domain_min[i] = std::numeric_limits<int>::lowest();
+            new_domain_min[i] = std::numeric_limits<int64_t>::lowest();
           }
         }
         else {
@@ -1815,7 +1815,7 @@ class Alex {
       }
       else if (key_type_ == INTEGER) {
         half_expandable_domain += 
-          std::numeric_limits<int>::max() / 2 - istats_.key_domain_min_[0] / 2;
+          std::numeric_limits<int64_t>::max() / 2 - istats_.key_domain_min_[0] / 2;
 
       }
       else {
@@ -1832,7 +1832,7 @@ class Alex {
         }
         else if (key_type_ == INTEGER) {
           for (unsigned int i = 0; i < max_key_length_; i++) {
-            new_domain_max[i] = std::numeric_limits<int>::max();
+            new_domain_max[i] = std::numeric_limits<int64_t>::max();
           }
         }
         else {
