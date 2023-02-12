@@ -151,11 +151,11 @@ class AlexModelNode : public AlexNode<P> {
     std::copy(other.children_, other.children_ + other.num_children_,
               children_);
 
-    if (other.Mnode_min_key != nullptr) {
+    if (other.Mnode_min_key_ != nullptr) {
       Mnode_min_key_ = new double[other.max_key_length_];
       std::copy(other.Mnode_min_key_, other.Mnode_min_key_ + other.max_key_length_, Mnode_min_key_);
     }
-    if (other.Mnode_max_key != nullptr) {
+    if (other.Mnode_max_key_ != nullptr) {
       Mnode_max_key_ = new double[other.max_key_length_];
       std::copy(other.Mnode_max_key_, other.Mnode_max_key_ + other.max_key_length_, Mnode_max_key_);
     }
