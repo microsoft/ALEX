@@ -157,6 +157,7 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
         arb += a[0] * values[right_boundary].first.key_arr_[0] + b;
       }
       if (static_cast<int>(arb) <= i) {right_boundary++;}
+      else {break;}
     }
 #if DEBUG_PRINT
     std::cout << "compute_level boundary searching finished for fanout " << fanout << std::endl;
