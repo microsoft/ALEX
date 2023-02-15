@@ -128,7 +128,7 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
   int left_boundary = 0;
   int right_boundary = 0;
 #if DEBUG_PRINT
-  std::cout << "compute_level searching for boundary with fanout : " << fanout << std::endl;
+  //std::cout << "compute_level searching for boundary with fanout : " << fanout << std::endl;
 #endif
   for (int i = 0; i < fanout; i++) {
     left_boundary = right_boundary;
@@ -160,9 +160,9 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
       else {break;}
     }
 #if DEBUG_PRINT
-    std::cout << "compute_level boundary searching finished for fanout " << fanout << std::endl;
-    std::cout << "left_boundary is : " <<  left_boundary << std::endl;
-    std::cout << "right_boundary is : " << right_boundary << std::endl;
+    //std::cout << "compute_level boundary searching finished for fanout " << fanout << std::endl;
+    //std::cout << "left_boundary is : " <<  left_boundary << std::endl;
+    //std::cout << "right_boundary is : " << right_boundary << std::endl;
 #endif
     if (left_boundary == right_boundary) {
       double *slope = new double[node->max_key_length_]();
@@ -200,7 +200,7 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
       (kModelSizeWeight * fanout *
        (sizeof(AlexDataNode<T, P>) + sizeof(void*)) * total_keys / num_keys);
 #if DEBUG_PRINT
-  std::cout << "total node_cost : " << cost << ", traversal_cost : " << traversal_cost << std::endl;
+  //std::cout << "total node_cost : " << cost << ", traversal_cost : " << traversal_cost << std::endl;
 #endif
   cost += traversal_cost;
   return cost;
@@ -222,7 +222,7 @@ std::pair<int, double> find_best_fanout_bottom_up(
   // Repeatedly add levels to the fanout tree until the overall cost of each
   // level starts to increase
 #if DEBUG_PRINT
-  std::cout << "called find_best_fanout_bottom_up" << std::endl;
+  //std::cout << "called find_best_fanout_bottom_up" << std::endl;
 #endif
   int best_level = 0;
   double best_cost = node->cost_ + kNodeLookupsWeight;
@@ -263,7 +263,7 @@ std::pair<int, double> find_best_fanout_bottom_up(
 
   collect_used_nodes(fanout_tree, best_level, used_fanout_tree_nodes);
 #if DEBUG_PRINT
-  std::cout << "find_best_fanout_bottom_up finished" << std::endl;
+  //std::cout << "find_best_fanout_bottom_up finished" << std::endl;
 #endif
   return std::make_pair(best_level, best_cost);
 }

@@ -222,7 +222,7 @@ class Alex {
     istats_.key_domain_min_ = new T[1];
     istats_.key_domain_min_[0] = std::numeric_limits<T>::max();
     istats_.key_domain_max_ = new T[1];
-    istats_.key_domain_max_[0] = std::numeric_limits<double>::lowest();
+    istats_.key_domain_max_[0] = std::numeric_limits<T>::lowest();
     
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
@@ -259,7 +259,7 @@ class Alex {
     istats_.key_domain_min_ = new T[1];
     istats_.key_domain_min_[0] = std::numeric_limits<T>::max();
     istats_.key_domain_max_ = new T[1];
-    istats_.key_domain_max_[0] = std::numeric_limits<double>::lowest();
+    istats_.key_domain_max_[0] = std::numeric_limits<T>::lowest();
 
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
@@ -275,7 +275,7 @@ class Alex {
     istats_.key_domain_min_ = new T[1];
     istats_.key_domain_min_[0] = std::numeric_limits<T>::max();
     istats_.key_domain_max_ = new T[1];
-    istats_.key_domain_max_[0] = std::numeric_limits<double>::lowest();
+    istats_.key_domain_max_[0] = std::numeric_limits<T>::lowest();
 
     // Set up root as empty data node
     auto empty_data_node = new (data_node_allocator().allocate(1))
@@ -310,7 +310,7 @@ class Alex {
     istats_.key_domain_min_ = new T[1];
     istats_.key_domain_min_[0] = std::numeric_limits<T>::max();
     istats_.key_domain_max_ = new T[1];
-    istats_.key_domain_max_[0] = std::numeric_limits<double>::lowest();
+    istats_.key_domain_max_[0] = std::numeric_limits<T>::lowest();
 
     std::vector<V> values;
     for (auto it = first; it != last; ++it) {
@@ -329,7 +329,7 @@ class Alex {
     istats_.key_domain_min_ = new T[1];
     istats_.key_domain_min_[0] = std::numeric_limits<T>::max();
     istats_.key_domain_max_ = new T[1];
-    istats_.key_domain_max_[0] = std::numeric_limits<double>::lowest();
+    istats_.key_domain_max_[0] = std::numeric_limits<T>::lowest();
 
     std::vector<V> values;
     for (auto it = first; it != last; ++it) {
@@ -348,7 +348,7 @@ class Alex {
     istats_.key_domain_min_ = new T[1];
     istats_.key_domain_min_[0] = std::numeric_limits<T>::max();
     istats_.key_domain_max_ = new T[1];
-    istats_.key_domain_max_[0] = std::numeric_limits<double>::lowest();
+    istats_.key_domain_max_[0] = std::numeric_limits<T>::lowest();
 
     std::vector<V> values;
     for (auto it = first; it != last; ++it) {
@@ -853,7 +853,7 @@ class Alex {
     // Automatically convert to data node when it is impossible to be better
     // than current cost
 #if DEBUG_PRINT
-    std::cout << "called bulk_load_node!" << std::endl;
+    //std::cout << "called bulk_load_node!" << std::endl;
 #endif
     if (num_keys <= derived_params_.max_data_node_slots *
                         data_node_type::kInitDensity_ &&
@@ -869,7 +869,7 @@ class Alex {
       delete_node(node);
       node = data_node;
 #if DEBUG_PRINT
-      std::cout << "returned because it can't be better" << std::endl;
+      //std::cout << "returned because it can't be better" << std::endl;
 #endif
       return;
     }
@@ -901,7 +901,7 @@ class Alex {
         num_keys > derived_params_.max_data_node_slots *
                        data_node_type::kInitDensity_) {
 #if DEBUG_PRINT
-      std::cout << "decided that current bulk_load_node calling node should be model node" << std::endl;
+      //std::cout << "decided that current bulk_load_node calling node should be model node" << std::endl;
 #endif
       // Convert to model node based on the output of the fanout tree
       stats_.num_model_nodes++;
@@ -927,7 +927,7 @@ class Alex {
         int max_data_node_keys = static_cast<int>(
             derived_params_.max_data_node_slots * data_node_type::kInitDensity_);
 #if DEBUG_PRINT
-        std::cout << "computing level for depth 0" << std::endl;
+        //std::cout << "computing level for depth 0" << std::endl;
 #endif
         fanout_tree::compute_level<T, P>(
             values, num_keys, node, total_keys, used_fanout_tree_nodes,
@@ -935,12 +935,12 @@ class Alex {
             params_.expected_insert_frac, params_.approximate_model_computation,
             params_.approximate_cost_computation);
 #if DEBUG_PRINT
-        std::cout << "finished level computing" << std::endl;
+        //std::cout << "finished level computing" << std::endl;
 #endif
       }
       int fanout = 1 << best_fanout_tree_depth;
 #if DEBUG_PRINT
-      std::cout << "chosen fanout is... : " << fanout << std::endl;
+      //std::cout << "chosen fanout is... : " << fanout << std::endl;
 #endif
       for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
         model_node->model_.a_[i] = node->model_.a_[i] * fanout;
@@ -974,7 +974,7 @@ class Alex {
         double left_value = static_cast<double>(cur) / fanout;
         double right_value = static_cast<double>(cur + repeats) / fanout;
 #if DEBUG_PRINT
-        std::cout << "started finding boundary..." << std::endl;
+        //std::cout << "started finding boundary..." << std::endl;
         //std::cout << "for left_value with : " << left_value << std::endl;
         //std::cout << "and right_value with : " << right_value << std::endl;
 #endif
@@ -1006,9 +1006,9 @@ class Alex {
           //if (right_boundary == nullptr) {right_boundary = values[num_keys-1].first.key_arr_;}
         }
 #if DEBUG_PRINT
-        std::cout << "finished finding boundary..." << std::endl;
-        std::cout << "left boundary is : " << std::setprecision (17) << left_boundary[0] << std::endl;
-        std::cout << "right boundary is : " << std::setprecision (17) << right_boundary[0] << std::endl;
+        //std::cout << "finished finding boundary..." << std::endl;
+        //std::cout << "left boundary is : " << std::setprecision (17) << left_boundary[0] << std::endl;
+        //std::cout << "right boundary is : " << std::setprecision (17) << right_boundary[0] << std::endl;
 #endif
 
         double direction_vector_[child_node->max_key_length_] = {0.0};
@@ -1047,7 +1047,7 @@ class Alex {
       node = model_node;
     } else {
 #if DEBUG_PRINT
-      std::cout << "decided that current bulk_load_node calling node should be data node" << std::endl;
+      //std::cout << "decided that current bulk_load_node calling node should be data node" << std::endl;
 #endif
       // Convert to data node
       stats_.num_data_nodes++;
@@ -1069,7 +1069,7 @@ class Alex {
       used_fanout_tree_nodes.pop_back();
     }
 #if DEBUG_PRINT
-    std::cout << "returned using fanout" << std::endl;
+    //std::cout << "returned using fanout" << std::endl;
 #endif
   }
 
@@ -1354,13 +1354,25 @@ class Alex {
       else if (key.key_arr_[i] < istats_.key_domain_min_[i]) {smaller_key = 1; break;}
     }
     if (larger_key) {
+#if DEBUG_PRINT
+      std::cout << "current key larger than max" << std::endl;
+#endif
       istats_.num_keys_above_key_domain++;
       if (should_expand_right()) {
+#if DEBUG_PRINT
+      std::cout << "decided to expand right" << std::endl;
+#endif
         expand_root(key, false);  // expand to the right
       }
     } else if (smaller_key) {
+#if DEBUG_PRINT
+      std::cout << "current key smaller than min" << std::endl;
+#endif
       istats_.num_keys_below_key_domain++;
       if (should_expand_left()) {
+#if DEBUG_PRINT
+      std::cout << "decided to expand left" << std::endl;
+#endif
         expand_root(key, true);  // expand to the left
       }
     }
