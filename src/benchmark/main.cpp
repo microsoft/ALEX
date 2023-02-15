@@ -136,10 +136,9 @@ int main(int argc, char* argv[]) {
             std::cout << lookup_keys[j].key_arr_[k];
           }
           std::cout << ", payload : " << *payload << std::endl;
-          if (payload) {
-            sum += *payload;
-          }
         }
+        if (payload) {sum += *payload;}
+        //else {std::cout << "failed finding payload for " << key.key_arr_[0] << std::endl;}
       }
       auto lookups_end_time = std::chrono::high_resolution_clock::now();
       batch_lookup_time = std::chrono::duration_cast<std::chrono::nanoseconds>(
