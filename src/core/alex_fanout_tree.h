@@ -154,7 +154,7 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
     while (right_boundary < num_keys) {
       double arb = 0.0;
       for (unsigned int i = 0; i < newLModel.max_key_length_; i++) {
-        arb += a[0] * values[right_boundary].first[0] + b;
+        arb += a[0] * values[right_boundary].first.key_arr_[0] + b;
       }
       if (static_cast<int>(arb) <= i) {right_boundary++;}
     }
