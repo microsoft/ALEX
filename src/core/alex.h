@@ -1017,10 +1017,10 @@ class Alex {
         }
         child_node->model_.b_ = 0.0;
         for (unsigned int i = 0; i < max_key_length_; i++) {
-          child_node->model_.a_[i] = 1 / (direction_vector_[i] * max_key_length_);
+          child_node->model_.a_[i] = 1.0 / (direction_vector_[i] * max_key_length_);
           child_node->model_.b_ -= left_boundary[i] / direction_vector_[i];
         }
-        child_node->model_.b_ /= max_key_length_;
+        child_node->model_.b_ /= (double) max_key_length_;
 
         model_node->children_[cur] = child_node;
         LinearModel<T> child_data_node_model(tree_node.a, tree_node.b, max_key_length_);
