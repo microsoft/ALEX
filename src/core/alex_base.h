@@ -22,6 +22,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <typeinfo>
 #ifdef _MSC_VER
 #include <intrin.h>
 #else
@@ -58,6 +59,9 @@ typedef unsigned __int32 uint32_t;
 #define INTEGER (1)
 #define DOUBLE (2)
 
+/*** debug print ***/
+#define DEBUG_PRINT 1
+
 namespace alex {
 
 static const size_t desired_training_key_n_ = 10000000; /* desired training key according to Xindex */
@@ -66,27 +70,28 @@ static const size_t desired_training_key_n_ = 10000000; /* desired training key 
 //extern unsigned int max_key_length;
 
 /* AlexKey class. */
+template<class T>
 class AlexKey {
  public:
-  double *key_arr_ = nullptr;
+  T *key_arr_ = nullptr;
   unsigned int max_key_length_ = 0;
 
   AlexKey() {}
 
-  AlexKey(double *key_arr, unsigned int max_key_length)
+  AlexKey(T *key_arr, unsigned int max_key_length)
       : max_key_length_(max_key_length) {
-    key_arr_ = new double[max_key_length_];
+    key_arr_ = new T[max_key_length_];
     std::copy(key_arr, key_arr + max_key_length_, key_arr_);
   }
 
   AlexKey(unsigned int max_key_length)
       : max_key_length_(max_key_length) {
-    key_arr_ = new double[max_key_length_]();
+    key_arr_ = new T[max_key_length_]();
   }
 
-  AlexKey(const AlexKey& other)
+  AlexKey(const AlexKey<T>& other)
       : max_key_length_(other.max_key_length_) {
-    key_arr_ = new double[max_key_length_]();
+    key_arr_ = new T[max_key_length_]();
     std::copy(other.key_arr_, other.key_arr_ + max_key_length_, key_arr_);
   }
 
@@ -94,17 +99,17 @@ class AlexKey {
       delete[] key_arr_;
   }
 
-  AlexKey& operator=(const AlexKey& other) {
+  AlexKey<T>& operator=(const AlexKey<T>& other) {
     if (this != &other) {
       delete[] key_arr_;
       max_key_length_ = other.max_key_length_;
-      key_arr_ = new double[other.max_key_length_];
+      key_arr_ = new T[other.max_key_length_];
       std::copy(other.key_arr_, other.key_arr_ + other.max_key_length_, key_arr_);
     }
     return *this;
   }
 
-  bool operator< (const AlexKey& other) const {
+  bool operator< (const AlexKey<T>& other) const {
     assert(max_key_length_ == other.max_key_length_);
     for (unsigned int i = 0; i < max_key_length_; i++) {
       if (key_arr_[i] < other.key_arr_[i]) {return true;}
@@ -118,9 +123,11 @@ class AlexKey {
 /*** Linear model and model builder ***/
 
 // Forward declaration
+template <class T>
 class LinearModelBuilder;
 
 /* Linear Regression Model */
+template <class T>
 class LinearModel {
  public:
   double *a_ = nullptr;  // slope, we MUST initialize.
@@ -173,38 +180,38 @@ class LinearModel {
     b_ *= expansion_factor;
   }
 
-  inline int predict(AlexKey key) const {
+  inline int predict(AlexKey<T> key) const {
     assert(a_ != nullptr);
     assert (max_key_length_ == key.max_key_length_);
     double result = 0.0;
     for (unsigned int i = 0; i < max_key_length_; i++) {
-      result = key.key_arr_[i] * a_[i];
+      result = static_cast<double>(key.key_arr_[i]) * a_[i];
     }
     return static_cast<int>(result + b_);
   }
 
-  inline double predict_double(AlexKey key) const {
+  inline double predict_double(AlexKey<T> key) const {
     assert(a_ != nullptr);
     assert (max_key_length_ == key.max_key_length_);
     double result = 0.0;
     for (unsigned int i = 0; i < max_key_length_; i++) {
-      result = key.key_arr_[i] * a_[i];
+      result = static_cast<double>(key.key_arr_[i]) * a_[i];
     }
     return result + b_;
   }
 
   //Helper related to linear model.
-  //calculate the smallest double array that results to 'result' predicted by current model.
+  //calculate the smallest T type array that results to 'result' predicted by current model.
   //that specific array is stored in the container.
-  void find_minimum (double *start, int result, double *container, int key_type) const {
-    if (key_type != STRING) {
-      container[0] = (result - b_) / a_[0];
+  void find_minimum (T *start, int result, T *container) const {
+    if (typeid(T) != typeid(char)) {
+      container[0] = static_cast<T>((result - b_) / a_[0]);
     }
-    else {
+    else { //It's a string, whether single char or not.
       if (start != nullptr) {
         std::copy(start, start + max_key_length_, container);
       }
-      AlexKey tmpkey = AlexKey(container, max_key_length_);
+      AlexKey<T> tmpkey = AlexKey<T>(container, max_key_length_);
       while (container[0] != 36.0) {
         if (predict(tmpkey) == result) {
           break;
@@ -223,49 +230,73 @@ class LinearModel {
 };
 
 /* LinearModelBuilder acts very similar to XIndex model preparing. */
+template<class T>
 class LinearModelBuilder {
  public:
-  LinearModel* model_;
+  LinearModel<T>* model_;
 
-  LinearModelBuilder (LinearModel* model) : model_(model) {}
+  LinearModelBuilder(LinearModel<T>* model) : model_(model) {}
 
-  inline void add(const AlexKey& x, int y) {
+  inline void add(const AlexKey<T>& x, int y) {
     assert(model_->max_key_length_ == x.max_key_length_);
-    training_keys_.push_back(x.key_arr_);
-    positions_.push_back(y);
+    if (model_->max_key_length_ == 1) { //single numeric
+      count_++;
+      x_sum_ += static_cast<long double>(x.key_arr_[0]);
+      y_sum_ += static_cast<long double>(y);
+      xx_sum_ += static_cast<long double>(x.key_arr_[0]) * x.key_arr_[0];
+      xy_sum_ += static_cast<long double>(x.key_arr_[0]) * y;
+      x_min_ = std::min<T>(x.key_arr_[0], x_min_);
+      x_max_ = std::max<T>(x.key_arr_[0], x_max_);
+      y_min_ = std::min<double>(y, y_min_);
+      y_max_ = std::max<double>(y, y_max_);
+    }
+    else { //string
+      training_keys_.push_back(x.key_arr_);
+      positions_.push_back(y);
+    }
   }
 
   void build() {
-    if (positions_.size() == 0) {return;}
-    if (positions_.size() == 1) {
-      for (unsigned int i = 0; i < model_->max_key_length_; i++) {
-        model_->a_[i] = 0.0;
+    if (model_->max_key_length_ == 1) { /* single dimension */     
+      if (count_ <= 1) {
+        model_->a_[0] = 0;
+        model_->b_ = static_cast<double>(y_sum_);
+        return;
       }
-      model_->b_ = positions_[0];
+
+      if (static_cast<long double>(count_) * xx_sum_ - x_sum_ * x_sum_ == 0) {
+        // all values in a bucket have the same key.
+        model_->a_[0] = 0;
+        model_->b_ = static_cast<double>(y_sum_) / count_;
+        return;
+      }
+
+      auto slope = static_cast<double>(
+        (static_cast<long double>(count_) * xy_sum_ - x_sum_ * y_sum_) /
+        (static_cast<long double>(count_) * xx_sum_ - x_sum_ * x_sum_));
+      auto intercept = static_cast<double>(
+        (y_sum_ - static_cast<long double>(slope) * x_sum_) / count_);
+      model_->a_[0] = slope;
+      model_->b_ = intercept;
+
+      // If floating point precision errors, fit spline
+      if (model_->a_[0] <= 0) {
+        model_->a_[0] = (y_max_ - y_min_) / (double) (x_max_ - x_min_);
+        model_->b_ = -static_cast<double>(x_min_) * model_->a_[0];
+      }
       return;
     }
 
-    if (model_->max_key_length_ == 1) { /* single dimension */
-      double x_expected = 0, y_expected = 0, xy_expected = 0,
-            x_square_expected = 0;
-      for (size_t key_i = 0; key_i < positions_.size(); key_i++) {
-        double key = training_keys_[key_i][0];
-        x_expected += key;
-        y_expected += positions_[key_i];
-        x_square_expected += key * key;
-        xy_expected += key * positions_[key_i];
+    //from here, it is about string.
+
+    if (positions_.size() <= 1) {
+      for (unsigned int i = 0; i < model_->max_key_length_; i++) {
+        model_->a_[i] = 0.0;
       }
-      x_expected /= positions_.size();
-      y_expected /= positions_.size();
-      x_square_expected /= positions_.size();
-      xy_expected /= positions_.size();
+      if (positions_.size() == 0) {model_->b_ = 0.0;}
+      else {model_->b_ = positions_[0];}
 
-      model_->a_[0] = (xy_expected - x_expected * y_expected) /
-                  (x_square_expected - x_expected * x_expected);
-      model_->b_ = (x_square_expected * y_expected - x_expected * xy_expected) /
-                  (x_square_expected - x_expected * x_expected);
       return;
-
     }
 
     // trim down samples to avoid alrge memory usage
@@ -371,17 +402,27 @@ class LinearModelBuilder {
   }
 
  private:
-  std::vector<double *> training_keys_;
+  int count_ = 0;
+  long double x_sum_ = 0;
+  long double y_sum_ = 0;
+  long double xx_sum_ = 0;
+  long double xy_sum_ = 0;
+  T x_min_ = std::numeric_limits<T>::max();
+  T x_max_ = std::numeric_limits<T>::lowest();
+  double y_min_ = std::numeric_limits<double>::max();
+  double y_max_ = std::numeric_limits<double>::lowest();
+  std::vector<T*> training_keys_;
   std::vector<int> positions_;
 };
 
 /*** Comparison ***/
 
 struct AlexCompare {
-  bool operator()(const AlexKey& x, const AlexKey& y) const {
-    //static_assert(
-    //    std::is_arithmetic<T1>::value && std::is_arithmetic<T2>::value,
-    //    "Comparison types must be numeric.");
+  template <class T1, class T2>
+  bool operator()(const AlexKey<T1>& x, const AlexKey<T2>& y) const {
+    static_assert(
+        std::is_arithmetic<T1>::value && std::is_arithmetic<T2>::value,
+        "Comparison types must be numeric.");
     assert(x.max_key_length_ == y.max_key_length_);
     auto x_key_ptr_ = x.key_arr_;
     auto y_key_ptr_ = y.key_arr_;

@@ -14,7 +14,7 @@
 #include "utils.h"
 
 // Modify these if running your own workload
-// #define KEY_TYPE double        /*** we now always think that key is array of double (AlexKey) ***/
+#define KEY_TYPE double
 #define PAYLOAD_TYPE double
 
 /*
@@ -24,7 +24,6 @@
  * --init_num_keys          number of keys to bulk load with
  * --total_num_keys         total number of keys in the keys file
  * --batch_size             number of operations (lookup or insert) per batch
- * --key_type               type of key (integer, double, string)
  *
  * Optional flags:
  * --insert_frac            fraction of operations that are inserts (instead of
@@ -42,7 +41,6 @@ int main(int argc, char* argv[]) {
   auto init_num_keys = stoi(get_required(flags, "init_num_keys"));
   auto total_num_keys = stoi(get_required(flags, "total_num_keys"));
   auto batch_size = stoi(get_required(flags, "batch_size"));
-  auto key_type_flag = get_required(flags, "key_type");
   auto insert_frac = stod(get_with_default(flags, "insert_frac", "0.5"));
   std::string lookup_distribution =
       get_with_default(flags, "lookup_distribution", "zipf");
@@ -51,24 +49,10 @@ int main(int argc, char* argv[]) {
   bool print_batch_stats = get_boolean_flag(flags, "print_batch_stats");
   bool print_key_stats = get_boolean_flag(flags, "print_key_stats");
 
-  // obtain type of key.
-  int key_type;
-  if (key_type_flag == "integer") {
-    key_type = INTEGER;
-  } else if (key_type_flag == "double") {
-    key_type = DOUBLE;
-  } else if (key_type_flag == "string") {
-    key_type = STRING;
-  } else {
-    std::cerr << "--key_type must be 'integer', 'double', 'string'"
-              << std::endl;
-    return 1;
-  }
-
   // Allocation for key containers.
-  auto keys = new alex::AlexKey[total_num_keys];
+  auto keys = new alex::AlexKey<KEY_TYPE>[total_num_keys];
   for (int i = 0; i < total_num_keys; i++) { 
-    keys[i].key_arr_ = new double[max_key_length]();
+    keys[i].key_arr_ = new KEY_TYPE[max_key_length]();
     keys[i].max_key_length_ = max_key_length;
   }
 
@@ -76,9 +60,9 @@ int main(int argc, char* argv[]) {
   // PROBLEM : USING ASSERT DOESN'T CALL BELOW FUNCTIONS. NEEDTO FIND OUT WHY.
   // ANSWER : Cmake build type is release, assert is not called (...)
   if (keys_file_type == "binary") {
-    load_binary_data(keys, total_num_keys, keys_file_path, max_key_length, key_type);
+    load_binary_data(keys, total_num_keys, keys_file_path, max_key_length);
   } else if (keys_file_type == "text") {
-    load_text_data(keys, total_num_keys, keys_file_path, max_key_length, key_type);
+    load_text_data(keys, total_num_keys, keys_file_path, max_key_length);
   } else {
     std::cerr << "--keys_file_type must be either 'binary' or 'text'"
               << std::endl;
@@ -86,26 +70,31 @@ int main(int argc, char* argv[]) {
   }
 
   // Combine bulk loaded keys with randomly generated payloads
-  auto values = new std::pair<alex::AlexKey, PAYLOAD_TYPE>[init_num_keys];
+  auto values = new std::pair<alex::AlexKey<KEY_TYPE>, PAYLOAD_TYPE>[init_num_keys];
   std::mt19937_64 gen_payload(std::random_device{}());
   for (int i = 0; i < init_num_keys; i++) {
     values[i].first = keys[i];
     values[i].second = static_cast<PAYLOAD_TYPE>(gen_payload());
     if (print_key_stats) {
-      std::cout << "inserted key : ";
+      std::cout << "will insert key : ";
       for (unsigned int j = 0; j < max_key_length; j++) {
-        if (key_type == STRING) {std::cout << (char) values[i].first.key_arr_[j];}
-        else {std::cout << values[i].first.key_arr_[j];}
+        std::cout << values[i].first.key_arr_[j];
       } 
-      std::cout << ", payload : " << values[i].second << std::endl;
+      std::cout << ", with payload : " << values[i].second << std::endl;
     }
   }
 
   // Create ALEX and bulk load
-  alex::Alex<PAYLOAD_TYPE> index(max_key_length, key_type);
+  alex::Alex<KEY_TYPE, PAYLOAD_TYPE> index(max_key_length);
   std::sort(values, values + init_num_keys,
             [](auto const& a, auto const& b) {return a.first < b.first;});
+  auto bulkload_start_time = std::chrono::high_resolution_clock::now();
+  std::cout << "started bulk_load" << std::endl;
   index.bulk_load(values, init_num_keys);
+  std::cout << "finished bulk_load" << std::endl;
+  auto bulkload_end_time = std::chrono::high_resolution_clock::now();
+  std::cout << "It took " << std::chrono::duration_cast<std::chrono::nanoseconds>(bulkload_end_time -
+            bulkload_start_time).count() << "ns" << std::endl;
 
   // Run workload
   int i = init_num_keys;
@@ -127,7 +116,7 @@ int main(int argc, char* argv[]) {
     // Do lookups
     double batch_lookup_time = 0.0;
     if (i > 0) {
-      alex::AlexKey* lookup_keys = nullptr;
+      alex::AlexKey<KEY_TYPE>* lookup_keys = nullptr;
       if (lookup_distribution == "uniform") {
         lookup_keys = get_search_keys(keys, i, num_lookups_per_batch);
       } else if (lookup_distribution == "zipf") {
@@ -139,13 +128,12 @@ int main(int argc, char* argv[]) {
       }
       auto lookups_start_time = std::chrono::high_resolution_clock::now();
       for (int j = 0; j < num_lookups_per_batch; j++) {
-        alex::AlexKey key = lookup_keys[j];
+        alex::AlexKey<KEY_TYPE> key = lookup_keys[j];
         PAYLOAD_TYPE* payload = index.get_payload(key);
         if (print_key_stats) {
           std::cout << "lookup key : ";
           for (unsigned int k = 0; k < max_key_length; k++) {
-            if (key_type == STRING) {std::cout << (char) lookup_keys[j].key_arr_[k];}
-            else {std::cout << lookup_keys[j].key_arr_[k];}
+            std::cout << lookup_keys[j].key_arr_[k];
           }
           std::cout << ", payload : " << *payload << std::endl;
           if (payload) {
@@ -170,10 +158,9 @@ int main(int argc, char* argv[]) {
     for (; i < num_keys_after_batch; i++) {
       index.insert(keys[i], static_cast<PAYLOAD_TYPE>(gen_payload()));
       if (print_key_stats) {
-        std::cout << "inserting key : ";
+        std::cout << "inserted key : ";
         for (unsigned int j = 0; j < max_key_length; j++) {
-          if (key_type == STRING) {std::cout << (char) keys[i].key_arr_[j];}
-          else {std::cout << keys[i].key_arr_[j];}
+          std::cout << keys[i].key_arr_[j];
         }
         std::cout << std::endl;
       }

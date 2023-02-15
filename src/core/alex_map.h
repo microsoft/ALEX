@@ -15,8 +15,8 @@
 
 namespace alex {
 
-template <class P, class Compare = AlexCompare,
-          class Alloc = std::allocator<std::pair<AlexKey, P>>>
+template <class T, class P, class Compare = AlexCompare,
+          class Alloc = std::allocator<std::pair<AlexKey<T>, P>>>
 class AlexMap {
   //static_assert(std::is_arithmetic<T>::value, "ALEX key type must be numeric.");
   static_assert(std::is_same<Compare,AlexCompare>::value, "Must use AlexCompare.");
