@@ -151,9 +151,12 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
       if (flag) {right_boundary = num_keys;}
     }
     // Account for off-by-one errors due to floating-point precision issues.
-    while (right_boundary < num_keys &&
-           (newLModel.predict(values[right_boundary].first) <= i)) {
-      right_boundary++;
+    while (right_boundary < num_keys) {
+      double arb = 0.0;
+      for (unsigned int i = 0; i < newLModel.max_key_length_; i++) {
+        arb += a[0] * values[right_boundary].first[0] + b;
+      }
+      if (static_cast<int>(arb) <= i) {right_boundary++;}
     }
 #if DEBUG_PRINT
     std::cout << "compute_level boundary searching finished for fanout " << fanout << std::endl;
@@ -195,6 +198,9 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
       kNodeLookupsWeight +
       (kModelSizeWeight * fanout *
        (sizeof(AlexDataNode<T, P>) + sizeof(void*)) * total_keys / num_keys);
+#if DEBUG_PRINT
+  std::cout << "total node_cost : " << cost << ", traversal_cost : " << traversal_cost << std::endl;
+#endif
   cost += traversal_cost;
   return cost;
 }
