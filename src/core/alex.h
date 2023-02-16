@@ -1813,6 +1813,9 @@ class Alex {
     }
     assert(expansion_factor > 1);
 
+#if DEBUG_PRINT
+    std::cout << "modifying root_node" << std::endl;
+#endif
     // Modify the root node appropriately
     int new_nodes_start;  // index of first pointer to a new node
     int new_nodes_end;    // exclusive
@@ -1869,6 +1872,11 @@ class Alex {
       update_superroot_pointer();
       root = new_root;
     }
+
+#if DEBUG_PRINT
+    std::cout << "see if new node represet range outside key type domain" << std::endl;
+#endif
+
     // Determine if new nodes represent a range outside the key type's domain.
     // This happens when we're preventing overflows.
     int in_bounds_new_nodes_start = new_nodes_start;
@@ -1883,6 +1891,9 @@ class Alex {
           std::min(new_nodes_end, root->model_.predict(tmp_key) + 1);
     }
 
+#if DEBUG_PRINT
+    std::cout << "fill new child pointers of root node with new data nodes" << std::endl;
+#endif
     // Fill newly created child pointers of the root node with new data nodes.
     // To minimize empty new data nodes, we create a new data node per n child
     // pointers, where n is the number of pointers to existing nodes.
@@ -1960,6 +1971,9 @@ class Alex {
       }
     }
 
+#if DEBUG_PRINT
+    std::cout << "connecting leaf nodes and removing reassing keys" << std::endl;
+#endif
     AlexKey<T> new_min_tmp_key(new_domain_min, max_key_length_);
     AlexKey<T> new_max_tmp_key(new_domain_max, max_key_length_);
     // Connect leaf nodes and remove reassigned keys from outermost pre-existing
@@ -1983,6 +1997,10 @@ class Alex {
 
     std::copy(new_domain_min, new_domain_min + max_key_length_, istats_.key_domain_min_);
     std::copy(new_domain_max, new_domain_max + max_key_length_, istats_.key_domain_max_);
+
+#if DEBUG_PRINT
+    std::cout << "finished expanding root" << std::endl;
+#endif
   }
 
   // Splits downwards in the manner determined by the fanout tree and updates

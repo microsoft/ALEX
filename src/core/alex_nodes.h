@@ -2412,18 +2412,12 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
       next_key = ALEX_DATA_NODE_KEY_AT(pos);
     }
     pos--;
-    T *prev_key_arr_ = nullptr;
     while (pos >= 0 &&
            key_greaterequal(ALEX_DATA_NODE_KEY_AT(pos), start_key)) {
-      T *cur_arr_ = ALEX_DATA_NODE_KEY_AT(pos).key_arr_;
-      if ((cur_arr_ != nullptr) && (cur_arr_ != prev_key_arr_)) {
-        delete cur_arr_;
-      }
       ALEX_DATA_NODE_KEY_AT(pos) = next_key;
       num_erased += check_exists(pos);
       unset_bit(pos);
       pos--;
-      prev_key_arr_ = cur_arr_;
     }
 
     num_keys_ -= num_erased;
