@@ -203,28 +203,13 @@ class LinearModel {
   //Helper related to linear model.
   //calculate the smallest T type array that results to 'result' predicted by current model.
   //that specific array is stored in the container.
-  void find_minimum (T *start, int result, T *container) const {
+  void find_minimum (double *start, int result, T *container) const {
     if (typeid(T) != typeid(char)) {
       container[0] = static_cast<T>((result - b_) / a_[0]);
     }
     else { //It's a string, whether single char or not.
-      if (start != nullptr) {
-        std::copy(start, start + max_key_length_, container);
-      }
-      AlexKey<T> tmpkey = AlexKey<T>(container, max_key_length_);
-      while (container[0] != 36.0) {
-        if (predict(tmpkey) == result) {
-          break;
-        }
-        container[max_key_length_ - 1] += 1.0;
-        for (unsigned int i = max_key_length_ - 1; i > 0; i--) {
-          if (container [i] == 36.0) {
-            container[i] = 0.0;
-            container[i-1] += 1.0;
-          }
-          else {break;}
-        }
-      }
+      //need to impelment (below is dummy)
+      std::cout << start[0] << std::endl;
     }
   }
 };

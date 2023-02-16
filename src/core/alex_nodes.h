@@ -116,10 +116,6 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
   // Array of pointers to children
   AlexNode<T, P, Alloc>** children_ = nullptr;
 
-  // Minimum / Maximum key's data in node
-  T *Mnode_min_key_ = nullptr;
-  T *Mnode_max_key_ = nullptr;
-
   explicit AlexModelNode(const Alloc& alloc = Alloc())
       : AlexNode<T, P, Alloc>(0, false), allocator_(alloc) {}
 
@@ -138,8 +134,6 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
     if (children_ != nullptr) {
       pointer_allocator().deallocate(children_, num_children_);
     }
-    delete[] Mnode_min_key_;
-    delete[] Mnode_max_key_;
   }
 
   AlexModelNode(const self_type& other)
@@ -150,15 +144,6 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
         AlexNode<T, P, Alloc>*[other.num_children_];
     std::copy(other.children_, other.children_ + other.num_children_,
               children_);
-
-    if (other.Mnode_min_key_ != nullptr) {
-      Mnode_min_key_ = new T[other.max_key_length_];
-      std::copy(other.Mnode_min_key_, other.Mnode_min_key_ + other.max_key_length_, Mnode_min_key_);
-    }
-    if (other.Mnode_max_key_ != nullptr) {
-      Mnode_max_key_ = new T[other.max_key_length_];
-      std::copy(other.Mnode_max_key_, other.Mnode_max_key_ + other.max_key_length_, Mnode_max_key_);
-    }
   }
 
   self_type& operator=(const self_type& other) {
@@ -176,13 +161,6 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
     pointer_allocator().deallocate(children_, num_children_);
     children_ = new AlexNode<T, P, Alloc>*[other.num_children_];
     std::copy(other.children_, other.children_ + other.num_children_, children_);
-
-    delete[] Mnode_max_key_;
-    delete[] Mnode_min_key_;
-    Mnode_max_key_ = new T[other.max_key_length_];
-    Mnode_min_key_ = new T[other.max_key_length_];
-    std::copy(other.Mnode_max_key_, other.Mnode_max_key_ + other.max_key_length_, Mnode_max_key_);
-    std::copy(other.Mnode_min_key_, other.Mnode_min_key_ + other.max_key_length_, Mnode_min_key_); 
   }
 
   // Given a key, traverses to the child node responsible for that key
@@ -454,8 +432,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   AlexKey<T> *max_key_; 
   // min key in node, updates after inserts but not erases. 
   AlexKey<T> *min_key_;
-  // mid key in node, updates after inserts but not erases.
-  AlexKey<T> *mid_key_; 
+
   int num_right_out_of_bounds_inserts_ =
       0;  // number of inserts that are larger than the max key
   int num_left_out_of_bounds_inserts_ =
@@ -500,7 +477,6 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     the_min_key_arr_ = new T[max_key_length];
     min_key_ = new AlexKey<T>(max_key_length);
     max_key_ = new AlexKey<T>(max_key_length);
-    mid_key_ = new AlexKey<T>(max_key_length);
     kEndSentinel_.key_arr_ = kEndSentinel_arr;
     kEndSentinel_.max_key_length_ = max_key_length;
 
@@ -528,7 +504,6 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     the_min_key_arr_ = new T[max_key_length];
     min_key_ = new AlexKey<T>(max_key_length);
     max_key_ = new AlexKey<T>(max_key_length);
-    mid_key_ = new AlexKey<T>(max_key_length);
     kEndSentinel_.key_arr_ = kEndSentinel_arr;
     kEndSentinel_.max_key_length_ = max_key_length;
 
@@ -559,7 +534,6 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
 #endif
     delete min_key_;
     delete max_key_;
-    delete mid_key_;
     delete[] the_max_key_arr_;
     delete[] the_min_key_arr_;
   }
@@ -599,7 +573,6 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
         the_min_key_arr_);
     max_key_ = new AlexKey<T>(other.max_key_->key_arr_, other.max_key_length_);
     min_key_ = new AlexKey<T>(other.min_key_->key_arr_, other.max_key_length_);
-    mid_key_ = new AlexKey<T>(other.mid_key_->key_arr_, other.max_key_length_);
     kEndSentinel_ = other.kEndSentinel_;
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
@@ -1428,59 +1401,6 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     for (unsigned int i = 0; i < this->max_key_length_; i++) {
        min_key_->key_arr_[i] = values[0].first.key_arr_[i];
        max_key_->key_arr_[i] = values[num_keys-1].first.key_arr_[i];
-       mid_key_->key_arr_[i] = values[num_keys/2].first.key_arr_[i];
-    }
-
-    //updating Mnode_min_key_ / max_ for all parents of current data node
-    AlexModelNode<T, P, Alloc> *cur_parent = this->parent_;
-    while (cur_parent != nullptr) {
-      char no_chg = 1;
-      if (cur_parent->Mnode_min_key_ == nullptr) {
-        cur_parent->Mnode_min_key_ = new T[cur_parent->max_key_length_];
-        for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-          cur_parent->Mnode_min_key_[i] = min_key_->key_arr_[i];
-        }
-        no_chg = 0;
-      }
-      else {
-        char need_chg = 0;
-        for (unsigned int i = 0; i < this->max_key_length_; i++) {
-          if (min_key_->key_arr_[i] < cur_parent->Mnode_min_key_[i]) {
-            need_chg = 1;
-            no_chg = 0;
-            break;
-          }
-        }
-        if (need_chg) {
-          for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-            cur_parent->Mnode_min_key_[i] = min_key_->key_arr_[i];
-          }
-        }
-      }
-      if (cur_parent->Mnode_max_key_ == nullptr) {
-        cur_parent->Mnode_max_key_ = new T[cur_parent->max_key_length_];
-        for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-          cur_parent->Mnode_max_key_[i] = max_key_->key_arr_[i];
-        }
-        no_chg = 0;
-      }
-      else {
-        char need_chg = 0;
-        for (unsigned int i = 0; i < this->max_key_length_; i++) {
-          if (cur_parent->Mnode_max_key_[i] < max_key_->key_arr_[i]) {
-            need_chg = 1;
-            no_chg = 0;
-            break;
-          }
-        }
-        if (need_chg) {
-          for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-            cur_parent->Mnode_max_key_[i] = max_key_->key_arr_[i];
-          }
-        }
-      }
-      if (no_chg) {break;}
-      cur_parent = cur_parent->parent_;
     }
   }
 
@@ -1510,8 +1430,6 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     } else {
       assert(precomputed_model->max_key_length_ == this->max_key_length_);
       num_actual_keys = precomputed_num_actual_keys;
-      this->model_.max_key_length_ = precomputed_model->max_key_length_;
-      this->model_.a_ = new double[precomputed_model->max_key_length_];
       for (unsigned int i = 0; i < precomputed_model->max_key_length_; i++) {
         this->model_.a_[i] = precomputed_model->a_[i];
       }
@@ -1548,13 +1466,6 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     for (; it.cur_idx_ < right && !it.is_end(); it++) {
       int position = this->model_.predict(it.key());
       position = std::max<int>(position, last_position + 1);
-
-      //mid_key update : first time when it is above the mid boundary.
-      if (position >= data_capacity_/2) {
-        for (unsigned int i = 0; i < this->max_key_length_; i++) {
-          mid_key_->key_arr_[i] = it.key().key_arr_[i];
-        }
-      }
 
       int positions_remaining = data_capacity_ - position;
       if (positions_remaining < keys_remaining) {
@@ -1606,58 +1517,6 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
                           static_cast<double>(num_keys_ + 1)),
                  static_cast<double>(data_capacity_));
     contraction_threshold_ = data_capacity_ * kMinDensity_;
-
-    //update new data node's parent's min/max key if needed.
-    AlexModelNode<T, P, Alloc> *cur_parent = this->parent_;
-    while (cur_parent != nullptr) {
-      char no_chg = 1;
-      if (cur_parent->Mnode_min_key_ == nullptr) {
-        cur_parent->Mnode_min_key_ = new T[cur_parent->max_key_length_];
-        for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-          cur_parent->Mnode_min_key_[i] = min_key_->key_arr_[i];
-        }
-        no_chg = 0;
-      }
-      else {
-        char need_chg = 0;
-        for (unsigned int i = 0; i < this->max_key_length_; i++) {
-          if (min_key_->key_arr_[i] < cur_parent->Mnode_min_key_[i]) {
-            need_chg = 1;
-            no_chg = 0;
-            break;
-          }
-        }
-        if (need_chg) {
-          for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-            cur_parent->Mnode_min_key_[i] = min_key_->key_arr_[i];
-          }
-        }
-      }
-      if (cur_parent->Mnode_max_key_ == nullptr) {
-        cur_parent->Mnode_max_key_ = new T[cur_parent->max_key_length_];
-        for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-          cur_parent->Mnode_max_key_[i] = max_key_->key_arr_[i];
-        }
-        no_chg = 0;
-      }
-      else {
-        char need_chg = 0;
-        for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-          if (cur_parent->Mnode_max_key_[i] < max_key_->key_arr_[i]) {
-            need_chg = 1;
-            no_chg = 0;
-            break;
-          }
-        }
-        if (need_chg) {
-          for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-            cur_parent->Mnode_max_key_[i] = max_key_->key_arr_[i];
-          }
-        }
-      }
-      if (no_chg) {break;}
-      cur_parent = cur_parent->parent_;
-    }
   }
 
   static void build_model(const V* values, int num_keys, LinearModel<T>* model,
@@ -2076,99 +1935,6 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
         min_key_->key_arr_[i] = key.key_arr_[i];
       }
       num_left_out_of_bounds_inserts_++;
-    }
-    char mid_chg = 0, not_kEnd = 0;
-#if ALEX_DATA_NODE_SEP_ARRAYS
-    for (unsigned int i = 0; i < this->max_key_length_; i++) {
-      if (mid_key_->key_arr_[i] != key_slots_[data_capacity_/2].key_arr_[i]) {
-        mid_chg = 1;
-        break;
-      }
-    }
-    if (mid_chg) {
-      for (unsigned int i = 0; i < this->max_key_length_; i++) {
-        if (key_slots_[data_capacity_/2].key_arr_[i] != kEndSentinel_.key_arr_[i]) {
-          not_kEnd = 1;
-          break;
-        }
-      }
-    }
-    if (not_kEnd) {
-      for (unsigned int i = 0; i < this->max_key_length_; i++) {
-        mid_key_->key_arr_[i] = key_slots_[data_capacity_/2].key_arr_[i];
-      }
-    }
-#else
-    for (unsigned int i = 0; i < this->max_key_length_; i++) {
-      if (mid_key_->key_arr_[i] != data_slots_[data_capacith_/2].first.key_arr_[i]) {
-        mid_chg = 1;
-        break;
-      }
-    }
-    if (mid_chg) {
-      for (unsigned int i = 0; i < this->max_key_length_; i++) {
-        if (data_slots_[data_capacity_/2].first.key_arr_[i] != kEndSentinel->key_arr_[i]) {
-          not_kEnd = 1;
-          break;
-        }
-      }
-    }
-    if (not_kEnd) {
-      for (unsigned int i = 0; i < this->max_key_length_; i++) {
-        mid_key_->key_arr_[i] = data_slots_[data_capacity_/2].first.key_arr_[i];
-      }
-    }
-#endif
-
-    AlexModelNode<T, P, Alloc> *cur_parent = this->parent_;
-    while (cur_parent != nullptr) {
-      char no_chg = 1;
-      if (cur_parent->Mnode_min_key_ == nullptr) {
-        cur_parent->Mnode_min_key_ = new T[cur_parent->max_key_length_];
-        for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-          cur_parent->Mnode_min_key_[i] = min_key_->key_arr_[i];
-        }
-        no_chg = 0;
-      }
-      else {
-        char need_chg = 0;
-        for (unsigned int i = 0; i < this->max_key_length_; i++) {
-          if (min_key_->key_arr_[i] < cur_parent->Mnode_min_key_[i]) {
-            need_chg = 1;
-            no_chg = 0;
-            break;
-          }
-        }
-        if (need_chg) {
-          for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-            cur_parent->Mnode_min_key_[i] = min_key_->key_arr_[i];
-          }
-        }
-      }
-      if (cur_parent->Mnode_max_key_ == nullptr) {
-        cur_parent->Mnode_max_key_ = new T[cur_parent->max_key_length_];
-        for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-          cur_parent->Mnode_max_key_[i] = max_key_->key_arr_[i];
-        }
-        no_chg = 0;
-      }
-      else {
-        char need_chg = 0;
-        for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-          if (cur_parent->Mnode_max_key_[i] < max_key_->key_arr_[i]) {
-            need_chg = 1;
-            no_chg = 0;
-            break;
-          }
-        }
-        if (need_chg) {
-          for (unsigned int i = 0; i < cur_parent->max_key_length_; i++) {
-            cur_parent->Mnode_max_key_[i] = max_key_->key_arr_[i];
-          }
-        }
-      }
-      if (no_chg) {break;}
-      cur_parent = cur_parent->parent_;
     }
     
     return {0, insertion_position};

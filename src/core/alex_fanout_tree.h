@@ -414,11 +414,17 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
   int end_bucketID =
       start_bucketID + repeats;  // first bucket with different child
 
-  T left_boundary_value[parent->max_key_length_];
-  T right_boundary_value[parent->max_key_length_];
-  parent->model_.find_minimum(parent->Mnode_min_key_, start_bucketID, left_boundary_value);
-  parent->model_.find_minimum(left_boundary_value, end_bucketID, right_boundary_value);
-
+  //find key for first bucket ID of current child and first bucket ID of different child
+  double left_boundary_value[parent->max_key_length_] = {0.0};
+  double right_boundary_value[parent->max_key_length_] = {0.0};
+  if (typeid(char) != typeid(T)) { //for numeric key
+    left_boundary_value[0] = (start_bucketID - parent->model_.b_) / parent->model_.a_[0];
+    right_boundary_value[0] = (end_bucketID - parent->model_.b_) / parent->model_.a_[0];
+  }
+  else { //for string key
+    /* NEED TO IMPLEMENT */
+  }
+  
   /* needs change compared to original since we now we need length-dimension realted line.
      * steps are like this
      * 1) obtain direction vector using min_key, max_key to find line going through those two.
@@ -451,9 +457,14 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
       left_boundary = right_boundary;
       if (i == fanout - 1) {right_boundary = node->data_capacity_;}
       else {
-        newLModel.find_minimum(left_boundary_value, i + 1, left_boundary_value);
-        AlexKey<T> pos_find_key = AlexKey<T>(left_boundary_value, node->max_key_length_);
-        right_boundary = node->lower_bound(pos_find_key);
+        if (typeid(char) != typeid(T)) { /* numeric key */
+          AlexKey<T> tmpkey = AlexKey<T>(node->max_key_length_);
+          tmpkey.key_arr_[0] = (T) ((i + 1) - b) / a[0];
+          right_boundary = node->lower_bound(tmpkey);
+        }
+        else { /* string key */
+          //NEED TO IMPLEMENT
+        }
       }
       if (left_boundary == right_boundary) {
         double *slope = new double[parent->max_key_length_]();

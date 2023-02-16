@@ -949,17 +949,6 @@ class Alex {
       model_node->num_children_ = fanout;
       model_node->children_ =
           new (pointer_allocator().allocate(fanout)) node_type*[fanout];
-      //min/max key setup. Note that input datas of this function is sorted.
-      model_node->Mnode_min_key_ = new T[max_key_length_];
-      model_node->Mnode_max_key_ = new T[max_key_length_];
-      if (values[0].first.key_arr_ != nullptr) {
-        std::copy(values[0].first.key_arr_, values[0].first.key_arr_ + max_key_length_,
-          model_node->Mnode_min_key_);
-      }
-      if (values[num_keys-1].first.key_arr_ != nullptr) {
-        std::copy(values[num_keys-1].first.key_arr_, 
-          values[num_keys-1].first.key_arr_ + max_key_length_, model_node->Mnode_max_key_);
-      }
 
       // Instantiate all the child nodes and recurse
       int cur = 0;
@@ -1674,7 +1663,8 @@ class Alex {
     T domain_size = 0;
     if (typeid(T) != typeid(char)) {domain_size = istats_.key_domain_max_[0] - istats_.key_domain_min_[0];}
     else {
-      /* IT SHOULDN'T BE CHAR. NEEDS FIX.*/
+      /* string related code. */
+      /* NEED TYPE RELATED FIX RELATED TO CHAR. */
       for (unsigned int i = 0; i < max_key_length_; i++) {
       /* this needs to be fixed for lexiographic. 
        * we need to give weights for the first alphabet
@@ -1693,6 +1683,9 @@ class Alex {
         new_domain_max);
     data_node_type* outermost_node;
     if (expand_left) {
+#if DEBUG_PRINT
+      std::cout << "expanding root leftwards" << std::endl;
+#endif
       T *cur_min_key = get_min_key();
       T *min_key = cur_min_key;
       /* weighted expansion rate similar to above lexiographic is also needed here. */
@@ -1714,6 +1707,7 @@ class Alex {
         if (half_expandable_domain < half_expanded_domain_size) {
           new_domain_min[0] = std::numeric_limits<T>::lowest();
         } else {
+          new_domain_min[0] = istats_.key_domain_max_[0];
           new_domain_min[0] -= half_expanded_domain_size;
           new_domain_min[0] -= half_expanded_domain_size;
         }
@@ -1742,6 +1736,8 @@ class Alex {
           }
         }
         else {
+          std::copy(istats_.key_domain_max_, istats_.key_domain_max_ + max_key_length_,
+              new_domain_min);
           decrease_string(new_domain_min, half_expanded_domain_size);
           decrease_string(new_domain_min, half_expanded_domain_size);
         }
@@ -1751,6 +1747,9 @@ class Alex {
       outermost_node = first_data_node();
     }
     else {
+#if DEBUG_PRINT
+      std::cout << "expanding root rightwards" << std::endl;
+#endif
       T *cur_max_key = get_max_key();
       T *max_key = cur_max_key;
       /* weighted expansion rate similar to above lexiographic is also needed here. */
@@ -1773,6 +1772,7 @@ class Alex {
         if (half_expandable_domain < half_expanded_domain_size) {
           new_domain_max[0] = std::numeric_limits<T>::max();
         } else {
+          new_domain_max[0] = istats_.key_domain_min_[0];
           new_domain_max[0] += half_expanded_domain_size;
           new_domain_max[0] += half_expanded_domain_size;
         }
@@ -1801,13 +1801,15 @@ class Alex {
           }
         }
         else {
-          increase_string(new_domain_min, half_expanded_domain_size);
-          increase_string(new_domain_min, half_expanded_domain_size);
+          std::copy(istats_.key_domain_min_, istats_.key_domain_min_ + max_key_length_,
+              new_domain_max);
+          increase_string(new_domain_max, half_expanded_domain_size);
+          increase_string(new_domain_max, half_expanded_domain_size);
         }
       }
-      istats_.num_keys_at_last_left_domain_resize = stats_.num_keys;
-      istats_.num_keys_below_key_domain = 0;
-      outermost_node = first_data_node();
+      istats_.num_keys_at_last_right_domain_resize = stats_.num_keys;
+      istats_.num_keys_above_key_domain = 0;
+      outermost_node = last_data_node();
     }
     assert(expansion_factor > 1);
 
@@ -1960,8 +1962,6 @@ class Alex {
 
     AlexKey<T> new_min_tmp_key(new_domain_min, max_key_length_);
     AlexKey<T> new_max_tmp_key(new_domain_max, max_key_length_);
-    AlexKey<T> Mnode_min_tmp_key(root->Mnode_min_key_, max_key_length_);
-    AlexKey<T> Mnode_max_tmp_key(root->Mnode_max_key_, max_key_length_);
     // Connect leaf nodes and remove reassigned keys from outermost pre-existing
     // node.
     if (expand_left) {
@@ -1981,17 +1981,6 @@ class Alex {
       first_new_leaf->prev_leaf_ = outermost_node;
     }
 
-    //update for istats and root
-    if (key_less_(new_min_tmp_key, Mnode_min_tmp_key)) {
-      for (unsigned int i = 0; i < max_key_length_; i++) {
-        root->Mnode_min_key_[i] = new_domain_min[i];
-      }
-    }
-    if (key_less_(Mnode_max_tmp_key, new_max_tmp_key)) {
-      for (unsigned int i = 0; i < max_key_length_; i++) {
-        root->Mnode_max_key_[i] = new_domain_max[i];
-      }
-    }
     std::copy(new_domain_min, new_domain_min + max_key_length_, istats_.key_domain_min_);
     std::copy(new_domain_max, new_domain_max + max_key_length_, istats_.key_domain_max_);
   }
@@ -2016,14 +2005,6 @@ class Alex {
     new_node->num_children_ = fanout;
     new_node->children_ =
         new (pointer_allocator().allocate(fanout)) node_type*[fanout];
-    new_node->Mnode_min_key_ = new T[max_key_length_];
-    new_node->Mnode_max_key_ = new T[max_key_length_];
-    T *first_k = leaf->first_key();
-    T *last_k = leaf->last_key();
-    std::copy(new_node->Mnode_min_key_, new_node->Mnode_min_key_ + max_key_length_,
-        first_k);
-    std::copy(new_node->Mnode_max_key_, new_node->Mnode_max_key_ + max_key_length_,
-        last_k);
 
 
     int repeats = 1 << leaf->duplication_factor_;
@@ -2033,10 +2014,15 @@ class Alex {
         start_bucketID + repeats;  // first bucket with different child
 
     //We need to find keys that result to start/end bucketID. (each is left, right boundary value.)
-    T left_boundary_value[max_key_length_];
-    T right_boundary_value[max_key_length_];
-    parent->model_.find_minimum(parent->Mnode_min_key_, start_bucketID, left_boundary_value);
-    parent->model_.find_minimum(left_boundary_value, end_bucketID, right_boundary_value);
+    double left_boundary_value[max_key_length_] = {0.0};
+    double right_boundary_value[max_key_length_] = {0.0};
+    if (typeid(char) != typeid(T)) { //numeric case
+      left_boundary_value[0] = (start_bucketID - parent->model_.b_) / parent->model_.a_[0];
+      right_boundary_value[0] = (end_bucketID - parent->model_.b_) / parent->model_.a_[0];
+    }
+    else { //string case
+      //NEED TO IMPLEMENT
+    }
 
     double direction_vector_[max_key_length_] = {0.0};
     for (unsigned int i = 0; i < new_node->model_.max_key_length_; i++) {
@@ -2044,7 +2030,7 @@ class Alex {
     }
     new_node->model_.b_ = 0.0;
     for (unsigned int i = 0; i < max_key_length_; i++) {
-      new_node->model_.a_[i] = fanout / (direction_vector_[i] * max_key_length_);
+      new_node->model_.a_[i] = 1.0 / (direction_vector_[i] * max_key_length_) * fanout;
       new_node->model_.b_ -= (left_boundary_value[i] * fanout) / direction_vector_[i];
     }
     new_node->model_.b_ /= max_key_length_;
@@ -2142,7 +2128,15 @@ class Alex {
         std::max<int>(parent->model_.predict(*(old_node->min_key_)), 0),
         parent->num_children_ - 1);
 
-    int right_boundary = old_node->lower_bound(*(old_node->mid_key_));
+    int right_boundary = 0;
+    if (typeid(T) != typeid(char))  { // for numeric key
+      AlexKey<T> tmpkey = AlexKey<T>(max_key_length_);
+      tmpkey.key_arr_[0] = (T) (mid_bucketID - parent->model_.b_) / parent->model_.a_[0];
+      right_boundary = old_node->lower_bound(tmpkey);
+    }
+    else { // for string key
+      //NEED TO IMPLEMENT
+    }
     // Account for off-by-one errors due to floating-point precision issues.
     while (right_boundary < old_node->data_capacity_) {
       AlexKey<T> old_rbkey = old_node->get_key(right_boundary);
@@ -2315,7 +2309,15 @@ class Alex {
       }
     }
 
-    int mid_boundary = leaf->lower_bound(*(leaf->mid_key_));
+    int mid_boundary = 0;
+    if (typeid(T) != typeid(char)) { //numeric key
+      AlexKey<T> tmpkey = AlexKey<T>(max_key_length_);
+      tmpkey.key_arr_[0] = (T) (leaf_mid_bucketID - parent->model_.b_) / parent->model_.a_[0];
+      mid_boundary = leaf->lower_bound(tmpkey);
+    }
+    else { //string key
+      /* NEED TO IMPLEMENT */
+    }
     data_node_type* left_leaf = bulk_load_leaf_node_from_existing(
         leaf, 0, mid_boundary, true, nullptr, reuse_model,
         append_mostly_right && left_half_appending_right,
