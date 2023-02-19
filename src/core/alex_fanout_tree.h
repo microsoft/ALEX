@@ -519,6 +519,7 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
             fanout_costs[fanout_costs.size() - 2] &&
         fanout_costs[fanout_costs.size() - 2] >
             fanout_costs[fanout_costs.size() - 3]) {
+      for (const FTNode& tree_node : new_level) {delete[] tree_node.a;}
       break;
     }
     if (cost < best_cost) {
@@ -529,6 +530,12 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
   }
   for (FTNode& tree_node : fanout_tree[best_level]) {
     tree_node.use = true;
+  }
+
+  for (const std::vector<FTNode>& level_fanout_tree : fanout_tree) {
+    for (const FTNode& tree_node : level_fanout_tree) {
+      if (!tree_node.use) {delete[] tree_node.a;}
+    }
   }
 
   // Merge nodes to improve cost

@@ -1474,12 +1474,7 @@ class Alex {
                 .count();
 
         //empty used_fanout_tree_nodes for preventing memory leakage.
-        while (!used_fanout_tree_nodes.empty()) {
-          fanout_tree::FTNode end_FTnode = used_fanout_tree_nodes.back();
-          delete[] end_FTnode.a;
-          used_fanout_tree_nodes.pop_back();
-        }
-
+        for (fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {delete[] tree_node.a;}
         // Try again to insert the key
         ret = leaf->insert(key, payload);
         fail = ret.first;
