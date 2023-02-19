@@ -361,7 +361,6 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   typedef AlexModelNode<T, P, Alloc> model_node_type;
   typedef AlexDataNode<T, P, Compare, Alloc, allow_duplicates> self_type;
   typedef typename Alloc::template rebind<self_type>::other alloc_type;
-  typedef typename Alloc::template rebind<AlexKey<T>>::other key_alloc_type;
   typedef typename Alloc::template rebind<P>::other payload_alloc_type;
   typedef typename Alloc::template rebind<V>::other value_alloc_type;
   typedef typename Alloc::template rebind<uint64_t>::other bitmap_alloc_type;
@@ -522,7 +521,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   ~AlexDataNode() {
 #if ALEX_DATA_NODE_SEP_ARRAYS
     if (key_slots_ != nullptr) {
-      key_allocator().deallocate(key_slots_, data_capacity_);
+      delete[] key_slots_;
       payload_allocator().deallocate(payload_slots_, data_capacity_);
       bitmap_allocator().deallocate(bitmap_, bitmap_size_);
     }
@@ -576,8 +575,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     kEndSentinel_ = other.kEndSentinel_;
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
-    key_slots_ = new (key_allocator().allocate(other.data_capacity_))
-        AlexKey<T>[other.data_capacity_];
+    key_slots_ = new AlexKey<T>[other.data_capacity_]();
     std::copy(other.key_slots_, other.key_slots_ + other.data_capacity_,
               key_slots_);
     payload_slots_ = new (payload_allocator().allocate(other.data_capacity_))
@@ -596,9 +594,6 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   }
 
   /*** Allocators ***/
-
-  key_alloc_type key_allocator() { return key_alloc_type(allocator_); }
-
   payload_alloc_type payload_allocator() {
     return payload_alloc_type(allocator_);
   }
@@ -1303,8 +1298,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     bitmap_ = new (bitmap_allocator().allocate(bitmap_size_))
         uint64_t[bitmap_size_]();  // initialize to all false
 #if ALEX_DATA_NODE_SEP_ARRAYS
-    key_slots_ =
-        new (key_allocator().allocate(data_capacity_)) AlexKey<T>[data_capacity_];
+    key_slots_ = new AlexKey<T>[data_capacity_]();
     payload_slots_ =
         new (payload_allocator().allocate(data_capacity_)) P[data_capacity_];
 #else
@@ -1955,7 +1949,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
         uint64_t[new_bitmap_size]();  // initialize to all false
 #if ALEX_DATA_NODE_SEP_ARRAYS
     AlexKey<T>* new_key_slots =
-        new (key_allocator().allocate(new_data_capacity)) AlexKey<T>[new_data_capacity];
+        new AlexKey<T>[new_data_capacity]();
     P* new_payload_slots = new (payload_allocator().allocate(new_data_capacity))
         P[new_data_capacity];
 #else
@@ -2049,7 +2043,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     }
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
-    key_allocator().deallocate(key_slots_, data_capacity_);
+    delete[] key_slots_;
     payload_allocator().deallocate(payload_slots_, data_capacity_);
 #else
     value_allocator().deallocate(data_slots_, data_capacity_);
