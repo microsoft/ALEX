@@ -918,12 +918,10 @@ class Alex {
                                        derived_params_.max_data_node_slots)) +
             1;
         //clear pointers used in fanout_tree (O(N)), and then empty used_fanout_tree_nodes.
-        //used_fanout_tree_nodes.clear();
-        while (!used_fanout_tree_nodes.empty()) {
-          fanout_tree::FTNode end_FTnode = used_fanout_tree_nodes.back();
-          delete[] end_FTnode.a;
-          used_fanout_tree_nodes.pop_back();
+        for (fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {
+          delete[] tree_node.a;
         }
+        used_fanout_tree_nodes.clear();
         int max_data_node_keys = static_cast<int>(
             derived_params_.max_data_node_slots * data_node_type::kInitDensity_);
 #if DEBUG_PRINT
@@ -1052,10 +1050,8 @@ class Alex {
     }
 
     //empty used_fanout_tree_nodes for preventing memory leakage.
-    while (!used_fanout_tree_nodes.empty()) {
-      fanout_tree::FTNode end_FTnode = used_fanout_tree_nodes.back();
-      delete[] end_FTnode.a;
-      used_fanout_tree_nodes.pop_back();
+    for (fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {
+      delete[] tree_node.a;
     }
 #if DEBUG_PRINT
     //std::cout << "returned using fanout" << std::endl;

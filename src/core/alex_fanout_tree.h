@@ -245,6 +245,7 @@ std::pair<int, double> find_best_fanout_bottom_up(
             fanout_costs[fanout_costs.size() - 2] &&
         fanout_costs[fanout_costs.size() - 2] >
             fanout_costs[fanout_costs.size() - 3]) {
+      for (const FTNode& tree_node : new_level) {delete[] tree_node.a;}
       break;
     }
     if (cost < best_cost) {
@@ -262,6 +263,12 @@ std::pair<int, double> find_best_fanout_bottom_up(
                                         total_keys, fanout_tree);
 
   collect_used_nodes(fanout_tree, best_level, used_fanout_tree_nodes);
+
+  for (const std::vector<FTNode>& level_fanout_tree : fanout_tree) {
+    for (const FTNode& tree_node : level_fanout_tree) {
+      if (!tree_node.use) {delete[] tree_node.a;}
+    }
+  }
 #if DEBUG_PRINT
   //std::cout << "find_best_fanout_bottom_up finished" << std::endl;
 #endif
