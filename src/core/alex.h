@@ -817,8 +817,10 @@ class Alex {
   // is a data node.
   void update_superroot_key_domain() {
     assert(stats_.num_inserts == 0 || root_node_->is_leaf_);
-    istats_.key_domain_min_ = get_min_key();
-    istats_.key_domain_max_ = get_max_key();
+    T *min_key_arr = get_min_key();
+    T* max_key_arr = get_max_key();
+    std::copy(min_key_arr, min_key_arr + max_key_length_, istats_.key_domain_min_);
+    std::copy(max_key_arr, max_key_arr + max_key_length_, istats_.key_domain_max_);
     istats_.num_keys_at_last_right_domain_resize = stats_.num_keys;
     istats_.num_keys_at_last_left_domain_resize = stats_.num_keys;
     istats_.num_keys_above_key_domain = 0;
@@ -1993,6 +1995,9 @@ class Alex {
 
     std::copy(new_domain_min, new_domain_min + max_key_length_, istats_.key_domain_min_);
     std::copy(new_domain_max, new_domain_max + max_key_length_, istats_.key_domain_max_);
+
+    delete[] new_domain_min;
+    delete[] new_domain_max;
 
 #if DEBUG_PRINT
     std::cout << "finished expanding root" << std::endl;
