@@ -60,7 +60,7 @@ typedef unsigned __int32 uint32_t;
 #define DOUBLE (2)
 
 /*** debug print ***/
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 
 namespace alex {
 
@@ -199,19 +199,6 @@ class LinearModel {
     }
     return result + b_;
   }
-
-  //Helper related to linear model.
-  //calculate the smallest T type array that results to 'result' predicted by current model.
-  //that specific array is stored in the container.
-  void find_minimum (double *start, int result, T *container) const {
-    if (typeid(T) != typeid(char)) {
-      container[0] = static_cast<T>((result - b_) / a_[0]);
-    }
-    else { //It's a string, whether single char or not.
-      //need to impelment (below is dummy)
-      std::cout << start[0] << std::endl;
-    }
-  }
 };
 
 /* LinearModelBuilder acts very similar to XIndex model preparing. */
@@ -284,7 +271,7 @@ class LinearModelBuilder {
       return;
     }
 
-    // trim down samples to avoid alrge memory usage
+    // trim down samples to avoid large memory usage
     size_t step = 1;
     if (training_keys_.size() > desired_training_key_n_) {
       step = training_keys_.size() / desired_training_key_n_;
