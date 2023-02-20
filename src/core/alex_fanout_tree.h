@@ -429,7 +429,20 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
     right_boundary_value[0] = (end_bucketID - parent->model_.b_) / parent->model_.a_[0];
   }
   else { //for string key
-    /* NEED TO IMPLEMENT */
+    //explanation in split_downwards
+    for (unsigned int i = 0; i < parent->max_key_length_; i++) {
+      left_boundary_value[i] = node->min_key_->key_arr_[i];
+    }
+    if (node->next_leaf_ != nullptr) {
+      for (unsigned int i = 0; i < parent->max_key_length_; i++) {
+        right_boundary_value[i] = node->next_leaf_->min_key_->key_arr_[i];
+      }
+    }
+    else {
+      for (unsigned int i = 0; i < parent->max_key_length_; i++) {
+        right_boundary_value[i] = node->max_key_->key_arr_[i];
+      }
+    }
   }
   
   /* needs change compared to original since we now we need length-dimension realted line.
