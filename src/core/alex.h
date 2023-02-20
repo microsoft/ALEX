@@ -2035,7 +2035,22 @@ class Alex {
       right_boundary_value[0] = (end_bucketID - parent->model_.b_) / parent->model_.a_[0];
     }
     else { //string case
-      //NEED TO IMPLEMENT
+      /* Since models are all monotonically increasing, minimum key of each node would 
+       * certainly result to start_bucketID, and we could assume it's the smallest. (not certain)
+       * if next node doesn't exists, decided to use max key (not certain) */
+      for (unsigned int i = 0; i < max_key_length_; i++) {
+        left_boundary_value[i] = leaf->min_key_->key_arr_[i];
+      }
+      if (leaf->next_leaf_ != nullptr) {
+        for (unsigned int i = 0; i < max_key_length_; i++) {
+          right_boundary_value[i] = leaf->next_leaf_->min_key_->key_arr_[i];
+        }
+      }
+      else {
+        for (unsigned int i = 0; i < max_key_length_; i++) {
+          right_boundary_value[i] = leaf->max_key_->key_arr_[i];
+        }
+      }
     }
 
     double direction_vector_[max_key_length_] = {0.0};
