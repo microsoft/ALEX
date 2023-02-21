@@ -453,42 +453,65 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   /*** Constructors and destructors ***/
 
   AlexDataNode () : AlexNode<T, P, Alloc>(0, true) {
-    the_max_key_arr_ = new T[1];
-    the_min_key_arr_ = new T[1];
-    the_max_key_arr_[0] = std::numeric_limits<T>::max();
-    the_min_key_arr_[0] = std::numeric_limits<T>::lowest();
-
     T *kEndSentinel = new T[1];
-    kEndSentinel[0] = std::numeric_limits<T>::max();
-    max_key_ = new AlexKey<T>(1);
-    min_key_ = new AlexKey<T>(1);
-    max_key_->key_arr_[0] = std::numeric_limits<T>::lowest();
-    min_key_->key_arr_[0] = std::numeric_limits<T>::max();
     kEndSentinel_.key_arr_ = kEndSentinel;
     kEndSentinel_.max_key_length_ = 1;
+    the_max_key_arr_ = new T[1];
+    the_min_key_arr_ = new T[1];
+    max_key_ = new AlexKey<T>(1);
+    min_key_ = new AlexKey<T>(1);
+
+    if (typeid(T) != typeid(char)) { //numeric key
+      kEndSentinel[0] = STR_VAL_MAX;
+      the_max_key_arr_[0] = std::numeric_limits<T>::max();
+      the_min_key_arr_[0] = std::numeric_limits<T>::lowest();
+      max_key_->key_arr_[0] = std::numeric_limits<T>::lowest();
+      min_key_->key_arr_[0] = std::numeric_limits<T>::max();
+    }
+    else { // string key
+      kEndSentinel[0] = STR_VAL_MAX;
+      the_max_key_arr_[0] = STR_VAL_MAX;
+      the_min_key_arr_[0] = STR_VAL_MIN;
+      max_key_->key_arr_[0] = STR_VAL_MIN;
+      min_key_->key_arr_[0] = STR_VAL_MAX;
+    }
   }
 
   explicit AlexDataNode(unsigned int max_key_length, model_node_type *parent,
         const Compare& comp = Compare(), const Alloc& alloc = Alloc())
       : AlexNode<T, P, Alloc>(0, true, parent, max_key_length), key_less_(comp), allocator_(alloc) {
     T *kEndSentinel_arr = new T[max_key_length];
+    kEndSentinel_.key_arr_ = kEndSentinel_arr;
+    kEndSentinel_.max_key_length_ = max_key_length;
     the_max_key_arr_ = new T[max_key_length];
     the_min_key_arr_ = new T[max_key_length];
     min_key_ = new AlexKey<T>(max_key_length);
     max_key_ = new AlexKey<T>(max_key_length);
-    kEndSentinel_.key_arr_ = kEndSentinel_arr;
-    kEndSentinel_.max_key_length_ = max_key_length;
 
-    std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length,
-      std::numeric_limits<T>::lowest());
-    std::fill(min_key_->key_arr_, min_key_->key_arr_ + max_key_length,
-        std::numeric_limits<T>::max());
-    std::fill(kEndSentinel_arr, kEndSentinel_arr + max_key_length,
-        std::numeric_limits<T>::max());
-    std::fill(the_max_key_arr_, the_max_key_arr_ + max_key_length,
-        std::numeric_limits<T>::max());
-    std::fill(the_min_key_arr_, the_min_key_arr_ + max_key_length,
-        std::numeric_limits<T>::lowest());
+    if (typeid(T) != typeid(char)) { //numeric key
+      std::fill(kEndSentinel_arr, kEndSentinel_arr + max_key_length,
+          std::numeric_limits<T>::max());
+      std::fill(the_max_key_arr_, the_max_key_arr_ + max_key_length,
+          std::numeric_limits<T>::max());
+      std::fill(the_min_key_arr_, the_min_key_arr_ + max_key_length,
+          std::numeric_limits<T>::lowest());
+      std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length,
+          std::numeric_limits<T>::lowest());
+      std::fill(min_key_->key_arr_, min_key_->key_arr_ + max_key_length,
+          std::numeric_limits<T>::max());
+    }
+    else { //string key
+      std::fill(kEndSentinel_arr, kEndSentinel_arr + max_key_length,
+          STR_VAL_MAX);
+      std::fill(the_max_key_arr_, the_max_key_arr_ + max_key_length,
+          STR_VAL_MAX);
+      std::fill(the_min_key_arr_, the_min_key_arr_ + max_key_length,
+          STR_VAL_MIN);
+      std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length,
+          STR_VAL_MIN);
+      std::fill(min_key_->key_arr_, min_key_->key_arr_ + max_key_length,
+          STR_VAL_MAX);
+    }
   }
 
   AlexDataNode(short level, int max_data_node_slots,
@@ -499,23 +522,37 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
         allocator_(alloc),
         max_slots_(max_data_node_slots) {
     T *kEndSentinel_arr = new T[max_key_length];
+    kEndSentinel_.key_arr_ = kEndSentinel_arr;
+    kEndSentinel_.max_key_length_ = max_key_length;
     the_max_key_arr_ = new T[max_key_length];
     the_min_key_arr_ = new T[max_key_length];
     min_key_ = new AlexKey<T>(max_key_length);
     max_key_ = new AlexKey<T>(max_key_length);
-    kEndSentinel_.key_arr_ = kEndSentinel_arr;
-    kEndSentinel_.max_key_length_ = max_key_length;
 
-    std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length,
-        std::numeric_limits<T>::lowest());
-    std::fill(min_key_->key_arr_, min_key_->key_arr_ + max_key_length,
-        std::numeric_limits<T>::max());
-    std::fill(kEndSentinel_arr, kEndSentinel_arr + max_key_length,
-        std::numeric_limits<T>::max());
-    std::fill(the_max_key_arr_, the_max_key_arr_ + max_key_length,
-        std::numeric_limits<T>::max());
-    std::fill(the_min_key_arr_, the_min_key_arr_ + max_key_length,
-        std::numeric_limits<T>::lowest());
+    if (typeid(T) != typeid(char)) { //numeric key
+      std::fill(kEndSentinel_arr, kEndSentinel_arr + max_key_length,
+          std::numeric_limits<T>::max());
+      std::fill(the_max_key_arr_, the_max_key_arr_ + max_key_length,
+          std::numeric_limits<T>::max());
+      std::fill(the_min_key_arr_, the_min_key_arr_ + max_key_length,
+          std::numeric_limits<T>::lowest());
+      std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length,
+          std::numeric_limits<T>::lowest());
+      std::fill(min_key_->key_arr_, min_key_->key_arr_ + max_key_length,
+          std::numeric_limits<T>::max());
+    }
+    else { //string key
+      std::fill(kEndSentinel_arr, kEndSentinel_arr + max_key_length,
+          STR_VAL_MAX);
+      std::fill(the_max_key_arr_, the_max_key_arr_ + max_key_length,
+          STR_VAL_MAX);
+      std::fill(the_min_key_arr_, the_min_key_arr_ + max_key_length,
+          STR_VAL_MIN);
+      std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length,
+          STR_VAL_MIN);
+      std::fill(min_key_->key_arr_, min_key_->key_arr_ + max_key_length,
+          STR_VAL_MAX);
+    }
   }
 
   ~AlexDataNode() {

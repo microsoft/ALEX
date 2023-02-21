@@ -2158,14 +2158,19 @@ class Alex {
         parent->num_children_ - 1);
 
     int right_boundary = 0;
+    AlexKey<T> tmpkey = AlexKey<T>(max_key_length_);
     if (typeid(T) != typeid(char))  { // for numeric key
-      AlexKey<T> tmpkey = AlexKey<T>(max_key_length_);
       tmpkey.key_arr_[0] = (T) (mid_bucketID - parent->model_.b_) / parent->model_.a_[0];
-      right_boundary = old_node->lower_bound(tmpkey);
     }
     else { // for string key
-      //NEED TO IMPLEMENT
+      //According to my insight, linear model would be monotonically increasing
+      //And I think this could lead me to compute key corresponding to mid_bucketID as
+      //average of min/max key of current splitting node.
+      for (unsigned int i = 0; i < max_key_length_; i++) {
+        tmpkey.key_arr_[i] = (old_node->max_key_->key_arr_[i] + old_node->min_key_->key_arr_[i]) / 2;
+      }
     }
+    right_boundary = old_node->lower_bound(tmpkey);
     // Account for off-by-one errors due to floating-point precision issues.
     while (right_boundary < old_node->data_capacity_) {
       AlexKey<T> old_rbkey = old_node->get_key(right_boundary);

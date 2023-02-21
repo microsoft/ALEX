@@ -54,10 +54,9 @@ typedef unsigned __int32 uint32_t;
 #define forceinline inline
 #endif
 
-/*** type of key ***/
-#define STRING (0)
-#define INTEGER (1)
-#define DOUBLE (2)
+/*** string's limit value ***/
+#define STR_VAL_MAX 63
+#define STR_VAL_MIN 0
 
 /*** debug print ***/
 #define DEBUG_PRINT 0
