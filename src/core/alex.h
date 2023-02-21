@@ -952,7 +952,7 @@ class Alex {
 
       // Instantiate all the child nodes and recurse
       int cur = 0;
-      //int idx = 0; /* needed in string case */
+      int idx = 0; //only used in string
       for (fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {
         auto child_node = new (model_node_allocator().allocate(1))
             model_node_type(static_cast<short>(node->level_ + 1), model_node, max_key_length_, allocator_);
@@ -973,26 +973,35 @@ class Alex {
           left_boundary[0] = (left_value - node->model_.b_) / node->model_.a_[0];
           right_boundary[0] = (right_value - node->model_.b_) / node->model_.a_[0];
         }
-        else { //string case, 
-        // NOTE THAT THIS IMPLEMENTATION MAY BE WRONG
+        else { //string case, slightly hacky
         // It tries to find the first value larger or equal to left / right value.
         // Then assumes those are the left/right boundary.
-        //RESULT BIT DIFFERENT COMPARED TO ORIGINAL. 
-        //NEEDS FIX SINCE IT CONVERTS CHAR ARRAY TO DOUBLE
-          //for (; idx < num_keys; idx++) {
-          //  if (node->model_.predict_double(values[idx].first) >= left_value) {
-          //    left_boundary = values[idx].first.key_arr_;
-          //    break;
-          //  }
-          //}
-          //if (left_boundary == nullptr) {left_boundary = values[num_keys-1].first.key_arr_;}
-          //for (; idx < num_keys; idx++) {
-          //  if (node->model_.predict_double(values[idx].first) >= right_value) {
-          //    right_boundary = values[idx].first.key_arr_;
-          //    break;
-          //  }
-          //}
-          //if (right_boundary == nullptr) {right_boundary = values[num_keys-1].first.key_arr_;}
+          for (; idx < num_keys; idx++) {
+            if (node->model_.predict_double(values[idx].first) >= left_value) {
+              for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
+                left_boundary[i] = (double) values[idx].first.key_arr_[i];
+              }
+              break;
+            }
+          }
+          if (idx == num_keys) {
+            for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
+              left_boundary[i] = (double) values[num_keys-1].first.key_arr_[i];
+            }
+          }
+          for (; idx < num_keys; idx++) {
+            if (node->model_.predict_double(values[idx].first) >= right_value) {
+              for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
+                right_boundary[i] = (double) values[idx].first.key_arr_[i];
+              }
+              break;
+            }
+          }
+          if (idx == num_keys) {
+          for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
+              right_boundary[i] = (double) values[num_keys-1].first.key_arr_[i];
+            }
+          }
         }
 #if DEBUG_PRINT
         //std::cout << "finished finding boundary..." << std::endl;
@@ -1583,6 +1592,7 @@ class Alex {
 
   //helper for expand_root
   //decrease double array by specific value in string-like manner.
+  //need proper implementation for string
   void decrease_string (T *target, double size) {
     assert(typeid(T) == typeid(char));
     if (max_key_length_ == 1) {
@@ -1613,6 +1623,7 @@ class Alex {
 
   //helper for expand_root
   //increase double array by specific value in string-like manner.
+  //need proper implementation for string
   void increase_string (T *target, double size) {
     assert(typeid(T) == typeid(char));
     if (max_key_length_ == 1) {
@@ -1664,6 +1675,7 @@ class Alex {
        * ex : zoo, apple, max length 5 : z needs to have much larger size than 26, which is simple difference. 
        * assuming string only contains numbers and alphabets, this size doesn't overflow
        * for up to 11 character strings... (max_key_length_ as 11) may need to edit. */
+      //need proper implementation.
         domain_size += (istats_.key_domain_max_[i] - istats_.key_domain_min_[i]) * pow(35, max_key_length_ - i - 1);
       }
     }
@@ -1707,10 +1719,7 @@ class Alex {
       }
       else { // for string.
         double key_difference = 0.0;
-        for (unsigned int i = 0; i < max_key_length_; i++) {
-          key_difference += istats_.key_domain_min_[i] - min_key[i] 
-            * pow(35, max_key_length_ - i - 1);
-        }
+        // need to implement how to caclulate key difference for string.
         expansion_factor = pow_2_round_up(static_cast<int>(
             std::ceil((key_difference + domain_size) / domain_size)));
 
@@ -1718,10 +1727,7 @@ class Alex {
         // this check, we do comparisons using half of the relevant quantities.
         double half_expandable_domain = 0.0;
         double half_expanded_domain_size = 0.0;
-        for (unsigned int i = 0; i < max_key_length_; i++) {
-          half_expandable_domain += 
-            (istats_.key_domain_max_[i] / 2) * pow(35, max_key_length_ - i - 1);
-        }
+        // need to implement how to caculate half_expandable_domain
         half_expanded_domain_size = expansion_factor / 2 * domain_size;
         if (half_expandable_domain < half_expanded_domain_size) {
           for (unsigned int i = 0; i < max_key_length_; i++) {
@@ -1772,10 +1778,7 @@ class Alex {
       }
       else {
         double key_difference = 0.0;
-        for (unsigned int i = 0; i < max_key_length_; i++) {
-          key_difference += max_key[i] - istats_.key_domain_max_[i] 
-            * pow(35, max_key_length_ - i - 1);
-        }
+        // need to implement how to caclulate key difference for string.
         expansion_factor = pow_2_round_up(static_cast<int>(
           std::ceil((key_difference + domain_size) / domain_size)));
 
@@ -1783,10 +1786,7 @@ class Alex {
         // this check, we do comparisons using half of the relevant quantities.
         double half_expandable_domain = 0.0;
         double half_expanded_domain_size = 0.0;
-        for (unsigned int i = 0; i < max_key_length_; i++) {
-          half_expandable_domain += 
-            (istats_.key_domain_max_[i] / 2) * pow(35, max_key_length_ - i - 1);
-        }
+        // need to implement how to caculate half_expandable_domain
         half_expanded_domain_size = expansion_factor / 2 * domain_size;
         if (half_expandable_domain < half_expanded_domain_size) {
           for (unsigned int i = 0; i < max_key_length_; i++) {
