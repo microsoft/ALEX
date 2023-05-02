@@ -494,9 +494,11 @@ class Alex {
 // traversal_path should be empty when calling this function.
 // The returned traversal path begins with superroot and ends with the data
 // node's parent.
+// Mode 0 : It's for looking the existing key. It should check boundaries.
+// Mode 1 : It's for inserting new key. IT DOESN'T CHECK BOUNDARIES.
 #if ALEX_SAFE_LOOKUP
   forceinline data_node_type* get_leaf(
-      AlexKey<T> key, std::vector<TraversalNode>* traversal_path = nullptr) const {
+      AlexKey<T> key, int mode, std::vector<TraversalNode>* traversal_path = nullptr) const {
     std::cout << key.key_arr_ << std::endl;
     if (traversal_path) {
       traversal_path->push_back({superroot_, 0});
@@ -520,42 +522,44 @@ class Alex {
       cur = node->children_[bucketID];
       bucketID =
           std::min<int>(std::max<int>(bucketID, 0), node->num_children_ - 1);
-      int smaller_than_min = key_less_(key, *(cur->min_key_));
-      int larger_than_max = key_less_(*(cur->max_key_), key);
-      while (smaller_than_min || larger_than_max) {
-//#if DEBUG_PRINT
-        std::cout << "current bucket : " << bucketID << std::endl;
-        std::cout << "min_key : " << cur->min_key_->key_arr_ << std::endl;
-        std::cout << "max_key : " << cur->max_key_->key_arr_ << std::endl;
-//#endif
-        if (smaller_than_min && larger_than_max) {
-          //empty node. move according to direction.
-          //could start at empty node, in this case, move left (since larger key is not possible)
-          //SHOULD FIND OUT FAST SEARCHING USING NUMBER OF DUPLICATE POINTER
-          if (dir == -1) {
+      if (mode == 0) {//for lookup related get_leaf
+        int smaller_than_min = key_less_(key, *(cur->min_key_));
+        int larger_than_max = key_less_(*(cur->max_key_), key);
+        while (smaller_than_min || larger_than_max) {
+  //#if DEBUG_PRINT
+          std::cout << "current bucket : " << bucketID << std::endl;
+          std::cout << "min_key : " << cur->min_key_->key_arr_ << std::endl;
+          std::cout << "max_key : " << cur->max_key_->key_arr_ << std::endl;
+  //#endif
+          if (smaller_than_min && larger_than_max) {
+            //empty node. move according to direction.
+            //could start at empty node, in this case, move left (since larger key is not possible)
+            //SHOULD FIND OUT FAST SEARCHING USING NUMBER OF DUPLICATE POINTER
+            if (dir == -1) {
+              bucketID -= 1;
+              cur = node->children_[bucketID]; 
+              dir = -1;
+            }
+            else {
+              bucketID += 1;
+              cur = node->children_[bucketID]; 
+              dir = 1;
+            }
+          }
+          else if (smaller_than_min) {
             bucketID -= 1;
-            cur = node->children_[bucketID]; 
+            cur = node->children_[bucketID];
             dir = -1;
           }
-          else {
+          else if (larger_than_max) {
             bucketID += 1;
-            cur = node->children_[bucketID]; 
+            cur = node->children_[bucketID];
             dir = 1;
           }
-        }
-        else if (smaller_than_min) {
-          bucketID -= 1;
-          cur = node->children_[bucketID];
-          dir = -1;
-        }
-        else if (larger_than_max) {
-          bucketID += 1;
-          cur = node->children_[bucketID];
-          dir = 1;
-        }
 
-        smaller_than_min = key_less_(key, *(cur->min_key_));
-        larger_than_max = key_less_(*(cur->max_key_), key);
+          smaller_than_min = key_less_(key, *(cur->min_key_));
+          larger_than_max = key_less_(*(cur->max_key_), key);
+        }
       }
       if (traversal_path) {
         traversal_path->push_back({node, bucketID});
@@ -1307,7 +1311,7 @@ class Alex {
   // use lower_bound()
   typename self_type::Iterator find(const AlexKey<T>& key) {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key);
+    data_node_type* leaf = get_leaf(key, 0);
     int idx = leaf->find_key(key);
     if (idx < 0) {
       return end();
@@ -1318,7 +1322,7 @@ class Alex {
 
   typename self_type::ConstIterator find(const AlexKey<T>& key) const {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key);
+    data_node_type* leaf = get_leaf(key, 0);
     int idx = leaf->find_key(key);
     if (idx < 0) {
       return cend();
@@ -1340,7 +1344,7 @@ class Alex {
   // Returns an iterator to the first key no less than the input value
   typename self_type::Iterator lower_bound(const AlexKey<T>& key) {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key);
+    data_node_type* leaf = get_leaf(key, 0);
     int idx = leaf->find_lower(key);
     return Iterator(leaf, idx);  // automatically handles the case where idx ==
                                  // leaf->data_capacity
@@ -1348,7 +1352,7 @@ class Alex {
 
   typename self_type::ConstIterator lower_bound(const AlexKey<T>& key) const {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key);
+    data_node_type* leaf = get_leaf(key, 0);
     int idx = leaf->find_lower(key);
     return ConstIterator(leaf, idx);  // automatically handles the case where
                                       // idx == leaf->data_capacity
@@ -1357,7 +1361,7 @@ class Alex {
   // Returns an iterator to the first key greater than the input value
   typename self_type::Iterator upper_bound(const AlexKey<T>& key) {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key);
+    data_node_type* leaf = get_leaf(key, 0);
     int idx = leaf->find_upper(key);
     return Iterator(leaf, idx);  // automatically handles the case where idx ==
                                  // leaf->data_capacity
@@ -1365,7 +1369,7 @@ class Alex {
 
   typename self_type::ConstIterator upper_bound(const AlexKey<T>& key) const {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key);
+    data_node_type* leaf = get_leaf(key, 0);
     int idx = leaf->find_upper(key);
     return ConstIterator(leaf, idx);  // automatically handles the case where
                                       // idx == leaf->data_capacity
@@ -1385,7 +1389,7 @@ class Alex {
   // Returns null pointer if there is no exact match of the key
   P* get_payload(const AlexKey<T>& key) const {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key);
+    data_node_type* leaf = get_leaf(key, 0);
     int idx = leaf->find_key(key);
     if (idx < 0) {
       return nullptr;
@@ -1398,7 +1402,7 @@ class Alex {
   // Conceptually, this is equal to the last key before upper_bound()
   typename self_type::Iterator find_last_no_greater_than(const AlexKey<T>& key) {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key);
+    data_node_type* leaf = get_leaf(key, 0);
     const int idx = leaf->upper_bound(key) - 1;
     if (idx >= 0) {
       return Iterator(leaf, idx);
@@ -1421,7 +1425,7 @@ class Alex {
   // This avoids the overhead of creating an iterator
   P* get_payload_last_no_greater_than(const AlexKey<T>& key) {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key);
+    data_node_type* leaf = get_leaf(key, 0);
     const int idx = leaf->upper_bound(key) - 1;
     if (idx >= 0) {
       return &(leaf->get_payload(idx));
@@ -1561,7 +1565,7 @@ class Alex {
       }
     }
 
-    data_node_type* leaf = get_leaf(key);
+    data_node_type* leaf = get_leaf(key, 1);
 
     // Nonzero fail flag means that the insert did not happen
     std::pair<int, int> ret = leaf->insert(key, payload);
@@ -1576,7 +1580,7 @@ class Alex {
     // cost
     if (fail) {
       std::vector<TraversalNode> traversal_path;
-      get_leaf(key, &traversal_path);
+      get_leaf(key, 1, &traversal_path);
       model_node_type* parent = traversal_path.back().node;
 
       while (fail) {
@@ -2761,7 +2765,7 @@ class Alex {
  public:
   // Erases the left-most key with the given key value
   int erase_one(const AlexKey<T>& key) {
-    data_node_type* leaf = get_leaf(key);
+    data_node_type* leaf = get_leaf(key, 0);
     int num_erased = leaf->erase_one(key);
     stats_.num_keys -= num_erased;
     if (leaf->num_keys_ == 0) {
@@ -2777,7 +2781,7 @@ class Alex {
 
   // Erases all keys with a certain key value
   int erase(const AlexKey<T>& key) {
-    data_node_type* leaf = get_leaf(key);
+    data_node_type* leaf = get_leaf(key, 0);
     int num_erased = leaf->erase(key);
     stats_.num_keys -= num_erased;
     if (leaf->num_keys_ == 0) {
@@ -2829,7 +2833,7 @@ class Alex {
   void merge(data_node_type* leaf, AlexKey<T> key) {
     // first save the complete path down to data node
     std::vector<TraversalNode> traversal_path;
-    auto leaf_dup = get_leaf(key, &traversal_path);
+    auto leaf_dup = get_leaf(key, 0, &traversal_path);
     // We might need to correct the traversal path in edge cases
     if (leaf_dup != leaf) {
       if (leaf_dup->prev_leaf_ == leaf) {
