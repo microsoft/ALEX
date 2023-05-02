@@ -115,7 +115,7 @@ int main(int argc, char* argv[]) {
             bulkload_start_time).count() << "ns" << std::endl;
 
   // Run workload
-  int i = init_num_keys;
+  int i = init_num_keys-2;
   long long cumulative_inserts = 0;
   long long cumulative_lookups = 0;
   int num_inserts_per_batch = static_cast<int>(batch_size * insert_frac);
