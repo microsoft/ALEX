@@ -497,11 +497,18 @@ class Alex {
 #if ALEX_SAFE_LOOKUP
   forceinline data_node_type* get_leaf(
       AlexKey<T> key, std::vector<TraversalNode>* traversal_path = nullptr) const {
+    std::cout << key.key_arr_ << std::endl;
     if (traversal_path) {
       traversal_path->push_back({superroot_, 0});
     }
+#if DEBUG_PRINT
+    std::cout << "traveling from root" << std::endl;
+#endif
     node_type* cur = root_node_;
     if (cur->is_leaf_) {
+#if DEBUG_PRINT
+      std::cout << "root is data node" << std::endl;
+#endif
       return static_cast<data_node_type*>(cur);
     }
 
@@ -509,12 +516,54 @@ class Alex {
       auto node = static_cast<model_node_type*>(cur);
       double bucketID_prediction = node->model_.predict_double(key);
       int bucketID = static_cast<int>(bucketID_prediction);
+      int dir = 0; //direction of seraching between buckets. 1 for right, -1 for left.
+      cur = node->children_[bucketID];
       bucketID =
           std::min<int>(std::max<int>(bucketID, 0), node->num_children_ - 1);
+      int smaller_than_min = key_less_(key, *(cur->min_key_));
+      int larger_than_max = key_less_(*(cur->max_key_), key);
+      while (smaller_than_min || larger_than_max) {
+//#if DEBUG_PRINT
+        std::cout << "current bucket : " << bucketID << std::endl;
+        std::cout << "min_key : " << cur->min_key_->key_arr_ << std::endl;
+        std::cout << "max_key : " << cur->max_key_->key_arr_ << std::endl;
+//#endif
+        if (smaller_than_min && larger_than_max) {
+          //empty node. move according to direction.
+          //could start at empty node, in this case, move left (since larger key is not possible)
+          //SHOULD FIND OUT FAST SEARCHING USING NUMBER OF DUPLICATE POINTER
+          if (dir == -1) {
+            bucketID -= 1;
+            cur = node->children_[bucketID]; 
+            dir = -1;
+          }
+          else {
+            bucketID += 1;
+            cur = node->children_[bucketID]; 
+            dir = 1;
+          }
+        }
+        else if (smaller_than_min) {
+          bucketID -= 1;
+          cur = node->children_[bucketID];
+          dir = -1;
+        }
+        else if (larger_than_max) {
+          bucketID += 1;
+          cur = node->children_[bucketID];
+          dir = 1;
+        }
+
+        smaller_than_min = key_less_(key, *(cur->min_key_));
+        larger_than_max = key_less_(*(cur->max_key_), key);
+      }
       if (traversal_path) {
         traversal_path->push_back({node, bucketID});
       }
-      cur = node->children_[bucketID];
+//#if DEBUG_PRINT
+      std::cout << "going into ID " << bucketID << " pointer is " << node->children_[bucketID] << std::endl;
+      std::cout << "this ID has min_key_ as " << cur->min_key_->key_arr_ << " and max_key_ as " << cur->max_key_->key_arr_ << std::endl;
+//#endif
       if (cur->is_leaf_) {
         stats_.num_node_lookups += cur->level_;
         auto leaf = static_cast<data_node_type*>(cur);
@@ -536,6 +585,9 @@ class Alex {
                   // Correct the traversal path
                   correct_traversal_path(leaf, *traversal_path, true);
                 }
+#if DEBUG_PRINT
+                std::cout << "leaf is " << bucketID - 1 << std::endl;
+#endif
                 return leaf->prev_leaf_;
               }
             }
@@ -547,11 +599,17 @@ class Alex {
                   // Correct the traversal path
                   correct_traversal_path(leaf, *traversal_path, false);
                 }
+#if DEBUG_PRINT
+                std::cout << "leaf is " << bucketID + 1 << std::endl;
+#endif
                 return leaf->next_leaf_;
               }
             }
           }
         }
+#if DEBUG_PRINT
+        std::cout << "leaf is " << bucketID << std::endl;
+#endif
         return leaf;
       }
     }
@@ -761,17 +819,21 @@ class Alex {
     AlexKey<T> min_key = values[0].first;
     AlexKey<T> max_key = values[num_keys - 1].first;
 
-    /* explanation in alex_fanout_tree.h, find_best_fanout_existing_node function. */
-    double direction_vector_[max_key_length_] = {0.0};
-    for (unsigned int i = 0; i < max_key_length_; i++) {
-      direction_vector_[i] = (double) max_key.key_arr_[i] - min_key.key_arr_[i];
+    LinearModelBuilder<T> root_model_builder(&root_node_->model_);
+    for (int i = 0; i < num_keys; i++) {
+      printf("adding : %f\n", (double) (i) / (num_keys-1));
+      root_model_builder.add(values[i].first, (double) (i) / (num_keys-1));
     }
-    root_node_->model_.b_ = 0.0;
-    for (unsigned int i = 0; i < max_key_length_; i++) {
-      root_node_->model_.a_[i] = 1 / (direction_vector_[i] * max_key_length_);
-      root_node_->model_.b_ -= min_key.key_arr_[i] / direction_vector_[i];
+    root_model_builder.build();
+
+    for (int i = 0; i < num_keys; i++) {
+      std::cout << values[i].first.key_arr_ << " prediction " << root_node_->model_.predict_double(values[i].first) << std::endl;
     }
-    root_node_->model_.b_ /= max_key_length_;
+
+#if DEBUG_PRINT
+    std::cout << "left prediction result (bulk_load) " << root_node_->model_.predict_double(values[1].first) << std::endl;
+    std::cout << "right prediction result (bulk_load) " << root_node_->model_.predict_double(values[num_keys-2].first) << std::endl;
+#endif
 
     // Compute cost of root node
     LinearModel<T> root_data_node_model(max_key_length_);
@@ -819,6 +881,18 @@ class Alex {
     assert(stats_.num_inserts == 0 || root_node_->is_leaf_);
     T *min_key_arr = get_min_key();
     T* max_key_arr = get_max_key();
+
+#if DEBUG_PRINT
+    for (unsigned int i = 0; i < max_key_length_; i++) {
+      std::cout << min_key_arr[i] << ' ';
+    }
+    std::cout << std::endl;
+    for (unsigned int i = 0; i < max_key_length_; i++) {
+      std::cout << max_key_arr[i] << ' ';
+    }
+    std::cout << std::endl;
+#endif
+
     std::copy(min_key_arr, min_key_arr + max_key_length_, istats_.key_domain_min_);
     std::copy(max_key_arr, max_key_arr + max_key_length_, istats_.key_domain_max_);
     istats_.num_keys_at_last_right_domain_resize = stats_.num_keys;
@@ -826,16 +900,54 @@ class Alex {
     istats_.num_keys_above_key_domain = 0;
     istats_.num_keys_below_key_domain = 0;
 
-    double direction_vector_[max_key_length_] = {0.0};
-    for (unsigned int i = 0; i < max_key_length_; i++) {
-      direction_vector_[i] = (double) istats_.key_domain_max_[i] - istats_.key_domain_min_[i];
+    AlexKey<T> mintmpkey(istats_.key_domain_min_, max_key_length_);
+    AlexKey<T> maxtmpkey(istats_.key_domain_max_, max_key_length_);
+    if (key_equal(mintmpkey, maxtmpkey)) {//keys are equal
+      unsigned int non_zero_cnt_ = 0;
+
+      for (unsigned int i = 0; i < max_key_length_; i++) {
+        if (istats_.key_domain_min_[i] == 0) {
+          superroot_->model_.a_[i] = 0;
+        }
+        else {
+          superroot_->model_.a_[i] = 1 / istats_.key_domain_min_[i];
+          non_zero_cnt_ += 1;
+        }
+      }
+      
+      for (unsigned int i = 0; i < max_key_length_; i++) {
+        superroot_->model_.a_[i] /= non_zero_cnt_;
+      }
+      superroot_->model_.b_ = 0;
     }
-    superroot_->model_.b_ = 0.0;
-    for (unsigned int i = 0; i < max_key_length_; i++) {
-      superroot_->model_.a_[i] = 1 / (direction_vector_[i] * max_key_length_);
-      superroot_->model_.b_ -= istats_.key_domain_min_[i] / direction_vector_[i];
+    else {//keys are not equal
+      double direction_vector_[max_key_length_] = {0.0};
+      
+      for (unsigned int i = 0; i < max_key_length_; i++) {
+        direction_vector_[i] = (double) istats_.key_domain_max_[i] - istats_.key_domain_min_[i];
+      }
+      superroot_->model_.b_ = 0.0;
+      unsigned int non_zero_cnt_ = 0;
+      for (unsigned int i = 0; i < max_key_length_; i++) {
+        if (direction_vector_[i] == 0) {
+          superroot_->model_.a_[i] = 0;
+        }
+        else {
+          superroot_->model_.a_[i] = 1 / (direction_vector_[i]);
+          superroot_->model_.b_ -= istats_.key_domain_min_[i] / direction_vector_[i];
+          non_zero_cnt_ += 1;
+        }
+      }
+      
+      for (unsigned int i = 0; i < max_key_length_; i++) {
+        superroot_->model_.a_[i] /= non_zero_cnt_;
+      }
+      superroot_->model_.b_ /= non_zero_cnt_;
     }
-    superroot_->model_.b_ /= max_key_length_;
+#if DEBUG_PRINT
+    std::cout << "left prediction result (uskd) " << superroot_->model_.predict_double(mintmpkey) << std::endl;
+    std::cout << "right prediction result (uskd) " << superroot_->model_.predict_double(maxtmpkey) << std::endl;
+#endif
   }
 
   void update_superroot_pointer() {
@@ -855,7 +967,7 @@ class Alex {
     // Automatically convert to data node when it is impossible to be better
     // than current cost
 #if DEBUG_PRINT
-    //std::cout << "called bulk_load_node!" << std::endl;
+    std::cout << "called bulk_load_node!" << std::endl;
 #endif
     if (num_keys <= derived_params_.max_data_node_slots *
                         data_node_type::kInitDensity_ &&
@@ -871,7 +983,7 @@ class Alex {
       delete_node(node);
       node = data_node;
 #if DEBUG_PRINT
-      //std::cout << "returned because it can't be better" << std::endl;
+      std::cout << "returned because it can't be better" << std::endl;
 #endif
       return;
     }
@@ -903,7 +1015,7 @@ class Alex {
         num_keys > derived_params_.max_data_node_slots *
                        data_node_type::kInitDensity_) {
 #if DEBUG_PRINT
-      //std::cout << "decided that current bulk_load_node calling node should be model node" << std::endl;
+      std::cout << "decided that current bulk_load_node calling node should be model node" << std::endl;
 #endif
       // Convert to model node based on the output of the fanout tree
       stats_.num_model_nodes++;
@@ -927,7 +1039,7 @@ class Alex {
         int max_data_node_keys = static_cast<int>(
             derived_params_.max_data_node_slots * data_node_type::kInitDensity_);
 #if DEBUG_PRINT
-        //std::cout << "computing level for depth 0" << std::endl;
+        std::cout << "computing level for depth 0" << std::endl;
 #endif
         fanout_tree::compute_level<T, P>(
             values, num_keys, node, total_keys, used_fanout_tree_nodes,
@@ -935,24 +1047,43 @@ class Alex {
             params_.expected_insert_frac, params_.approximate_model_computation,
             params_.approximate_cost_computation);
 #if DEBUG_PRINT
-        //std::cout << "finished level computing" << std::endl;
+        std::cout << "finished level computing" << std::endl;
 #endif
       }
       int fanout = 1 << best_fanout_tree_depth;
 #if DEBUG_PRINT
-      //std::cout << "chosen fanout is... : " << fanout << std::endl;
+      std::cout << "chosen fanout is... : " << fanout << std::endl;
 #endif
-      for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
-        model_node->model_.a_[i] = node->model_.a_[i] * fanout;
+      //obtianing CDF resulting to [0,fanout]
+      if (typeid(T) != typeid(char)) {
+        //for numeric key, simply obtain model by multiplying fanout.
+        for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
+          model_node->model_.a_[i] = node->model_.a_[i] * fanout;
+        }
+        model_node->model_.b_ = node->model_.b_ * fanout;
       }
-      model_node->model_.b_ = node->model_.b_ * fanout;
+      else {
+        //for string key, we need to obtain model by retraining, not CDF [0,1]
+        //I THINK THIS MEANS, THAT WE MAY DON'T NEED [0,1] CDF TRAINING IN FIRST PLACE. CONSIDER IT.
+        LinearModel<T> tmp_model(node->max_key_length_);
+        LinearModelBuilder<T> tmp_model_builder(&tmp_model);
+        for (int i = 0; i < num_keys; i++) {
+          tmp_model_builder.add(values[i].first, ((double) i * fanout / (num_keys-1)));
+        }
+        tmp_model_builder.build();
+        for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
+          model_node->model_.a_[i] = tmp_model.a_[i];
+        }
+        model_node->model_.b_ = tmp_model.b_; 
+      }
+
       model_node->num_children_ = fanout;
       model_node->children_ =
           new (pointer_allocator().allocate(fanout)) node_type*[fanout];
 
       // Instantiate all the child nodes and recurse
       int cur = 0;
-      int idx = 0; //only used in string
+      int idx = 0, f_idx = 0, l_idx = 0, cumu_repeat = 0; //only used in string
       for (fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {
         auto child_node = new (model_node_allocator().allocate(1))
             model_node_type(static_cast<short>(node->level_ + 1), model_node, max_key_length_, allocator_);
@@ -960,12 +1091,21 @@ class Alex {
         child_node->duplication_factor_ =
             static_cast<uint8_t>(best_fanout_tree_depth - tree_node.level);
         int repeats = 1 << child_node->duplication_factor_;
-        double left_value = static_cast<double>(cur) / fanout;
-        double right_value = static_cast<double>(cur + repeats) / fanout;
+        double left_value, right_value;
+        if (typeid(T) != typeid(char)) { //numeric
+          left_value = static_cast<double>(cur) / fanout;
+          right_value = static_cast<double>(cur + repeats) / fanout;
+        }
+        else {
+          left_value = cur;
+          right_value = cur + repeats;
+        }
 #if DEBUG_PRINT
-        //std::cout << "started finding boundary..." << std::endl;
-        //std::cout << "for left_value with : " << left_value << std::endl;
-        //std::cout << "and right_value with : " << right_value << std::endl;
+        cumu_repeat += repeats;
+        std::cout << "started finding boundary..." << std::endl;
+        std::cout << "for left_value with : " << left_value << std::endl;
+        std::cout << "and right_value with : " << right_value << std::endl;
+        std::cout << "so covering indexes are : " << cumu_repeat - repeats << "~" << cumu_repeat - 1 << std::endl;
 #endif
         double left_boundary[node->model_.max_key_length_];
         double right_boundary[node->model_.max_key_length_];
@@ -977,48 +1117,80 @@ class Alex {
         // It tries to find the first value larger or equal to left / right value.
         // Then assumes those are the left/right boundary.
           for (; idx < num_keys; idx++) {
-            if (node->model_.predict_double(values[idx].first) >= left_value) {
-              for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
+            std::cout << values[idx].first.key_arr_ << " predicted as " << model_node->model_.predict_double(values[idx].first) << std::endl;
+            if (model_node->model_.predict_double(values[idx].first) >= left_value) {
+              for (unsigned int i = 0; i < model_node->model_.max_key_length_; i++) {
                 left_boundary[i] = (double) values[idx].first.key_arr_[i];
               }
+              f_idx = idx;
               break;
             }
           }
           if (idx == num_keys) {
-            for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
+            for (unsigned int i = 0; i < model_node->model_.max_key_length_; i++) {
               left_boundary[i] = (double) values[num_keys-1].first.key_arr_[i];
             }
+            f_idx = num_keys - 1;
           }
           for (; idx < num_keys; idx++) {
-            if (node->model_.predict_double(values[idx].first) >= right_value) {
-              for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
+             std::cout << values[idx].first.key_arr_ << " predicted as " << model_node->model_.predict_double(values[idx].first) << std::endl;
+            if (model_node->model_.predict_double(values[idx].first) >= right_value) {
+              for (unsigned int i = 0; i < model_node->model_.max_key_length_; i++) {
                 right_boundary[i] = (double) values[idx].first.key_arr_[i];
               }
+              l_idx = idx;
               break;
             }
           }
           if (idx == num_keys) {
-          for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
+            for (unsigned int i = 0; i < model_node->model_.max_key_length_; i++) {
               right_boundary[i] = (double) values[num_keys-1].first.key_arr_[i];
             }
+            l_idx = num_keys - 1;
           }
         }
 #if DEBUG_PRINT
-        //std::cout << "finished finding boundary..." << std::endl;
-        //std::cout << "left boundary is : " << std::setprecision (17) << left_boundary[0] << std::endl;
-        //std::cout << "right boundary is : " << std::setprecision (17) << right_boundary[0] << std::endl;
+        std::cout << "finished finding boundary..." << std::endl;
+        if (typeid(T) != typeid(char)) {
+          std::cout << "left boundary is : " << std::setprecision (17) << left_boundary[0] << std::endl;
+          std::cout << "right boundary is : " << std::setprecision (17) << right_boundary[0] << std::endl;
+        }
+        else {
+          std::cout << "left boundary is : ";
+          for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {std::cout << (char) left_boundary[i];}
+          std::cout << std::endl;
+          std::cout << "right boundary is : ";
+          for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {std::cout << (char) right_boundary[i];}
+          std::cout << std::endl;
+        }
 #endif
 
-        double direction_vector_[child_node->max_key_length_] = {0.0};
-        for (unsigned int i = 0; i < child_node->max_key_length_; i++) {
-          direction_vector_[i] = right_boundary[i] - left_boundary[i];
+        //obtain CDF with range [0,1]
+        int num_keys = l_idx - f_idx + 1;
+        LinearModelBuilder<T> child_model_builder(&child_node->model_);
+#if DEBUG_PRINT
+        printf("l_idx : %d, f_idx : %d, num_keys : %d\n", l_idx, f_idx, num_keys);
+#endif
+        if (num_keys == 1) {
+          child_model_builder.add(values[f_idx].first, 1.0);
         }
-        child_node->model_.b_ = 0.0;
+        else {
+          for (int i = f_idx; i < f_idx + num_keys; i++) {
+            child_model_builder.add(values[i].first, (double) (i-f_idx)/(num_keys-1));
+          }
+        }
+        child_model_builder.build();
+
+#if DEBUG_PRINT
+        T left_key[max_key_length_];
+        T right_key[max_key_length_];
         for (unsigned int i = 0; i < max_key_length_; i++) {
-          child_node->model_.a_[i] = 1.0 / (direction_vector_[i] * max_key_length_);
-          child_node->model_.b_ -= left_boundary[i] / direction_vector_[i];
+          left_key[i] = left_boundary[i];
+          right_key[i] = right_boundary[i];
         }
-        child_node->model_.b_ /= (double) max_key_length_;
+        std::cout << "left prediction result (bln) " << child_node->model_.predict_double(AlexKey<T>(left_key, max_key_length_)) << std::endl;
+        std::cout << "right prediction result (bln) " << child_node->model_.predict_double(AlexKey<T>(right_key, max_key_length_)) << std::endl;
+#endif
 
         model_node->children_[cur] = child_node;
         LinearModel<T> child_data_node_model(tree_node.a, tree_node.b, max_key_length_);
@@ -1041,11 +1213,27 @@ class Alex {
         cur += repeats;
       }
 
+      /* update min_key_, max_key_ for new model node*/
+      std::copy(values[0].first.key_arr_, values[0].first.key_arr_ + max_key_length_,
+        model_node->min_key_->key_arr_);
+      std::copy(values[num_keys-1].first.key_arr_, values[num_keys-1].first.key_arr_ + max_key_length_,
+        model_node->max_key_->key_arr_);
+      
+      
+#if DEBUG_PRINT
+      std::cout << "min_key_(model_node) : " << model_node->min_key_->key_arr_ << std::endl;
+      std::cout << "max_key_(model_node) : " << model_node->max_key_->key_arr_ << std::endl;
+      for (int i = 0; i < fanout; i++) {
+        std::cout << i << "'s min_key is : " << model_node->children_[i]->min_key_->key_arr_ << std::endl;
+        std::cout << i << "'s max_key is : " << model_node->children_[i]->max_key_->key_arr_ << std::endl;
+      }
+#endif
+
       delete_node(node);
       node = model_node;
     } else {
 #if DEBUG_PRINT
-      //std::cout << "decided that current bulk_load_node calling node should be data node" << std::endl;
+      std::cout << "decided that current bulk_load_node calling node should be data node" << std::endl;
 #endif
       // Convert to data node
       stats_.num_data_nodes++;
@@ -1065,7 +1253,7 @@ class Alex {
       delete[] tree_node.a;
     }
 #if DEBUG_PRINT
-    //std::cout << "returned using fanout" << std::endl;
+    std::cout << "returned using fanout" << std::endl;
 #endif
   }
 
@@ -1590,95 +1778,19 @@ class Alex {
     return best_path_level;
   }
 
-  //helper for expand_root
-  //decrease double array by specific value in string-like manner.
-  //need proper implementation for string
-  void decrease_string (T *target, double size) {
-    assert(typeid(T) == typeid(char));
-    if (max_key_length_ == 1) {
-      target[0] -= size;
-    }
-    else {
-      //convert size (double value) to string-like array
-      T size_to_arr[max_key_length_] = {0};
-      for (unsigned int i = 0; i < max_key_length_; i++) {
-        double iter = pow(35, max_key_length_ - i - 1);
-        size_to_arr[i] = (char) (size / iter);
-        while (size > iter) {
-          size -= iter;
-        }
-      }
-
-      //subtract string.
-      for (unsigned int i = 0; i < max_key_length_; i++) {
-        target[i] -= size_to_arr[i];
-        if (target[i] < 0) {
-          assert(i > 0);
-          target[i] += 35;
-          target[i-1] -= 1;
-        }
-      }
-    }
-  }
-
-  //helper for expand_root
-  //increase double array by specific value in string-like manner.
-  //need proper implementation for string
-  void increase_string (T *target, double size) {
-    assert(typeid(T) == typeid(char));
-    if (max_key_length_ == 1) {
-      target[0] -= (char) size;
-    }
-    else {
-      //convert size (double value) to string-like array
-      T size_to_arr[max_key_length_] = {0};
-      for (unsigned int i = 0; i < max_key_length_; i++) {
-        double iter = pow(35, max_key_length_ - i - 1);
-        size_to_arr[i] = (char) (size / iter);
-        while (size > iter) {
-          size -= iter;
-        }
-      }
-
-      //add string.
-      for (unsigned int i = 0; i < max_key_length_; i++) {
-        target[i] += size_to_arr[i];
-        if (target[i] > 35) {
-          assert(i > 0);
-          target[i] -= 35;
-          target[i-1] += 1;
-        }
-      }
-    }
-  }
-
   // Expand the key value space that is covered by the index.
   // Expands the root node (which is a model node).
   // If the root node is at the max node size, then we split the root and create
   // a new root node.
+  // THIS FUNCTION IS NEVER CALLED ON STRING KEY
   void expand_root(AlexKey<T> key, bool expand_left) {
+    if (typeid(T) == typeid(char)) {abort();}
     auto root = static_cast<model_node_type*>(root_node_);
 
     // Find the new bounds of the key domain.
     // Need to be careful to avoid overflows in the key type.
-    // NEED TO MODIFY SEVERAL CODES BELOW FOR DOUBLE ARRAYS.
-    // This may need additional modification. beware.
-    // When modifying, please try to preserve the integer/double keys semantics.
     T domain_size = 0;
-    if (typeid(T) != typeid(char)) {domain_size = istats_.key_domain_max_[0] - istats_.key_domain_min_[0];}
-    else {
-      /* string related code. */
-      /* NEED TYPE RELATED FIX RELATED TO CHAR. */
-      for (unsigned int i = 0; i < max_key_length_; i++) {
-      /* this needs to be fixed for lexiographic. 
-       * we need to give weights for the first alphabet
-       * ex : zoo, apple, max length 5 : z needs to have much larger size than 26, which is simple difference. 
-       * assuming string only contains numbers and alphabets, this size doesn't overflow
-       * for up to 11 character strings... (max_key_length_ as 11) may need to edit. */
-      //need proper implementation.
-        domain_size += (istats_.key_domain_max_[i] - istats_.key_domain_min_[i]) * pow(35, max_key_length_ - i - 1);
-      }
-    }
+    domain_size = istats_.key_domain_max_[0] - istats_.key_domain_min_[0];
     int expansion_factor;
     T *new_domain_min = new T[max_key_length_];
     T *new_domain_max = new T[max_key_length_];
@@ -1699,47 +1811,21 @@ class Alex {
         else if (key.key_arr_[i] > cur_min_key[i]) {break;}
       }
 
-      if (typeid(T) != typeid(char)) { // for numeric
-        auto key_difference = static_cast<double>(istats_.key_domain_min_[0] -
-                                                min_key[0]);
-        expansion_factor = pow_2_round_up(static_cast<int>(
-          std::ceil((key_difference + domain_size) / domain_size)));
+      auto key_difference = static_cast<double>(istats_.key_domain_min_[0] -
+                                                  min_key[0]);
+      expansion_factor = pow_2_round_up(static_cast<int>(
+        std::ceil((key_difference + domain_size) / domain_size)));
 
-        // Check for overflow. To avoid overflow on signed types while doing
-        // this check, we do comparisons using half of the relevant quantities.
-        T half_expandable_domain = istats_.key_domain_max_[0] / 2 - std::numeric_limits<T>::lowest() / 2;
-        T half_expanded_domain_size = expansion_factor / 2 * domain_size;
-        if (half_expandable_domain < half_expanded_domain_size) {
-          new_domain_min[0] = std::numeric_limits<T>::lowest();
-        } else {
-          new_domain_min[0] = istats_.key_domain_max_[0];
-          new_domain_min[0] -= half_expanded_domain_size;
-          new_domain_min[0] -= half_expanded_domain_size;
-        }
-      }
-      else { // for string.
-        double key_difference = 0.0;
-        // need to implement how to caclulate key difference for string.
-        expansion_factor = pow_2_round_up(static_cast<int>(
-            std::ceil((key_difference + domain_size) / domain_size)));
-
-        // Check for overflow. To avoid overflow on signed types while doing
-        // this check, we do comparisons using half of the relevant quantities.
-        double half_expandable_domain = 0.0;
-        double half_expanded_domain_size = 0.0;
-        // need to implement how to caculate half_expandable_domain
-        half_expanded_domain_size = expansion_factor / 2 * domain_size;
-        if (half_expandable_domain < half_expanded_domain_size) {
-          for (unsigned int i = 0; i < max_key_length_; i++) {
-            new_domain_min[i] = 0.0;
-          }
-        }
-        else {
-          std::copy(istats_.key_domain_max_, istats_.key_domain_max_ + max_key_length_,
-              new_domain_min);
-          decrease_string(new_domain_min, half_expanded_domain_size);
-          decrease_string(new_domain_min, half_expanded_domain_size);
-        }
+      // Check for overflow. To avoid overflow on signed types while doing
+      // this check, we do comparisons using half of the relevant quantities.
+      T half_expandable_domain = istats_.key_domain_max_[0] / 2 - std::numeric_limits<T>::lowest() / 2;
+      T half_expanded_domain_size = expansion_factor / 2 * domain_size;
+      if (half_expandable_domain < half_expanded_domain_size) {
+        new_domain_min[0] = std::numeric_limits<T>::lowest();
+      } else {
+        new_domain_min[0] = istats_.key_domain_max_[0];
+        new_domain_min[0] -= half_expanded_domain_size;
+        new_domain_min[0] -= half_expanded_domain_size;
       }
       istats_.num_keys_at_last_left_domain_resize = stats_.num_keys;
       istats_.num_keys_below_key_domain = 0;
@@ -1757,48 +1843,23 @@ class Alex {
         else if (key.key_arr_[i] > cur_max_key[i]) {max_key = key.key_arr_; break;}
       }
 
-      if (typeid(T) != typeid(char)) { // for numeric
-         auto key_difference = static_cast<double>(max_key[0] -
+
+      auto key_difference = static_cast<double>(max_key[0] -
                                                 istats_.key_domain_max_[0]);
-        expansion_factor = pow_2_round_up(static_cast<int>(
-          std::ceil((key_difference + domain_size) / domain_size)));
+      expansion_factor = pow_2_round_up(static_cast<int>(
+        std::ceil((key_difference + domain_size) / domain_size)));
 
-        // Check for overflow. To avoid overflow on signed types while doing
-        // this check, we do comparisons using half of the relevant quantities.
-        T half_expandable_domain =
-            std::numeric_limits<T>::max() / 2 - istats_.key_domain_min_[0] / 2;
-        T half_expanded_domain_size = expansion_factor / 2 * domain_size;
-        if (half_expandable_domain < half_expanded_domain_size) {
-          new_domain_max[0] = std::numeric_limits<T>::max();
-        } else {
-          new_domain_max[0] = istats_.key_domain_min_[0];
-          new_domain_max[0] += half_expanded_domain_size;
-          new_domain_max[0] += half_expanded_domain_size;
-        }
-      }
-      else {
-        double key_difference = 0.0;
-        // need to implement how to caclulate key difference for string.
-        expansion_factor = pow_2_round_up(static_cast<int>(
-          std::ceil((key_difference + domain_size) / domain_size)));
-
-        // Check for overflow. To avoid overflow on signed types while doing
-        // this check, we do comparisons using half of the relevant quantities.
-        double half_expandable_domain = 0.0;
-        double half_expanded_domain_size = 0.0;
-        // need to implement how to caculate half_expandable_domain
-        half_expanded_domain_size = expansion_factor / 2 * domain_size;
-        if (half_expandable_domain < half_expanded_domain_size) {
-          for (unsigned int i = 0; i < max_key_length_; i++) {
-            new_domain_min[i] = 127.0;
-          }
-        }
-        else {
-          std::copy(istats_.key_domain_min_, istats_.key_domain_min_ + max_key_length_,
-              new_domain_max);
-          increase_string(new_domain_max, half_expanded_domain_size);
-          increase_string(new_domain_max, half_expanded_domain_size);
-        }
+      // Check for overflow. To avoid overflow on signed types while doing
+      // this check, we do comparisons using half of the relevant quantities.
+      T half_expandable_domain =
+          std::numeric_limits<T>::max() / 2 - istats_.key_domain_min_[0] / 2;
+      T half_expanded_domain_size = expansion_factor / 2 * domain_size;
+      if (half_expandable_domain < half_expanded_domain_size) {
+        new_domain_max[0] = std::numeric_limits<T>::max();
+      } else {
+        new_domain_max[0] = istats_.key_domain_min_[0];
+        new_domain_max[0] += half_expanded_domain_size;
+        new_domain_max[0] += half_expanded_domain_size;
       }
       istats_.num_keys_at_last_right_domain_resize = stats_.num_keys;
       istats_.num_keys_above_key_domain = 0;
@@ -1893,7 +1954,6 @@ class Alex {
     // Requires reassigning some keys from the outermost pre-existing data node
     // to the new data nodes.
 
-    //NEEDS PROPER FIXING
     int n = root->num_children_ - (new_nodes_end - new_nodes_start);
     assert(root->num_children_ % n == 0);
     auto new_node_duplication_factor =
@@ -1912,8 +1972,7 @@ class Alex {
         if (i - n <= in_bounds_new_nodes_start) {
           left_boundary = 0;
         } else {
-          if (typeid(T) != typeid(char)) {left_boundary_value[0] -= domain_size;}
-          else {decrease_string(left_boundary_value, domain_size);}
+          left_boundary_value[0] -= domain_size;
           left_boundary_key = AlexKey<T>(left_boundary_value, max_key_length_);
           left_boundary = outermost_node->lower_bound(left_boundary_key);
         }
@@ -1944,8 +2003,7 @@ class Alex {
         if (i + n >= in_bounds_new_nodes_end) {
           right_boundary = outermost_node->data_capacity_;
         } else {
-          if (typeid(T) != typeid(char)) {right_boundary_value[0] += domain_size;}
-          else {increase_string(right_boundary_value, domain_size);}
+          right_boundary_value[0] += domain_size;
           right_boundary_key = AlexKey<T>(right_boundary_value, max_key_length_);
           right_boundary = outermost_node->lower_bound(right_boundary_key);
         }
@@ -2053,16 +2111,65 @@ class Alex {
       }
     }
 
-    double direction_vector_[max_key_length_] = {0.0};
-    for (unsigned int i = 0; i < new_node->model_.max_key_length_; i++) {
-      direction_vector_[i] = right_boundary_value[i] - left_boundary_value[i];
+    char flag = 1;
+    for (unsigned int i = 0; i < parent->max_key_length_; i++) {
+      if (right_boundary_value[i] != left_boundary_value[i]) {
+        flag = 0; break;
+      }
     }
-    new_node->model_.b_ = 0.0;
+
+    if (flag) { //both keys are equal
+      unsigned int non_zero_cnt_ = 0;
+
+      for (unsigned int i = 0; i < max_key_length_; i++) {
+        if (right_boundary_value[i] == 0) {
+          new_node->model_.a_[i] = 0;
+        }
+        else {
+          new_node->model_.a_[i] = 1 / right_boundary_value[i];
+          non_zero_cnt_ += 1;
+        }
+      }
+
+      for (unsigned int i = 0; i < new_node->model_.max_key_length_; i++) {
+        new_node->model_.a_[i] /= non_zero_cnt_;
+      }
+      new_node->model_.b_ = 0;
+    }
+    else {
+      //both keys are not equal
+      double direction_vector_[max_key_length_] = {0.0};
+      for (unsigned int i = 0; i < new_node->model_.max_key_length_; i++) {
+        direction_vector_[i] = (double) right_boundary_value[i] - left_boundary_value[i];
+      }
+      new_node->model_.b_ = 0;
+      unsigned int non_zero_cnt_ = 0;
+      for (unsigned int i = 0; i < new_node->model_.max_key_length_; i++) {
+        if (direction_vector_[i] == 0) { //specific position value of keys are equal
+          new_node->model_.a_[i] = 0;
+        }
+        else { //specific position value of keys are not equal
+          new_node->model_.a_[i] = 1.0 / (direction_vector_[i]);
+          new_node->model_.b_ -= left_boundary_value[i] / (direction_vector_[i]);
+          non_zero_cnt_ += 1;
+        }
+      }
+
+      for (unsigned int i = 0; i < new_node->model_.max_key_length_; i++) {
+        new_node->model_.a_[i] /= non_zero_cnt_;
+      }
+      new_node->model_.b_ /= new_node->model_.max_key_length_;
+    }
+#if DEBUG_PRINT
+    T left_key[max_key_length_];
+    T right_key[max_key_length_];
     for (unsigned int i = 0; i < max_key_length_; i++) {
-      new_node->model_.a_[i] = 1.0 / (direction_vector_[i] * max_key_length_) * fanout;
-      new_node->model_.b_ -= (left_boundary_value[i] * fanout) / direction_vector_[i];
+      left_key[i] = left_boundary_value[i];
+      right_key[i] = right_boundary_value[i];
     }
-    new_node->model_.b_ /= max_key_length_;
+    std::cout << "left prediction result (sd) " << new_node->model_.predict_double(AlexKey<T>(left_key, max_key_length_)) << std::endl;
+    std::cout << "right prediction result (sd) " << new_node->model_.predict_double(AlexKey<T>(right_key, max_key_length_)) << std::endl;
+#endif
 
     // Create new data nodes
     if (used_fanout_tree_nodes.empty()) {
@@ -2164,7 +2271,7 @@ class Alex {
     }
     else { // for string key
       //According to my insight, linear model would be monotonically increasing
-      //And I think this could lead me to compute key corresponding to mid_bucketID as
+      //So I think we could compute key corresponding to mid_bucketID as
       //average of min/max key of current splitting node.
       for (unsigned int i = 0; i < max_key_length_; i++) {
         tmpkey.key_arr_[i] = (old_node->max_key_->key_arr_[i] + old_node->min_key_->key_arr_[i]) / 2;

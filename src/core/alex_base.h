@@ -55,8 +55,8 @@ typedef unsigned __int32 uint32_t;
 #endif
 
 /*** string's limit value ***/
-#define STR_VAL_MAX 63
-#define STR_VAL_MIN 0
+#define STR_VAL_MAX 126
+#define STR_VAL_MIN 33
 
 /*** debug print ***/
 #define DEBUG_PRINT 0
@@ -184,7 +184,7 @@ class LinearModel {
     assert (max_key_length_ == key.max_key_length_);
     double result = 0.0;
     for (unsigned int i = 0; i < max_key_length_; i++) {
-      result = static_cast<double>(key.key_arr_[i]) * a_[i];
+      result += static_cast<double>(key.key_arr_[i]) * a_[i];
     }
     return static_cast<int>(result + b_);
   }
@@ -194,7 +194,7 @@ class LinearModel {
     assert (max_key_length_ == key.max_key_length_);
     double result = 0.0;
     for (unsigned int i = 0; i < max_key_length_; i++) {
-      result = static_cast<double>(key.key_arr_[i]) * a_[i];
+      result += static_cast<double>(key.key_arr_[i]) * a_[i];
     }
     return result + b_;
   }
@@ -208,7 +208,7 @@ class LinearModelBuilder {
 
   LinearModelBuilder(LinearModel<T>* model) : model_(model) {}
 
-  inline void add(const AlexKey<T>& x, int y) {
+  inline void add(const AlexKey<T>& x, double y) {
     assert(model_->max_key_length_ == x.max_key_length_);
     if (model_->max_key_length_ == 1) { //single numeric
       count_++;
@@ -222,7 +222,7 @@ class LinearModelBuilder {
       y_max_ = std::max<double>(y, y_max_);
     }
     else { //string
-      training_keys_.push_back(x.key_arr_);
+      training_keys_.push_back(x.key_arr_); //may need to deep copy?
       positions_.push_back(y);
     }
   }
@@ -278,9 +278,9 @@ class LinearModelBuilder {
 
     std::vector<size_t> useful_feat_index_;
     for (size_t feat_i = 0; feat_i < model_->max_key_length_; feat_i++) {
-      double first_val = training_keys_[0][feat_i];
+      double first_val = (double) training_keys_[0][feat_i];
       for (size_t key_i = 0; key_i < training_keys_.size(); key_i += step) {
-        if (training_keys_[key_i][feat_i] != first_val) {
+        if ((double) training_keys_[key_i][feat_i] != first_val) {
           useful_feat_index_.push_back(feat_i);
           break;
         }
@@ -368,8 +368,18 @@ class LinearModelBuilder {
 
       free(A);
       free(b);
-    }
+    
     assert(fitting_res == 0);
+
+#ifdef DEBUG_PRINT
+      //for debugging
+      std::cout << "current a_ (LMB build): ";
+      for (unsigned int i = 0; i < model_->max_key_length_; i++) {
+        std::cout << model_->a_[i] << " ";
+      }
+      std::cout << ", current b_ (LMB build) :" << model_->b_ << std::endl;
+    }
+#endif
   }
 
  private:
@@ -383,8 +393,18 @@ class LinearModelBuilder {
   double y_min_ = std::numeric_limits<double>::max();
   double y_max_ = std::numeric_limits<double>::lowest();
   std::vector<T*> training_keys_;
-  std::vector<int> positions_;
+  std::vector<double> positions_;
 };
+
+/** model building for fanout **/
+template <class T, class V>
+void build_model_fanout(LinearModel<T> *model, V *values, int num_keys, int fanout) {
+  LinearModelBuilder<T> model_builder(model);
+  for (int i = 0; i < values; i++) {
+    model_builder.add(values[i].first, (double) i / (num_keys - 1));
+  }
+  model_builder.build();
+}
 
 /*** Comparison ***/
 

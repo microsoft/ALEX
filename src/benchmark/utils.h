@@ -55,7 +55,7 @@ bool load_text_data(alex::AlexKey<T> array[], int length, const std::string& fil
         return false;
       }
       for (unsigned int pos = 0; pos < str.size(); pos++) {
-        array[i].key_arr_[pos] = (double) tolower(str.at(pos));
+        array[i].key_arr_[pos] = str.at(pos);
       }
       i++;
     }

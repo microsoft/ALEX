@@ -14,7 +14,7 @@
 #include "utils.h"
 
 // Modify these if running your own workload
-#define KEY_TYPE double
+#define KEY_TYPE char
 #define PAYLOAD_TYPE double
 
 /*
@@ -69,9 +69,25 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  // Combine bulk loaded keys with randomly generated payloads
-  auto values = new std::pair<alex::AlexKey<KEY_TYPE>, PAYLOAD_TYPE>[init_num_keys];
+  //extra setup in case of string key
+  std::pair<alex::AlexKey<KEY_TYPE>, PAYLOAD_TYPE> *values;
   std::mt19937_64 gen_payload(std::random_device{}());
+  if (typeid(KEY_TYPE) != typeid(char)) { //numeric
+    values = new std::pair<alex::AlexKey<KEY_TYPE>, PAYLOAD_TYPE>[init_num_keys];
+  }
+  else { //string
+    values = new std::pair<alex::AlexKey<KEY_TYPE>, PAYLOAD_TYPE>[init_num_keys + 2];
+    values[init_num_keys].first = alex::AlexKey<KEY_TYPE>(max_key_length);
+    values[init_num_keys+1].first = alex::AlexKey<KEY_TYPE>(max_key_length);
+    values[init_num_keys].first.key_arr_[0] = STR_VAL_MIN;
+    for (unsigned int i = 0; i < max_key_length; i++) {
+      values[init_num_keys+1].first.key_arr_[i] = STR_VAL_MAX;
+    }
+    values[init_num_keys].second = static_cast<PAYLOAD_TYPE>(gen_payload());
+    values[init_num_keys+1].second = static_cast<PAYLOAD_TYPE>(gen_payload());
+  }
+
+  // Combine bulk loaded keys with randomly generated payloads
   for (int i = 0; i < init_num_keys; i++) {
     values[i].first = keys[i];
     values[i].second = static_cast<PAYLOAD_TYPE>(gen_payload());
@@ -83,6 +99,8 @@ int main(int argc, char* argv[]) {
       std::cout << ", with payload : " << values[i].second << std::endl;
     }
   }
+
+  if (typeid(KEY_TYPE) == typeid(char)) {init_num_keys += 2;}
 
   // Create ALEX and bulk load
   alex::Alex<KEY_TYPE, PAYLOAD_TYPE> index(max_key_length);
@@ -130,15 +148,23 @@ int main(int argc, char* argv[]) {
       for (int j = 0; j < num_lookups_per_batch; j++) {
         alex::AlexKey<KEY_TYPE> key = lookup_keys[j];
         PAYLOAD_TYPE* payload = index.get_payload(key);
-        if (print_key_stats) {
-          std::cout << "lookup key : ";
-          for (unsigned int k = 0; k < max_key_length; k++) {
-            std::cout << lookup_keys[j].key_arr_[k];
+        if (payload) {
+          sum += *payload;
+          if (print_key_stats) {
+            std::cout << "lookup key : ";
+            for (unsigned int k = 0; k < max_key_length; k++) {
+              std::cout << key.key_arr_[k];
+            }
+            std::cout << ", payload : " << *payload << std::endl;
           }
-          std::cout << ", payload : " << *payload << std::endl;
         }
-        if (payload) {sum += *payload;}
-        //else {std::cout << "failed finding payload for " << key.key_arr_[0] << std::endl;}
+        else {
+          std::cout << "failed finding payload for ";
+          for (unsigned int k = 0; k < max_key_length; k++) {
+            std::cout << key.key_arr_[k];
+          }
+          std::cout << std::endl;
+        }
       }
       auto lookups_end_time = std::chrono::high_resolution_clock::now();
       batch_lookup_time = std::chrono::duration_cast<std::chrono::nanoseconds>(

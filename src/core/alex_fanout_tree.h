@@ -120,15 +120,36 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
   int fanout = 1 << level;
   double cost = 0.0;
   double a[node->model_.max_key_length_] = {0.0};
-  for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
-    a[i] = node->model_.a_[i] * fanout;
+  double b = 0.0;
+
+  //obtianing CDF resulting to [0,fanout]
+  if (typeid(T) != typeid(char)) {
+    //for numeric key, simply obtain model by multiplying fanout.
+    for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
+      a[i] = node->model_.a_[i] * fanout;
+    }
+    b = node->model_.b_ * fanout;
   }
-  double b = node->model_.b_ * fanout;
+  else {
+    //for string key, we need to obtain model by retraining, not CDF [0,1]
+    //I THINK THIS MEANS, THAT WE MAY DON'T NEED [0,1] CDF TRAINING IN FIRST PLACE. CONSIDER IT.
+    LinearModel<T> tmp_model(node->max_key_length_);
+    LinearModelBuilder<T> tmp_model_builder(&tmp_model);
+    for (int i = 0; i < num_keys; i++) {
+      tmp_model_builder.add(values[i].first, ((double) i / (num_keys-1)) * fanout);
+    }
+    tmp_model_builder.build();
+    for (unsigned int i = 0; i < node->model_.max_key_length_; i++) {
+      a[i] = tmp_model.a_[i];
+    }
+    b = tmp_model.b_; 
+  }
+
   LinearModel<T> newLModel(a, b, node->model_.max_key_length_);
   int left_boundary = 0;
   int right_boundary = 0;
 #if DEBUG_PRINT
-  //std::cout << "compute_level searching for boundary with fanout : " << fanout << std::endl;
+  std::cout << "compute_level searching for boundary with fanout : " << fanout << std::endl;
 #endif
   for (int i = 0; i < fanout; i++) {
     left_boundary = right_boundary;
@@ -160,9 +181,9 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
       else {break;}
     }
 #if DEBUG_PRINT
-    //std::cout << "compute_level boundary searching finished for fanout " << fanout << std::endl;
-    //std::cout << "left_boundary is : " <<  left_boundary << std::endl;
-    //std::cout << "right_boundary is : " << right_boundary << std::endl;
+    std::cout << "compute_level boundary searching finished for fanout " << fanout << std::endl;
+    std::cout << "left_boundary is : " <<  left_boundary << std::endl;
+    std::cout << "right_boundary is : " << right_boundary << std::endl;
 #endif
     if (left_boundary == right_boundary) {
       double *slope = new double[node->max_key_length_]();
@@ -200,7 +221,7 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
       (kModelSizeWeight * fanout *
        (sizeof(AlexDataNode<T, P>) + sizeof(void*)) * total_keys / num_keys);
 #if DEBUG_PRINT
-  //std::cout << "total node_cost : " << cost << ", traversal_cost : " << traversal_cost << std::endl;
+  std::cout << "total node_cost : " << cost << ", traversal_cost : " << traversal_cost << std::endl;
 #endif
   cost += traversal_cost;
   return cost;
@@ -222,7 +243,7 @@ std::pair<int, double> find_best_fanout_bottom_up(
   // Repeatedly add levels to the fanout tree until the overall cost of each
   // level starts to increase
 #if DEBUG_PRINT
-  //std::cout << "called find_best_fanout_bottom_up" << std::endl;
+  std::cout << "called find_best_fanout_bottom_up" << std::endl;
 #endif
   int best_level = 0;
   double best_cost = node->cost_ + kNodeLookupsWeight;
@@ -270,7 +291,7 @@ std::pair<int, double> find_best_fanout_bottom_up(
     }
   }
 #if DEBUG_PRINT
-  //std::cout << "find_best_fanout_bottom_up finished" << std::endl;
+  std::cout << "find_best_fanout_bottom_up finished" << std::endl;
 #endif
   return std::make_pair(best_level, best_cost);
 }
@@ -451,18 +472,74 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
      * 2) find t and v such that t(v(x-min_key)) = 0, and compute a_, b_ value. 
      * some linear algebra method used for finding t and v. */
   LinearModel<T> base_model(parent->model_.max_key_length_);
-  double direction_vector_[parent->max_key_length_] = {0.0};
-  for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
-    direction_vector_[i] = (double) right_boundary_value[i] - left_boundary_value[i];
+  char flag = 1;
+  for (unsigned int i = 0; i < parent->max_key_length_; i++) {
+    if (right_boundary_value[i] != left_boundary_value[i]) {
+      flag = 0; break;
+    }
   }
-  for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
-    base_model.a_[i] = 1.0 / (direction_vector_[i] * base_model.max_key_length_);
-    base_model.b_ -= left_boundary_value[i] / (direction_vector_[i]);
+  
+  if (flag) { //keys are equal
+    //not sure if this is correct... may need to find another way.
+    unsigned int non_zero_cnt_ = 0;
+
+    //semi-result for slope
+    for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
+      if (right_boundary_value[i] == 0) {
+        base_model.a_[i] = 0;
+      }
+      else {
+        base_model.a_[i] = 1 / right_boundary_value[i];
+        non_zero_cnt_ += 1;
+      }
+    }
+
+    //actual CDF [0,1] model.
+    for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
+      base_model.a_[i] /= non_zero_cnt_;
+    }
+    base_model.b_ = 0;
   }
-  base_model.b_ /= base_model.max_key_length_;
+  else { //keys are not equal
+    double direction_vector_[parent->max_key_length_] = {0.0};
+    
+    for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
+      direction_vector_[i] = (double) right_boundary_value[i] - left_boundary_value[i];
+    }
+    base_model.b_ = 0;
+    unsigned int non_zero_cnt_ = 0;
+    for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
+      if (direction_vector_[i] == 0) { //specific position value of keys are equal
+        base_model.a_[i] = 0;
+      }
+      else { //specific position value of keys are not equal
+        base_model.a_[i] = 1.0 / (direction_vector_[i]);
+        base_model.b_ -= left_boundary_value[i] / (direction_vector_[i]);
+        non_zero_cnt_ += 1;
+      }
+    }
+
+    for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
+      base_model.a_[i] /= non_zero_cnt_;
+    }
+    base_model.b_ /= non_zero_cnt_;
+  }
+#if DEBUG_PRINT
+  T left_key[parent->max_key_length_];
+  T right_key[parent->max_key_length_];
+  for (unsigned int i = 0; i < parent->max_key_length_; i++) {
+    left_key[i] = left_boundary_value[i];
+    right_key[i] = right_boundary_value[i];
+  }
+  std::cout << "left prediction result (fbfen) " << base_model.predict_double(AlexKey<T>(left_key, parent->max_key_length_)) << std::endl;
+  std::cout << "right prediction result (fbfen) " << base_model.predict_double(AlexKey<T>(right_key, parent->max_key_length_)) << std::endl;
+#endif
 
   for (int fanout = 1, fanout_tree_level = 0; fanout <= max_fanout;
        fanout *= 2, fanout_tree_level++) {
+#if DEBUG_PRINT
+  std::cout << "find_best_fanout_existing_node searching for boundary with fanout : " << fanout << std::endl;
+#endif
     std::vector<FTNode> new_level;
     double cost = 0.0;
     double a[base_model.max_key_length_] = {0.0};
@@ -483,9 +560,32 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
           right_boundary = node->lower_bound(tmpkey);
         }
         else { /* string key */
-          //NEED TO IMPLEMENT
+          /* we iterate through the key array to find the smallest key resulting to i + 1*/
+          char flag = 1;
+          AlexKey<T> tmpkey = AlexKey<T>(node->max_key_length_);
+          for (int key_arr_idx = left_boundary; key_arr_idx < node->data_capacity_; key_arr_idx++) {
+#if ALEX_DATA_NODE_SEP_ARRAYS
+            tmpkey = node->key_slots_[key_arr_idx];
+#else
+            tmpkey = node->data_slots_[key_arr_idx].first;
+#endif
+            if (node->key_equal(tmpkey, node->kEndSentinel_)) {
+              continue;
+            }
+            if (node->model_.predict(tmpkey) >= i+1) {
+              flag = 0;
+              right_boundary = key_arr_idx;
+              break;
+            }
+          }
+          if (flag) {right_boundary = node->data_capacity_ - 1;}
         }
       }
+#if DEBUG_PRINT
+    std::cout << "find_best_fanout_existing_node boundary searching finished for fanout " << fanout << std::endl;
+    std::cout << "left_boundary is : " <<  left_boundary << std::endl;
+    std::cout << "right_boundary is : " << right_boundary << std::endl;
+#endif
       if (left_boundary == right_boundary) {
         double *slope = new double[parent->max_key_length_]();
         new_level.push_back({fanout_tree_level, i, 0, left_boundary,
