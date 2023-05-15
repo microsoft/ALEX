@@ -549,17 +549,22 @@ class Alex {
           else if (smaller_than_min) {
             bucketID -= 1;
             cur = node->children_[bucketID];
+            if (dir == 1) {return nullptr;} //error, infinite loop occuring.
             dir = -1;
           }
           else if (larger_than_max) {
             bucketID += 1;
             cur = node->children_[bucketID];
+            if (dir == -1) {return nullptr;} //error, infinite loop occuring.
             dir = 1;
           }
 
           smaller_than_min = key_less_(key, *(cur->min_key_));
           larger_than_max = key_less_(*(cur->max_key_), key);
         }
+      }
+      else if (mode == 1) { //for insert.
+        ;
       }
       if (traversal_path) {
         traversal_path->push_back({node, bucketID});
@@ -825,16 +830,17 @@ class Alex {
 
     LinearModelBuilder<T> root_model_builder(&root_node_->model_);
     for (int i = 0; i < num_keys; i++) {
+#if DEBUG_PRINT
       printf("adding : %f\n", (double) (i) / (num_keys-1));
+#endif
       root_model_builder.add(values[i].first, (double) (i) / (num_keys-1));
     }
     root_model_builder.build();
 
+#if DEBUG_PRINT
     for (int i = 0; i < num_keys; i++) {
       std::cout << values[i].first.key_arr_ << " prediction " << root_node_->model_.predict_double(values[i].first) << std::endl;
     }
-
-#if DEBUG_PRINT
     std::cout << "left prediction result (bulk_load) " << root_node_->model_.predict_double(values[1].first) << std::endl;
     std::cout << "right prediction result (bulk_load) " << root_node_->model_.predict_double(values[num_keys-2].first) << std::endl;
 #endif
@@ -1316,6 +1322,7 @@ class Alex {
   typename self_type::Iterator find(const AlexKey<T>& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key, 0);
+    if (leaf == nullptr) {return end();} //error when finding key.
     int idx = leaf->find_key(key);
     if (idx < 0) {
       return end();
@@ -1327,6 +1334,7 @@ class Alex {
   typename self_type::ConstIterator find(const AlexKey<T>& key) const {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key, 0);
+    if (leaf == nullptr) {return cend();} //error when finding key.
     int idx = leaf->find_key(key);
     if (idx < 0) {
       return cend();
@@ -1346,9 +1354,11 @@ class Alex {
   }
 
   // Returns an iterator to the first key no less than the input value
+  //returns end iterator on error.
   typename self_type::Iterator lower_bound(const AlexKey<T>& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key, 0);
+    if (leaf == nullptr) {return end();}
     int idx = leaf->find_lower(key);
     return Iterator(leaf, idx);  // automatically handles the case where idx ==
                                  // leaf->data_capacity
@@ -1357,15 +1367,18 @@ class Alex {
   typename self_type::ConstIterator lower_bound(const AlexKey<T>& key) const {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key, 0);
+    if (leaf == nullptr) {return cend();}
     int idx = leaf->find_lower(key);
     return ConstIterator(leaf, idx);  // automatically handles the case where
                                       // idx == leaf->data_capacity
   }
 
   // Returns an iterator to the first key greater than the input value
+  // returns end iterator on error
   typename self_type::Iterator upper_bound(const AlexKey<T>& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key, 0);
+    if (leaf == nullptr) {return end();}
     int idx = leaf->find_upper(key);
     return Iterator(leaf, idx);  // automatically handles the case where idx ==
                                  // leaf->data_capacity
@@ -1374,6 +1387,7 @@ class Alex {
   typename self_type::ConstIterator upper_bound(const AlexKey<T>& key) const {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key, 0);
+    if (leaf == nullptr) {return cend();}
     int idx = leaf->find_upper(key);
     return ConstIterator(leaf, idx);  // automatically handles the case where
                                       // idx == leaf->data_capacity
@@ -1394,6 +1408,7 @@ class Alex {
   P* get_payload(const AlexKey<T>& key) const {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key, 0);
+    if (leaf == nullptr) {return nullptr;}
     int idx = leaf->find_key(key);
     if (idx < 0) {
       return nullptr;
@@ -1404,9 +1419,11 @@ class Alex {
 
   // Looks for the last key no greater than the input value
   // Conceptually, this is equal to the last key before upper_bound()
+  // returns end iterator on error
   typename self_type::Iterator find_last_no_greater_than(const AlexKey<T>& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key, 0);
+    if (leaf == nullptr) {return end();}
     const int idx = leaf->upper_bound(key) - 1;
     if (idx >= 0) {
       return Iterator(leaf, idx);
@@ -1427,9 +1444,11 @@ class Alex {
   // Directly returns a pointer to the payload found through
   // find_last_no_greater_than(key)
   // This avoids the overhead of creating an iterator
+  // returns nullptr on error.
   P* get_payload_last_no_greater_than(const AlexKey<T>& key) {
     stats_.num_lookups++;
     data_node_type* leaf = get_leaf(key, 0);
+    if (leaf == nullptr) {return nullptr;}
     const int idx = leaf->upper_bound(key) - 1;
     if (idx >= 0) {
       return &(leaf->get_payload(idx));
@@ -2770,6 +2789,7 @@ class Alex {
   // Erases the left-most key with the given key value
   int erase_one(const AlexKey<T>& key) {
     data_node_type* leaf = get_leaf(key, 0);
+    if (leaf == nullptr) {return 0;}
     int num_erased = leaf->erase_one(key);
     stats_.num_keys -= num_erased;
     if (leaf->num_keys_ == 0) {
@@ -2786,6 +2806,7 @@ class Alex {
   // Erases all keys with a certain key value
   int erase(const AlexKey<T>& key) {
     data_node_type* leaf = get_leaf(key, 0);
+    if (leaf == nullptr) {return 0;}
     int num_erased = leaf->erase(key);
     stats_.num_keys -= num_erased;
     if (leaf->num_keys_ == 0) {
