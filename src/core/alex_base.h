@@ -371,15 +371,15 @@ class LinearModelBuilder {
     
     assert(fitting_res == 0);
 
-#ifdef DEBUG_PRINT
+#if DEBUG_PRINT
       //for debugging
       std::cout << "current a_ (LMB build): ";
       for (unsigned int i = 0; i < model_->max_key_length_; i++) {
         std::cout << model_->a_[i] << " ";
       }
       std::cout << ", current b_ (LMB build) :" << model_->b_ << std::endl;
-    }
 #endif
+    }
   }
 
  private:

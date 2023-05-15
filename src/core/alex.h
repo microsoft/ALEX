@@ -1121,7 +1121,9 @@ class Alex {
         // It tries to find the first value larger or equal to left / right value.
         // Then assumes those are the left/right boundary.
           for (; idx < num_keys; idx++) {
+#if DEBUG_PRINT
             std::cout << values[idx].first.key_arr_ << " predicted as " << model_node->model_.predict_double(values[idx].first) << std::endl;
+#endif
             if (model_node->model_.predict_double(values[idx].first) >= left_value) {
               for (unsigned int i = 0; i < model_node->model_.max_key_length_; i++) {
                 left_boundary[i] = (double) values[idx].first.key_arr_[i];
@@ -1137,7 +1139,9 @@ class Alex {
             f_idx = num_keys - 1;
           }
           for (; idx < num_keys; idx++) {
+#if DEBUG_PRINT
              std::cout << values[idx].first.key_arr_ << " predicted as " << model_node->model_.predict_double(values[idx].first) << std::endl;
+#endif
             if (model_node->model_.predict_double(values[idx].first) >= right_value) {
               for (unsigned int i = 0; i < model_node->model_.max_key_length_; i++) {
                 right_boundary[i] = (double) values[idx].first.key_arr_[i];
