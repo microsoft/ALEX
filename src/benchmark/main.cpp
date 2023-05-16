@@ -165,6 +165,9 @@ int main(int argc, char* argv[]) {
           }
           std::cout << std::endl;
         }
+#if DEBUG_PRINT
+        std::cout << std::endl;
+#endif
       }
       auto lookups_end_time = std::chrono::high_resolution_clock::now();
       batch_lookup_time = std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -188,6 +191,9 @@ int main(int argc, char* argv[]) {
           std::cout << keys[i].key_arr_[j];
         }
         std::cout << std::endl;
+#if DEBUG_PRINT
+        std::cout << std::endl;
+#endif
       }
     }
     auto inserts_end_time = std::chrono::high_resolution_clock::now();

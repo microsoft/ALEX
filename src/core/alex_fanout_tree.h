@@ -460,80 +460,22 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
       }
     }
     else {
+      //last node. Actually, this right_boundary_value should be '~...~'
       for (unsigned int i = 0; i < parent->max_key_length_; i++) {
         right_boundary_value[i] = node->max_key_->key_arr_[i];
       }
     }
   }
   
-  /* needs change compared to original since we now we need length-dimension realted line.
-     * steps are like this
-     * 1) obtain direction vector using min_key, max_key to find line going through those two.
-     * 2) find t and v such that t(v(x-min_key)) = 0, and compute a_, b_ value. 
-     * some linear algebra method used for finding t and v. */
   LinearModel<T> base_model(parent->model_.max_key_length_);
-  char flag = 1;
-  for (unsigned int i = 0; i < parent->max_key_length_; i++) {
-    if (right_boundary_value[i] != left_boundary_value[i]) {
-      flag = 0; break;
-    }
+  if (typeid(T) != typeid(char)) {//numeric
+    base_model.a_[0] = 1.0 / (right_boundary_value[0] - left_boundary_value[0]);
+    base_model.b_ = -1.0 * base_model.a_[0] * left_boundary_value[0];
   }
-  
-  if (flag) { //keys are equal
-    //not sure if this is correct... may need to find another way.
-    unsigned int non_zero_cnt_ = 0;
-
-    //semi-result for slope
-    for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
-      if (right_boundary_value[i] == 0) {
-        base_model.a_[i] = 0;
-      }
-      else {
-        base_model.a_[i] = 1 / right_boundary_value[i];
-        non_zero_cnt_ += 1;
-      }
-    }
-
-    //actual CDF [0,1] model.
-    for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
-      base_model.a_[i] /= non_zero_cnt_;
-    }
-    base_model.b_ = 0;
+  else {//string
+    /* needs change compared to original.
+     * we SKIP. The reason is, we retrain model for every fanout. */
   }
-  else { //keys are not equal
-    double direction_vector_[parent->max_key_length_] = {0.0};
-    
-    for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
-      direction_vector_[i] = (double) right_boundary_value[i] - left_boundary_value[i];
-    }
-    base_model.b_ = 0;
-    unsigned int non_zero_cnt_ = 0;
-    for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
-      if (direction_vector_[i] == 0) { //specific position value of keys are equal
-        base_model.a_[i] = 0;
-      }
-      else { //specific position value of keys are not equal
-        base_model.a_[i] = 1.0 / (direction_vector_[i]);
-        base_model.b_ -= left_boundary_value[i] / (direction_vector_[i]);
-        non_zero_cnt_ += 1;
-      }
-    }
-
-    for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
-      base_model.a_[i] /= non_zero_cnt_;
-    }
-    base_model.b_ /= non_zero_cnt_;
-  }
-#if DEBUG_PRINT
-  T left_key[parent->max_key_length_];
-  T right_key[parent->max_key_length_];
-  for (unsigned int i = 0; i < parent->max_key_length_; i++) {
-    left_key[i] = left_boundary_value[i];
-    right_key[i] = right_boundary_value[i];
-  }
-  std::cout << "left prediction result (fbfen) " << base_model.predict_double(AlexKey<T>(left_key, parent->max_key_length_)) << std::endl;
-  std::cout << "right prediction result (fbfen) " << base_model.predict_double(AlexKey<T>(right_key, parent->max_key_length_)) << std::endl;
-#endif
 
   for (int fanout = 1, fanout_tree_level = 0; fanout <= max_fanout;
        fanout *= 2, fanout_tree_level++) {
@@ -543,11 +485,46 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
     std::vector<FTNode> new_level;
     double cost = 0.0;
     double a[base_model.max_key_length_] = {0.0};
-    for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
-      a[i] = base_model.a_[i] * fanout;
+    double b = 0.0;
+
+    if (typeid(char) != typeid(T)) {// numeric
+      for (unsigned int i = 0; i < base_model.max_key_length_; i++) {
+        a[i] = base_model.a_[i] * fanout;
+      }
+      b = base_model.b_ * fanout;
     }
-    double b = base_model.b_ * fanout;
+    else { //string
+    /* For each fanout we make corresponding model for string keys
+     * by doing model building. Process is similar to bulk_load_node. */
+      typedef typename AlexDataNode<T, P>::iterator_type iterator;
+      LinearModel<T> tmp_model(base_model.max_key_length_);
+      LinearModelBuilder<T> tmp_model_builder(&tmp_model);
+      iterator it(node, 0);
+      
+      int key_cnt = 0;
+#if DEBUG_PRINT
+      std::cout << "note that node's key count is : " << num_keys << std::endl;
+#endif
+
+      while (it.cur_idx_ != -1) {
+        tmp_model_builder.add(it.key(), ((double) key_cnt * fanout / (node->num_keys_ - 1)));
+        key_cnt++;
+        it++;
+#if DEBUG_PRINT
+      std::cout << "key_cnt is " << key_cnt << std::endl;
+      std::cout << "next it idx is " << it.cur_idx_ << std::endl;
+#endif
+      }
+      tmp_model_builder.build();
+      std::copy(tmp_model.a_, tmp_model.a_ + tmp_model.max_key_length_, a);
+      b = tmp_model.b_;
+    }
     LinearModel<T> newLModel(a, b, base_model.max_key_length_);
+#if DEBUG_PRINT
+      std::cout << "first key predicted as" << newLModel.predict_double(node->key_slots_[node->first_pos()]) << std::endl;
+      std::cout << "last key predicted as" << newLModel.predict_double(node->key_slots_[node->last_pos()]) << std::endl;
+#endif
+
     int left_boundary = 0;
     int right_boundary = 0;
     for (int i = 0; i < fanout; i++) {
@@ -581,11 +558,7 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
           if (flag) {right_boundary = node->data_capacity_ - 1;}
         }
       }
-#if DEBUG_PRINT
-    std::cout << "find_best_fanout_existing_node boundary searching finished for fanout " << fanout << std::endl;
-    std::cout << "left_boundary is : " <<  left_boundary << std::endl;
-    std::cout << "right_boundary is : " << right_boundary << std::endl;
-#endif
+
       if (left_boundary == right_boundary) {
         double *slope = new double[parent->max_key_length_]();
         new_level.push_back({fanout_tree_level, i, 0, left_boundary,
@@ -640,7 +613,18 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
       best_level = fanout_tree_level;
     }
     fanout_tree.push_back(new_level);
+
+#if DEBUG_PRINT
+    std::cout << "find_best_fanout_existing_node boundary searching finished for fanout " << fanout << std::endl;
+    std::cout << "left_boundary is : " <<  left_boundary << std::endl;
+    std::cout << "right_boundary is : " << right_boundary << std::endl;
+#endif
   }
+
+#if DEBUG_PRINT
+    std::cout << "chosen best level is : " << best_level << std::endl;
+#endif
+
   for (FTNode& tree_node : fanout_tree[best_level]) {
     tree_node.use = true;
   }
