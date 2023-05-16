@@ -2169,6 +2169,7 @@ class Alex {
         tmp_model_builder.add(it.key(), ((double) key_cnt * fanout / (leaf->num_keys_ - 1)));
         key_cnt++;
         it++;
+        if (it.cur_idx_ == 0) {break;} //moved out to next node.
       }
       tmp_model_builder.build();
       std::copy(tmp_model.a_, tmp_model.a_ + tmp_model.max_key_length_, new_node->model_.a_);
