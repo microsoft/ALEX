@@ -500,7 +500,6 @@ class Alex {
 #if ALEX_SAFE_LOOKUP
   forceinline data_node_type* get_leaf(
       AlexKey<T> key, int mode, std::vector<TraversalNode>* traversal_path = nullptr) const {
-    std::cout << key.key_arr_ << std::endl;
     if (traversal_path) {
       traversal_path->push_back({superroot_, 0});
     }
