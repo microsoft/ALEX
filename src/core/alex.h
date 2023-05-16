@@ -300,6 +300,7 @@ class Alex {
   // The range does not need to be sorted. 
   // This creates a temporary copy of the data. 
   // If possible, we recommend directly using bulk_load() instead.
+  // NEED FIX (max_key_length issue, not urgent.)
   template <class InputIterator>
   explicit Alex(InputIterator first, InputIterator last,
                 unsigned int max_key_length,
@@ -519,18 +520,23 @@ class Alex {
       double bucketID_prediction = node->model_.predict_double(key);
       int bucketID = static_cast<int>(bucketID_prediction);
       int dir = 0; //direction of seraching between buckets. 1 for right, -1 for left.
-      cur = node->children_[bucketID];
       bucketID =
           std::min<int>(std::max<int>(bucketID, 0), node->num_children_ - 1);
+      cur = node->children_[bucketID];
+
+      #if DEBUG_PRINT
+        std::cout << "current bucket : " << bucketID << std::endl;
+        std::cout << "current key max length : " << key.max_key_length_ << std::endl;
+        std::cout << "lb max length : " << cur->min_key_->max_key_length_ << std::endl;
+        std::cout << "ub max length : " << cur->max_key_->max_key_length_ << std::endl;
+        std::cout << "min_key : " << cur->min_key_->key_arr_ << std::endl;
+        std::cout << "max_key : " << cur->max_key_->key_arr_ << std::endl;
+#endif
+
       if (mode == 0) {//for lookup related get_leaf
         int smaller_than_min = key_less_(key, *(cur->min_key_));
         int larger_than_max = key_less_(*(cur->max_key_), key);
         while (smaller_than_min || larger_than_max) {
-  //#if DEBUG_PRINT
-          std::cout << "current bucket : " << bucketID << std::endl;
-          std::cout << "min_key : " << cur->min_key_->key_arr_ << std::endl;
-          std::cout << "max_key : " << cur->max_key_->key_arr_ << std::endl;
-  //#endif
           if (smaller_than_min && larger_than_max) {
             //empty node. move according to direction.
             //could start at empty node, in this case, move left (since larger key is not possible)
@@ -569,10 +575,10 @@ class Alex {
       if (traversal_path) {
         traversal_path->push_back({node, bucketID});
       }
-//#if DEBUG_PRINT
+#if DEBUG_PRINT
       std::cout << "going into ID " << bucketID << " pointer is " << node->children_[bucketID] << std::endl;
       std::cout << "this ID has min_key_ as " << cur->min_key_->key_arr_ << " and max_key_ as " << cur->max_key_->key_arr_ << std::endl;
-//#endif
+#endif
       if (cur->is_leaf_) {
         stats_.num_node_lookups += cur->level_;
         auto leaf = static_cast<data_node_type*>(cur);
@@ -869,6 +875,11 @@ class Alex {
     create_superroot();
     update_superroot_key_domain();
     link_all_data_nodes();
+
+#if DEBUG_PRINT
+    std::cout << "structure's min_key after bln : " << istats_.key_domain_min_ << std::endl;
+    std::cout << "structure's max_key after bln : " << istats_.key_domain_max_ << std::endl;
+#endif
   }
 
  private:
@@ -889,8 +900,23 @@ class Alex {
   // is a data node.
   void update_superroot_key_domain() {
     assert(stats_.num_inserts == 0 || root_node_->is_leaf_);
-    T *min_key_arr = get_min_key();
-    T* max_key_arr = get_max_key();
+    T *min_key_arr, *max_key_arr;
+    if (typeid(T) == typeid(char)) { //it should always be '!' and '~...~'
+      //the reason we are doing this cumbersome process is because
+      //'!' may not be inserted at the first data node.
+      //We need some way to handle this. May be fixed by unbiasing keys.
+      min_key_arr = (char *) malloc(max_key_length_);
+      max_key_arr = (char *) malloc(max_key_length_);
+
+      for (unsigned int i = 0; i < max_key_length_; i++) {
+        max_key_arr[i] = STR_VAL_MAX;
+        min_key_arr[i] = (i == 0) ? STR_VAL_MIN : 0;
+      }
+    } 
+    else { //numeric use the usual get_min_key function.
+      min_key_arr = get_min_key();
+      max_key_arr = get_max_key();
+    }
 
 #if DEBUG_PRINT
     for (unsigned int i = 0; i < max_key_length_; i++) {
@@ -902,7 +928,6 @@ class Alex {
     }
     std::cout << std::endl;
 #endif
-
     std::copy(min_key_arr, min_key_arr + max_key_length_, istats_.key_domain_min_);
     std::copy(max_key_arr, max_key_arr + max_key_length_, istats_.key_domain_max_);
     istats_.num_keys_at_last_right_domain_resize = stats_.num_keys;
@@ -954,6 +979,12 @@ class Alex {
       }
       superroot_->model_.b_ /= non_zero_cnt_;
     }
+
+    if (typeid(T) == typeid(char)) { //need to free malloced objects.
+      free(min_key_arr);
+      free(max_key_arr);
+    }
+
 #if DEBUG_PRINT
     std::cout << "left prediction result (uskd) " << superroot_->model_.predict_double(mintmpkey) << std::endl;
     std::cout << "right prediction result (uskd) " << superroot_->model_.predict_double(maxtmpkey) << std::endl;
@@ -1049,7 +1080,7 @@ class Alex {
         int max_data_node_keys = static_cast<int>(
             derived_params_.max_data_node_slots * data_node_type::kInitDensity_);
 #if DEBUG_PRINT
-        std::cout << "computing level for depth 0" << std::endl;
+        std::cout << "computing level for depth" << std::endl;
 #endif
         fanout_tree::compute_level<T, P>(
             values, num_keys, node, total_keys, used_fanout_tree_nodes,
@@ -1811,7 +1842,11 @@ class Alex {
   // a new root node.
   // THIS FUNCTION IS NEVER CALLED ON STRING KEY
   void expand_root(AlexKey<T> key, bool expand_left) {
-    if (typeid(T) == typeid(char)) {abort();}
+
+    if (typeid(T) == typeid(char)) {//should never be called.
+      std::cout << "entered expand_root, which shouldn't happen" << std::endl;
+      abort();
+    }
     auto root = static_cast<model_node_type*>(root_node_);
 
     // Find the new bounds of the key domain.
