@@ -2153,75 +2153,28 @@ class Alex {
     if (typeid(char) != typeid(T)) { //numeric case
       left_boundary_value[0] = (start_bucketID - parent->model_.b_) / parent->model_.a_[0];
       right_boundary_value[0] = (end_bucketID - parent->model_.b_) / parent->model_.a_[0];
+      new_node->model_.a_[0] =
+        1.0 / (right_boundary_value[0] - left_boundary_value[0]) * fanout;
+      new_node->model_.b_ = -new_node->model_.a_[0] * left_boundary_value[0];
     }
     else { //string case
-      /* Since models are all monotonically increasing, minimum key of each node would 
-       * certainly result to start_bucketID, and we could assume it's the smallest. (not certain)
-       * if next node doesn't exists, decided to use max key (not certain) */
-      for (unsigned int i = 0; i < max_key_length_; i++) {
-        left_boundary_value[i] = leaf->min_key_->key_arr_[i];
+      //make an iterator, and add them all into the model
+      //and train to make it have an output of [0, fanout]
+      LinearModel<T> tmp_model(max_key_length_);
+      LinearModelBuilder<T> tmp_model_builder(&tmp_model);
+      Iterator it(leaf, 0);
+
+      int key_cnt = 0;
+      while(it.cur_idx_ != -1) {
+        tmp_model_builder.add(it.key(), ((double) key_cnt * fanout / (leaf->num_keys_ - 1)));
+        key_cnt++;
+        it++;
       }
-      if (leaf->next_leaf_ != nullptr) {
-        for (unsigned int i = 0; i < max_key_length_; i++) {
-          right_boundary_value[i] = leaf->next_leaf_->min_key_->key_arr_[i];
-        }
-      }
-      else {
-        for (unsigned int i = 0; i < max_key_length_; i++) {
-          right_boundary_value[i] = leaf->max_key_->key_arr_[i];
-        }
-      }
+      tmp_model_builder.build();
+      std::copy(tmp_model.a_, tmp_model.a_ + tmp_model.max_key_length_, new_node->model_.a_);
+      new_node->model_.b_ = tmp_model.b_;
     }
 
-    char flag = 1;
-    for (unsigned int i = 0; i < parent->max_key_length_; i++) {
-      if (right_boundary_value[i] != left_boundary_value[i]) {
-        flag = 0; break;
-      }
-    }
-
-    if (flag) { //both keys are equal
-      unsigned int non_zero_cnt_ = 0;
-
-      for (unsigned int i = 0; i < max_key_length_; i++) {
-        if (right_boundary_value[i] == 0) {
-          new_node->model_.a_[i] = 0;
-        }
-        else {
-          new_node->model_.a_[i] = 1 / right_boundary_value[i];
-          non_zero_cnt_ += 1;
-        }
-      }
-
-      for (unsigned int i = 0; i < new_node->model_.max_key_length_; i++) {
-        new_node->model_.a_[i] /= non_zero_cnt_;
-      }
-      new_node->model_.b_ = 0;
-    }
-    else {
-      //both keys are not equal
-      double direction_vector_[max_key_length_] = {0.0};
-      for (unsigned int i = 0; i < new_node->model_.max_key_length_; i++) {
-        direction_vector_[i] = (double) right_boundary_value[i] - left_boundary_value[i];
-      }
-      new_node->model_.b_ = 0;
-      unsigned int non_zero_cnt_ = 0;
-      for (unsigned int i = 0; i < new_node->model_.max_key_length_; i++) {
-        if (direction_vector_[i] == 0) { //specific position value of keys are equal
-          new_node->model_.a_[i] = 0;
-        }
-        else { //specific position value of keys are not equal
-          new_node->model_.a_[i] = 1.0 / (direction_vector_[i]);
-          new_node->model_.b_ -= left_boundary_value[i] / (direction_vector_[i]);
-          non_zero_cnt_ += 1;
-        }
-      }
-
-      for (unsigned int i = 0; i < new_node->model_.max_key_length_; i++) {
-        new_node->model_.a_[i] /= non_zero_cnt_;
-      }
-      new_node->model_.b_ /= new_node->model_.max_key_length_;
-    }
 #if DEBUG_PRINT
     T left_key[max_key_length_];
     T right_key[max_key_length_];

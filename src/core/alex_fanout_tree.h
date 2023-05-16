@@ -450,21 +450,7 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
     right_boundary_value[0] = (end_bucketID - parent->model_.b_) / parent->model_.a_[0];
   }
   else { //for string key
-    //explanation in split_downwards
-    for (unsigned int i = 0; i < parent->max_key_length_; i++) {
-      left_boundary_value[i] = node->min_key_->key_arr_[i];
-    }
-    if (node->next_leaf_ != nullptr) {
-      for (unsigned int i = 0; i < parent->max_key_length_; i++) {
-        right_boundary_value[i] = node->next_leaf_->min_key_->key_arr_[i];
-      }
-    }
-    else {
-      //last node. Actually, this right_boundary_value should be '~...~'
-      for (unsigned int i = 0; i < parent->max_key_length_; i++) {
-        right_boundary_value[i] = node->max_key_->key_arr_[i];
-      }
-    }
+    //we SKIP. The reason is, we retrain model for every fanout.
   }
   
   LinearModel<T> base_model(parent->model_.max_key_length_);
@@ -480,7 +466,7 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
   for (int fanout = 1, fanout_tree_level = 0; fanout <= max_fanout;
        fanout *= 2, fanout_tree_level++) {
 #if DEBUG_PRINT
-  std::cout << "find_best_fanout_existing_node searching for boundary with fanout : " << fanout << std::endl;
+    std::cout << "find_best_fanout_existing_node searching for boundary with fanout : " << fanout << std::endl;
 #endif
     std::vector<FTNode> new_level;
     double cost = 0.0;
