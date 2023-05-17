@@ -552,15 +552,17 @@ class Alex {
             }
           }
           else if (smaller_than_min) {
+            if (dir == 1) {return nullptr;} //error, infinite loop occuring. need fix.
+            if (bucketID == 0) {return nullptr;} //error related to boundary. need fix.
             bucketID -= 1;
             cur = node->children_[bucketID];
-            if (dir == 1) {return nullptr;} //error, infinite loop occuring.
             dir = -1;
           }
           else if (larger_than_max) {
+            if (dir == -1) {return nullptr;} //error, infinite loop occuring.
+            if (bucketID == (node->num_children_ - 1)) {return nullptr;} //error related to boundary. need fix.
             bucketID += 1;
             cur = node->children_[bucketID];
-            if (dir == -1) {return nullptr;} //error, infinite loop occuring.
             dir = 1;
           }
 
