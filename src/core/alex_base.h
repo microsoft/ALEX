@@ -59,7 +59,7 @@ typedef unsigned __int32 uint32_t;
 #define STR_VAL_MIN 33
 
 /*** debug print ***/
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 
 namespace alex {
 
