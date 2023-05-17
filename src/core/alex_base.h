@@ -59,7 +59,7 @@ typedef unsigned __int32 uint32_t;
 #define STR_VAL_MIN 33
 
 /*** debug print ***/
-#define DEBUG_PRINT 0
+#define DEBUG_PRINT 1
 
 namespace alex {
 
@@ -368,8 +368,6 @@ class LinearModelBuilder {
 
       free(A);
       free(b);
-    
-    assert(fitting_res == 0);
 
 #if DEBUG_PRINT
       //for debugging
@@ -380,6 +378,7 @@ class LinearModelBuilder {
       std::cout << ", current b_ (LMB build) :" << model_->b_ << std::endl;
 #endif
     }
+    assert(fitting_res == 0);
   }
 
  private:
