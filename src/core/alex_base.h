@@ -288,7 +288,7 @@ class LinearModelBuilder {
     }
 
     if (training_keys_.size() != 1 && useful_feat_index_.size() == 0) {
-      std::cout<<"all feats are the same"<<std::endl;
+      //std::cout<<"all feats are the same"<<std::endl;
     }
     size_t useful_feat_n_ = useful_feat_index_.size();
     bool use_bias_ = true;

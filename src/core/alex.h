@@ -2178,14 +2178,8 @@ class Alex {
     }
 
 #if DEBUG_PRINT
-    T left_key[max_key_length_];
-    T right_key[max_key_length_];
-    for (unsigned int i = 0; i < max_key_length_; i++) {
-      left_key[i] = left_boundary_value[i];
-      right_key[i] = right_boundary_value[i];
-    }
-    std::cout << "left prediction result (sd) " << new_node->model_.predict_double(AlexKey<T>(left_key, max_key_length_)) << std::endl;
-    std::cout << "right prediction result (sd) " << new_node->model_.predict_double(AlexKey<T>(right_key, max_key_length_)) << std::endl;
+    std::cout << "left prediction result (sd) " << new_node->model_.predict_double(leaf->key_slots_[leaf->first_pos()]) << std::endl;
+    std::cout << "right prediction result (sd) " << new_node->model_.predict_double(leaf->key_slots_[leaf->last_pos()]) << std::endl;
 #endif
 
     // Create new data nodes

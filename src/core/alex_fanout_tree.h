@@ -608,7 +608,7 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
   }
 
 #if DEBUG_PRINT
-    std::cout << "chosen best level is : " << best_level << std::endl;
+    std::cout << "chosen best level is : " << (1 << best_level) << std::endl;
 #endif
 
   for (FTNode& tree_node : fanout_tree[best_level]) {
