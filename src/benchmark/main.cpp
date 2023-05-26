@@ -159,11 +159,13 @@ int main(int argc, char* argv[]) {
           }
         }
         else {
-          std::cout << "failed finding payload for ";
-          for (unsigned int k = 0; k < max_key_length; k++) {
-            std::cout << key.key_arr_[k];
+          if (print_key_stats) {
+            std::cout << "failed finding payload for ";
+            for (unsigned int k = 0; k < max_key_length; k++) {
+              std::cout << key.key_arr_[k];
+            }
+            std::cout << std::endl;
           }
-          std::cout << std::endl;
         }
 #if DEBUG_PRINT
         std::cout << std::endl;
