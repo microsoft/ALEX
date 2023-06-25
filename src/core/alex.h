@@ -499,7 +499,7 @@ class Alex {
 // Mode 1 : It's for inserting new key. IT DOESN'T CHECK BOUNDARIES.
 #if ALEX_SAFE_LOOKUP
   forceinline data_node_type* get_leaf(
-      AlexKey<T> key, int mode, std::vector<TraversalNode>* traversal_path = nullptr) const {
+      AlexKey<T> key, int mode = 1, std::vector<TraversalNode>* traversal_path = nullptr) const {
     if (traversal_path) {
       traversal_path->push_back({superroot_, 0});
     }
@@ -835,15 +835,20 @@ class Alex {
     AlexKey<T> min_key = values[0].first;
     AlexKey<T> max_key = values[num_keys - 1].first;
 
-    LinearModelBuilder<T> root_model_builder(&root_node_->model_);
-    for (int i = 0; i < num_keys; i++) {
+    if (typeid(T) == typeid(char)) { //for string key
+      LinearModelBuilder<T> root_model_builder(&root_node_->model_);
+      for (int i = 0; i < num_keys; i++) {
 #if DEBUG_PRINT
-      printf("adding : %f\n", (double) (i) / (num_keys-1));
+        printf("adding : %f\n", (double) (i) / (num_keys-1));
 #endif
-      root_model_builder.add(values[i].first, (double) (i) / (num_keys-1));
+        root_model_builder.add(values[i].first, (double) (i) / (num_keys-1));
+      }
+      root_model_builder.build();
     }
-    root_model_builder.build();
-
+    else { //for numeric key
+      root_node_->model_.a_[0] = 1.0 / (max_key.key_arr_[0] - min_key.key_arr_[0]);
+      root_node_->model_.b_ = -1.0 * min_key.key_arr_[0] * root_node_->model_.a_[0];
+    }
 #if DEBUG_PRINT
     for (int i = 0; i < num_keys; i++) {
       std::cout << values[i].first.key_arr_ << " prediction " << root_node_->model_.predict_double(values[i].first) << std::endl;
@@ -906,8 +911,8 @@ class Alex {
       //the reason we are doing this cumbersome process is because
       //'!' may not be inserted at the first data node.
       //We need some way to handle this. May be fixed by unbiasing keys.
-      min_key_arr = (char *) malloc(max_key_length_);
-      max_key_arr = (char *) malloc(max_key_length_);
+      min_key_arr = (T *) malloc(max_key_length_);
+      max_key_arr = (T *) malloc(max_key_length_);
 
       for (unsigned int i = 0; i < max_key_length_; i++) {
         max_key_arr[i] = STR_VAL_MAX;
@@ -1125,7 +1130,10 @@ class Alex {
 
       // Instantiate all the child nodes and recurse
       int cur = 0;
-      int idx = 0, f_idx = 0, l_idx = 0, cumu_repeat = 0; //only used in string
+      int idx = 0, f_idx = 0, l_idx = 0;
+#if DEBUG_PRINT
+      int cumu_repeat = 0;
+#endif
       for (fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {
         auto child_node = new (model_node_allocator().allocate(1))
             model_node_type(static_cast<short>(node->level_ + 1), model_node, max_key_length_, allocator_);
@@ -1212,20 +1220,26 @@ class Alex {
 #endif
 
         //obtain CDF with range [0,1]
-        int num_keys = l_idx - f_idx + 1;
-        LinearModelBuilder<T> child_model_builder(&child_node->model_);
+        if (typeid(T) == typeid(char)) {
+          int num_keys = l_idx - f_idx + 1;
+          LinearModelBuilder<T> child_model_builder(&child_node->model_);
 #if DEBUG_PRINT
-        printf("l_idx : %d, f_idx : %d, num_keys : %d\n", l_idx, f_idx, num_keys);
+          printf("l_idx : %d, f_idx : %d, num_keys : %d\n", l_idx, f_idx, num_keys);
 #endif
-        if (num_keys == 1) {
-          child_model_builder.add(values[f_idx].first, 1.0);
+          if (num_keys == 1) {
+            child_model_builder.add(values[f_idx].first, 1.0);
+          }
+          else {
+            for (int i = f_idx; i < f_idx + num_keys; i++) {
+              child_model_builder.add(values[i].first, (double) (i-f_idx)/(num_keys-1));
+            }
+          }
+          child_model_builder.build();
         }
         else {
-          for (int i = f_idx; i < f_idx + num_keys; i++) {
-            child_model_builder.add(values[i].first, (double) (i-f_idx)/(num_keys-1));
-          }
+          child_node->model_.a_[0] = 1.0 / (right_boundary[0] - left_boundary[0]);
+          child_node->model_.b_ = -child_node->model_.a_[0] * left_boundary[0];
         }
-        child_model_builder.build();
 
 #if DEBUG_PRINT
         T left_key[max_key_length_];
@@ -1353,7 +1367,7 @@ class Alex {
   // use lower_bound()
   typename self_type::Iterator find(const AlexKey<T>& key) {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key, 0);
+    data_node_type* leaf = typeid(T) == typeid(char) ? get_leaf(key, 0) : get_leaf(key);
     if (leaf == nullptr) {return end();} //error when finding key.
     int idx = leaf->find_key(key);
     if (idx < 0) {
@@ -1365,7 +1379,7 @@ class Alex {
 
   typename self_type::ConstIterator find(const AlexKey<T>& key) const {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key, 0);
+    data_node_type* leaf = typeid(T) == typeid(char) ? get_leaf(key, 0) : get_leaf(key);
     if (leaf == nullptr) {return cend();} //error when finding key.
     int idx = leaf->find_key(key);
     if (idx < 0) {
@@ -1389,7 +1403,7 @@ class Alex {
   //returns end iterator on error.
   typename self_type::Iterator lower_bound(const AlexKey<T>& key) {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key, 0);
+    data_node_type* leaf = typeid(T) == typeid(char) ? get_leaf(key, 0) : get_leaf(key);
     if (leaf == nullptr) {return end();}
     int idx = leaf->find_lower(key);
     return Iterator(leaf, idx);  // automatically handles the case where idx ==
@@ -1398,7 +1412,7 @@ class Alex {
 
   typename self_type::ConstIterator lower_bound(const AlexKey<T>& key) const {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key, 0);
+    data_node_type* leaf = typeid(T) == typeid(char) ? get_leaf(key, 0) : get_leaf(key);
     if (leaf == nullptr) {return cend();}
     int idx = leaf->find_lower(key);
     return ConstIterator(leaf, idx);  // automatically handles the case where
@@ -1409,7 +1423,7 @@ class Alex {
   // returns end iterator on error
   typename self_type::Iterator upper_bound(const AlexKey<T>& key) {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key, 0);
+    data_node_type* leaf = typeid(T) == typeid(char) ? get_leaf(key, 0) : get_leaf(key);
     if (leaf == nullptr) {return end();}
     int idx = leaf->find_upper(key);
     return Iterator(leaf, idx);  // automatically handles the case where idx ==
@@ -1418,7 +1432,7 @@ class Alex {
 
   typename self_type::ConstIterator upper_bound(const AlexKey<T>& key) const {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key, 0);
+    data_node_type* leaf = typeid(T) == typeid(char) ? get_leaf(key, 0) : get_leaf(key);
     if (leaf == nullptr) {return cend();}
     int idx = leaf->find_upper(key);
     return ConstIterator(leaf, idx);  // automatically handles the case where
@@ -1439,7 +1453,7 @@ class Alex {
   // Returns null pointer if there is no exact match of the key
   P* get_payload(const AlexKey<T>& key) const {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key, 0);
+    data_node_type* leaf = typeid(T) == typeid(char) ? get_leaf(key, 0) : get_leaf(key);
     if (leaf == nullptr) {return nullptr;}
     int idx = leaf->find_key(key);
     if (idx < 0) {
@@ -1454,7 +1468,7 @@ class Alex {
   // returns end iterator on error
   typename self_type::Iterator find_last_no_greater_than(const AlexKey<T>& key) {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key, 0);
+    data_node_type* leaf = typeid(T) == typeid(char) ? get_leaf(key, 0) : get_leaf(key);
     if (leaf == nullptr) {return end();}
     const int idx = leaf->upper_bound(key) - 1;
     if (idx >= 0) {
@@ -1479,7 +1493,7 @@ class Alex {
   // returns nullptr on error.
   P* get_payload_last_no_greater_than(const AlexKey<T>& key) {
     stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key, 0);
+    data_node_type* leaf = typeid(T) == typeid(char) ? get_leaf(key, 0) : get_leaf(key);
     if (leaf == nullptr) {return nullptr;}
     const int idx = leaf->upper_bound(key) - 1;
     if (idx >= 0) {
@@ -1620,7 +1634,7 @@ class Alex {
       }
     }
 
-    data_node_type* leaf = get_leaf(key, 1);
+    data_node_type* leaf = get_leaf(key);
 
     // Nonzero fail flag means that the insert did not happen
     std::pair<int, int> ret = leaf->insert(key, payload);
@@ -2772,7 +2786,7 @@ class Alex {
  public:
   // Erases the left-most key with the given key value
   int erase_one(const AlexKey<T>& key) {
-    data_node_type* leaf = get_leaf(key, 0);
+    data_node_type* leaf = typeid(T) == typeid(char) ? get_leaf(key, 0) : get_leaf(key);
     if (leaf == nullptr) {return 0;}
     int num_erased = leaf->erase_one(key);
     stats_.num_keys -= num_erased;
@@ -2789,7 +2803,7 @@ class Alex {
 
   // Erases all keys with a certain key value
   int erase(const AlexKey<T>& key) {
-    data_node_type* leaf = get_leaf(key, 0);
+    data_node_type* leaf = typeid(T) == typeid(char) ? get_leaf(key, 0) : get_leaf(key);
     if (leaf == nullptr) {return 0;}
     int num_erased = leaf->erase(key);
     stats_.num_keys -= num_erased;
@@ -2842,7 +2856,7 @@ class Alex {
   void merge(data_node_type* leaf, AlexKey<T> key) {
     // first save the complete path down to data node
     std::vector<TraversalNode> traversal_path;
-    auto leaf_dup = get_leaf(key, 0, &traversal_path);
+    auto leaf_dup = typeid(T) == typeid(char) ? get_leaf(key, 0, &traversal_path) : get_leaf(key, 1, &traversal_path);
     // We might need to correct the traversal path in edge cases
     if (leaf_dup != leaf) {
       if (leaf_dup->prev_leaf_ == leaf) {

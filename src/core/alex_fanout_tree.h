@@ -158,18 +158,30 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
      * considering the current model. Since we can't pinpoint the specific key for strings
      * and since values are all sorted (upon research) when called, we try to find the first key
      * that is equal or larger than position i. */
-    if (i == fanout - 1) {right_boundary = num_keys;}
-    else {
-      char flag = 1;
-      for (int idx = left_boundary; idx < num_keys; idx++) {
-        double predicted_pos = newLModel.predict_double(values[idx].first);
-        if (predicted_pos >= (double) i+1) {
-          flag = 0;
-          right_boundary = idx;
-          break;
+    if (typeid(T) == typeid(char)) {
+      if (i == fanout - 1) {right_boundary = num_keys;}
+      else {
+        char flag = 1;
+        for (int idx = left_boundary; idx < num_keys; idx++) {
+          double predicted_pos = newLModel.predict_double(values[idx].first);
+          if (predicted_pos >= (double) i+1) {
+            flag = 0;
+            right_boundary = idx;
+            break;
+          }
+        }
+        if (flag) {right_boundary = num_keys;}
+      }
+    }
+    else { //numeric key
+      if (i == fanout - 1) {right_boundary = num_keys;}
+      else {
+        for (int i = 0; i < num_keys; i++) {
+          if (values[i].first.key_arr_[0] >= ((i+1)-b)/a[0]) {
+            right_boundary = i; break;
+          }
         }
       }
-      if (flag) {right_boundary = num_keys;}
     }
     // Account for off-by-one errors due to floating-point precision issues.
     while (right_boundary < num_keys) {
