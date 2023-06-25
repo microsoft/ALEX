@@ -523,7 +523,7 @@ class Alex {
           std::min<int>(std::max<int>(bucketID, 0), node->num_children_ - 1);
       cur = node->children_[bucketID];
 
-      #if DEBUG_PRINT
+#if DEBUG_PRINT
         std::cout << "current bucket : " << bucketID << std::endl;
         std::cout << "current key max length : " << key.max_key_length_ << std::endl;
         std::cout << "lb max length : " << cur->min_key_->max_key_length_ << std::endl;
@@ -532,6 +532,8 @@ class Alex {
         std::cout << "max_key : " << cur->max_key_->key_arr_ << std::endl;
 #endif
 
+      AlexKey<T> min_tmp_key(istats_.key_domain_min_, max_key_length_);
+      AlexKey<T> max_tmp_key(istats_.key_domain_max_, max_key_length_);
       if (mode == 0) {//for lookup related get_leaf
         int smaller_than_min = key_less_(key, *(cur->min_key_));
         int larger_than_max = key_less_(*(cur->max_key_), key);
@@ -541,30 +543,56 @@ class Alex {
             //could start at empty node, in this case, move left (since larger key is not possible)
             //SHOULD FIND OUT FAST SEARCHING USING NUMBER OF DUPLICATE POINTER
             if (dir == -1) {
+              if (bucketID == 0) {return nullptr;} //out of bound
               bucketID -= 1;
               cur = node->children_[bucketID]; 
               dir = -1;
             }
             else {
+              if (bucketID == node->num_children_-1) {return nullptr;} //out of bound
               bucketID += 1;
               cur = node->children_[bucketID]; 
               dir = 1;
             }
           }
           else if (smaller_than_min) {
-            if (dir == 1) {return nullptr;} //error, infinite loop occuring. need fix.
-            if (bucketID == 0) {return nullptr;} //error related to boundary. need fix.
+            if (dir == 1) {
+              //it could be the case where it started from empty node, and initialized direction was wrong
+              //in this case, we allow to go backward.
+              if ((bucketID == 0)
+               || (!key_equal(*(node->children_[bucketID-1]->min_key_), max_tmp_key)
+               || !key_equal(*(node->children_[bucketID-1]->max_key_), min_tmp_key))) {
+#if DEBUG_PRINT
+                std::cout << "yo infinite loop baby!" << std::endl;
+#endif
+                return nullptr; //error, not the special case mentioned above
+              }
+            }
+            if (bucketID == 0) {return nullptr;} //out of bound
             bucketID -= 1;
             cur = node->children_[bucketID];
             dir = -1;
           }
           else if (larger_than_max) {
-            if (dir == -1) {return nullptr;} //error, infinite loop occuring.
-            if (bucketID == (node->num_children_ - 1)) {return nullptr;} //error related to boundary. need fix.
+            if (dir == -1) {
+              if ((bucketID == node->num_children_-1)
+               || !key_equal(*(node->children_[bucketID+1]->min_key_), max_tmp_key)
+               || !key_equal(*(node->children_[bucketID+1]->max_key_), min_tmp_key)) {
+#if DEBUG_PRINT                
+                std::cout << "yo infinite loop baby!" << std::endl;
+#endif
+                return nullptr; //error, not the special case mentioned above
+              }
+            }
+            if (bucketID == node->num_children_-1) {return nullptr;}
             bucketID += 1;
             cur = node->children_[bucketID];
             dir = 1;
           }
+
+#if DEBUG_PRINT
+          std::cout << "bucket moved to " << bucketID << std::endl;
+#endif
 
           smaller_than_min = key_less_(key, *(cur->min_key_));
           larger_than_max = key_less_(*(cur->max_key_), key);
