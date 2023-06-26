@@ -534,9 +534,10 @@ class Alex {
 
       AlexKey<T> min_tmp_key(istats_.key_domain_min_, max_key_length_);
       AlexKey<T> max_tmp_key(istats_.key_domain_max_, max_key_length_);
+      int smaller_than_min = key_less_(key, *(cur->min_key_));
+      int larger_than_max = key_less_(*(cur->max_key_), key);
+
       if (mode == 0) {//for lookup related get_leaf
-        int smaller_than_min = key_less_(key, *(cur->min_key_));
-        int larger_than_max = key_less_(*(cur->max_key_), key);
         while (smaller_than_min || larger_than_max) {
           if (smaller_than_min && larger_than_max) {
             //empty node. move according to direction.
@@ -560,8 +561,8 @@ class Alex {
               //it could be the case where it started from empty node, and initialized direction was wrong
               //in this case, we allow to go backward.
               if ((bucketID == 0)
-               || (!key_equal(*(node->children_[bucketID-1]->min_key_), max_tmp_key)
-               || !key_equal(*(node->children_[bucketID-1]->max_key_), min_tmp_key))) {
+               || !key_equal(*(node->children_[bucketID-1]->min_key_), max_tmp_key)
+               || !key_equal(*(node->children_[bucketID-1]->max_key_), min_tmp_key)) {
 #if DEBUG_PRINT
                 std::cout << "yo infinite loop baby!" << std::endl;
 #endif
@@ -599,7 +600,133 @@ class Alex {
         }
       }
       else if (mode == 1) { //for insert.
-        ;
+        if (typeid(T) == typeid(char)) {
+          /*we need to check if inserting the key won't make collision with other node's boundary.
+            If it does, we need to move to another bucket and insert it. */
+#if DEBUG_PRINT
+          std::cout << "validating insertion" << std::endl;
+#endif
+          while (smaller_than_min || larger_than_max) {
+            int iter_bucketID = bucketID;
+            if (smaller_than_min && larger_than_max) {
+#if DEBUG_PRINT
+              std::cout << "currently empty node" << std::endl;
+#endif
+              //case of an empty node, we need to check if left/right node both doesn't occur collision.
+              //1) check left nearest distinct node that is not empty
+              while (iter_bucketID > 0) {
+                iter_bucketID -= 1;
+                if (!key_equal(*(node->children_[iter_bucketID]->max_key_), min_tmp_key)) {break;}
+              }
+              if (key_less_(key, *(node->children_[iter_bucketID]->max_key_))) { 
+                //smaller than left node's max key. insertion candidate moved to left node.
+#if DEBUG_PRINT
+                std::cout << "moving left, from empty node" << std::endl;
+#endif
+                bucketID = iter_bucketID;
+                cur = node->children_[bucketID];
+                if (iter_bucketID == 0) {break;}
+                smaller_than_min = key_less_(key, *(cur->min_key_));
+                larger_than_max = key_less_(*(cur->max_key_), key);
+#if DEBUG_PRINT
+                std::cout << "new bucketID : " << bucketID << std::endl;
+#endif
+                continue;
+              }
+              //2) check right nearest distinct node that is not empty
+              iter_bucketID = bucketID;
+              while (iter_bucketID < node->num_children_-1) {
+                iter_bucketID += 1;
+                if (!key_equal(*(node->children_[iter_bucketID]->min_key_), max_tmp_key)) {break;}
+              }
+              if (key_less_(*(node->children_[iter_bucketID]->min_key_), key)) {
+                //larger than right node's min key. insertion candidate moved to right node.
+#if DEBUG_PRINT
+                std::cout << "moving right, from empty node" << std::endl;
+#endif
+                bucketID = iter_bucketID;
+                cur = node->children_[bucketID];
+                if (iter_bucketID == node->num_children_-1) {break;}
+                smaller_than_min = key_less_(key, *(cur->min_key_));
+                larger_than_max = key_less_(*(cur->max_key_), key);
+                //std::cout << "new bucketID : " << bucketID << std::endl;
+                continue;
+              }
+#if DEBUG_PRINT
+              std::cout << "ok" << std::endl;
+              std::cout << "note that next iter's min/max key is " 
+                << node->children_[iter_bucketID]->min_key_->key_arr_
+                << " and " << node->children_[iter_bucketID]->max_key_->key_arr_ << std::endl;
+#endif
+              break; //OK for this key to be inserted in current empty node
+            }
+            else if (smaller_than_min) {
+#if DEBUG_PRINT
+              std::cout << "currently non empty node, and smaller" << std::endl;
+#endif
+              //non-empty node, but could extend leftward.
+              //need to check if nonempty left node won't cause collision.
+              while (iter_bucketID > 0) {
+                iter_bucketID -= 1;
+                if (!key_equal(*(node->children_[iter_bucketID]->max_key_), min_tmp_key)
+                 && !key_equal(*(node->children_[iter_bucketID]->min_key_), *node->children_[bucketID]->min_key_)) {break;}
+              }
+              if (key_less_(key, *(node->children_[iter_bucketID]->max_key_))) { 
+                //smaller than left node's max key. insertion candidate moved to left node.
+#if DEBUG_PRINT
+                std::cout << "moving left, from nonempty node" << std::endl;
+#endif
+                bucketID = iter_bucketID;
+                cur = node->children_[bucketID];
+                if (iter_bucketID == 0) {break;}
+                smaller_than_min = key_less_(key, *(cur->min_key_));
+                larger_than_max = key_less_(*(cur->max_key_), key);
+#if DEBUG_PRINT
+                std::cout << "new bucketID : " << bucketID << std::endl;
+#endif
+                continue;
+              }
+#if DEBUG_PRINT
+              std::cout << "ok" << std::endl;
+              std::cout << "note that next iter's min/max key is " 
+                << node->children_[iter_bucketID]->min_key_->key_arr_
+                << " and " << node->children_[iter_bucketID]->max_key_->key_arr_ << std::endl;
+#endif
+              break; //OK for this key to be inserted in current nonempty node
+            }
+            else if (larger_than_max) {
+              //std::cout << "currently non empty node, and larger" << std::endl;
+              //non-empty node, but could extend leftward.
+              //need to check if nonempty left node won't cause collision.
+              while (iter_bucketID < node->num_children_-1) {
+                iter_bucketID += 1;
+                if (!key_equal(*(node->children_[iter_bucketID]->min_key_), max_tmp_key)
+                 && !key_equal(*(node->children_[iter_bucketID]->max_key_), *node->children_[bucketID]->max_key_)) {break;}
+              }
+              if (key_less_(*(node->children_[iter_bucketID]->min_key_), key)) { 
+                //larger than right node's min key. insertion candidate moved to right node.
+#if DEBUG_PRINT
+                std::cout << "moving right, from nonempty node" << std::endl;
+#endif
+                bucketID = iter_bucketID;
+                cur = node->children_[bucketID];
+                if (iter_bucketID == node->num_children_-1) {break;}
+                smaller_than_min = key_less_(key, *(cur->min_key_));
+                larger_than_max = key_less_(*(cur->max_key_), key);
+                //std::cout << "new bucketID : " << bucketID << std::endl;
+                continue;
+              }
+#if DEBUG_PRINT
+              std::cout << "ok" << std::endl;
+              std::cout << "note that next iter's min/max key is " 
+                << node->children_[iter_bucketID]->min_key_->key_arr_
+                << " and " << node->children_[iter_bucketID]->max_key_->key_arr_ << std::endl;
+#endif
+              break; //OK for this key to be inserted in current nonempty node
+            }
+          }
+        }
+        else {;} //need to do nothing for other type of keys... and this is actually same for lookup for these types of keys.
       }
       if (traversal_path) {
         traversal_path->push_back({node, bucketID});
@@ -1690,6 +1817,10 @@ class Alex {
         int bucketID = parent->model_.predict(key);
         bucketID = std::min<int>(std::max<int>(bucketID, 0),
                                  parent->num_children_ - 1);
+        if (typeid(T) == typeid(char)) {
+          bucketID = traversal_path.back().bucketID;
+        }
+
         std::vector<fanout_tree::FTNode> used_fanout_tree_nodes;
 
         int fanout_tree_depth = 1;
@@ -1763,7 +1894,8 @@ class Alex {
                              used_fanout_tree_nodes, reuse_model);
             }
           }
-          leaf = static_cast<data_node_type*>(parent->get_child_node(key));
+          if (typeid(T) ==typeid(char)) {leaf = get_leaf(key);}
+          else {leaf = static_cast<data_node_type*>(parent->get_child_node(key));}
         }
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = end_time - start_time;
@@ -2182,6 +2314,11 @@ class Alex {
     new_node->num_children_ = fanout;
     new_node->children_ =
         new (pointer_allocator().allocate(fanout)) node_type*[fanout];
+    //needs to initialize min/max key in case of split_downwards.
+    std::copy(leaf->min_key_->key_arr_, leaf->min_key_->key_arr_ + max_key_length_,
+              new_node->min_key_->key_arr_);
+    std::copy(leaf->max_key_->key_arr_, leaf->max_key_->key_arr_ + max_key_length_,
+              new_node->max_key_->key_arr_);
 
 
     int repeats = 1 << leaf->duplication_factor_;
@@ -2243,6 +2380,14 @@ class Alex {
       root_node_ = new_node;
       update_superroot_pointer();
     }
+#if DEBUG_PRINT
+    std::cout << "min_key_(model_node) : " << new_node->min_key_->key_arr_ << std::endl;
+    std::cout << "max_key_(model_node) : " << new_node->max_key_->key_arr_ << std::endl;
+    for (int i = 0; i < fanout; i++) {
+        std::cout << i << "'s min_key is : " << new_node->children_[i]->min_key_->key_arr_ << std::endl;
+        std::cout << i << "'s max_key is : " << new_node->children_[i]->max_key_->key_arr_ << std::endl;
+    }
+#endif
 
     return new_node;
   }
@@ -2303,6 +2448,9 @@ class Alex {
                                  model_node_type* parent,
                                  int duplication_factor, bool reuse_model,
                                  int start_bucketID = 0) {
+#if DEBUG_PRINT 
+    std::cout << "called create_two_new_dn" << std::endl;
+#endif
     assert(duplication_factor >= 1);
     int num_buckets = 1 << duplication_factor;
     int end_bucketID = start_bucketID + num_buckets;
@@ -2369,6 +2517,9 @@ class Alex {
       parent->children_[i] = right_leaf;
     }
     link_data_nodes(old_node, left_leaf, right_leaf);
+#if DEBUG_PRINT 
+    std::cout << "finished create_two_new_dn" << std::endl;
+#endif
   }
 
   // Create new data nodes from the keys in the old data node according to the
@@ -2381,6 +2532,9 @@ class Alex {
       int fanout_tree_depth,
       std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes,
       int start_bucketID = 0, int extra_duplication_factor = 0) {
+#if DEBUG_PRINT 
+    std::cout << "called create_new_dn" << std::endl;
+#endif
     bool append_mostly_right = old_node->is_append_mostly_right();
     int appending_right_bucketID = std::min<int>(
         std::max<int>(parent->model_.predict(*(old_node->max_key_)), 0),
@@ -2447,6 +2601,9 @@ class Alex {
     if (old_node->next_leaf_ != nullptr) {
       old_node->next_leaf_->prev_leaf_ = prev_leaf;
     }
+#if DEBUG_PRINT 
+    std::cout << "finished create_new_dn" << std::endl;
+#endif
   }
 
   // Splits the data node in two and propagates the split upwards along the
