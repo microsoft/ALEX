@@ -830,7 +830,7 @@ struct AtomicVal {
   friend std::ostream &operator<<(std::ostream &os, const AtomicVal &leaf) {
     COUT_VAR(leaf.val_);
     COUT_VAR(leaf.locked);
-    COUT_VAR(leaf.verion);
+    COUT_VAR(leaf.version);
     return os;
   }
 
