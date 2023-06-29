@@ -11,12 +11,16 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <array>
 #include <chrono>
+#include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <random>
 #include <set>
 #include <string>
@@ -61,9 +65,26 @@ typedef unsigned __int32 uint32_t;
 /*** debug print ***/
 #define DEBUG_PRINT 0
 
+/*** some utils for multithreading ***/
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#define COUT_VAR(this) std::cout << #this << ": " << this << std::endl;
+#define UNUSED(var) ((void)var)
+#define CACHELINE_SIZE (1 << 6)
+
 namespace alex {
 
 static const size_t desired_training_key_n_ = 10000000; /* desired training key according to Xindex */
+
+struct alignas(CACHELINE_SIZE) RCUStatus;
+enum class Result;
+struct alignas(CACHELINE_SIZE) BGInfo;
+struct IndexConfig;
+
+typedef RCUStatus rcu_status_t;
+typedef Result result_t;
+typedef BGInfo bg_info_t;
+typedef IndexConfig index_config_t;
 
 /*** MAY BE USED UNDER CIRCUMSTANCES ***/
 //extern unsigned int max_key_length;
@@ -656,4 +677,217 @@ class CPUID {
 inline bool cpu_supports_bmi() {
   return static_cast<bool>(CPUID(7, 0).EBX() & (1 << 3));
 }
+
+/* utils for multithreading
+ * Many of this code is copied from Xindex */
+
+inline void memory_fence() { asm volatile("mfence" : : : "memory"); }
+
+/** @brief Compiler fence.
+ * Prevents reordering of loads and stores by the compiler. Not intended to
+ * synchronize the processor's caches. */
+inline void fence() { asm volatile("" : : : "memory"); }
+
+inline uint64_t cmpxchg(uint64_t *object, uint64_t expected,
+                               uint64_t desired) {
+  asm volatile("lock; cmpxchgq %2,%1"
+               : "+a"(expected), "+m"(*object)
+               : "r"(desired)
+               : "cc");
+  fence();
+  return expected;
+}
+
+inline uint8_t cmpxchgb(uint8_t *object, uint8_t expected,
+                               uint8_t desired) {
+  asm volatile("lock; cmpxchgb %2,%1"
+               : "+a"(expected), "+m"(*object)
+               : "r"(desired)
+               : "cc");
+  fence();
+  return expected;
+}
+
+struct RCUStatus {
+  std::atomic<int64_t> status;
+  std::atomic<bool> waiting;
+};
+
+enum class Result { ok, failed, retry };
+
+struct BGInfo {
+  size_t bg_i;  // for calculation responsible range
+  size_t bg_n;  // for calculation responsible range
+  volatile void *root_ptr;
+  volatile bool should_update_array;
+  std::atomic<bool> started;
+  std::atomic<bool> finished;
+  volatile bool running;
+};
+
+struct IndexConfig {
+  double root_error_bound = 32;
+  double root_memory_constraint = 1024 * 1024;
+  double group_error_bound = 32;
+  double group_error_tolerance = 4;
+  size_t buffer_size_bound = 256;
+  double buffer_size_tolerance = 3;
+  size_t buffer_compact_threshold = 8;
+  size_t worker_n = 0;
+  std::unique_ptr<rcu_status_t[]> rcu_status;
+  volatile bool exited = false;
+};
+
+index_config_t config;
+std::mutex config_mutex;
+
+// TODO replace it with user space RCU (e.g., qsbr)
+void rcu_init() {
+  config_mutex.lock();
+  if (config.rcu_status.get() == nullptr) {
+    config.rcu_status = std::make_unique<rcu_status_t[]>(config.worker_n);
+    for (size_t worker_i = 0; worker_i < config.worker_n; worker_i++) {
+      config.rcu_status[worker_i].status = 0;
+      config.rcu_status[worker_i].waiting = false;
+    }
+  }
+  config_mutex.unlock();
+}
+
+void rcu_progress(const uint32_t worker_id) {
+  config.rcu_status[worker_id].status++;
+}
+
+// wait for all workers
+void rcu_barrier() {
+  int64_t prev_status[config.worker_n];
+  for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
+    prev_status[w_i] = config.rcu_status[w_i].status;
+  }
+  for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
+    while (config.rcu_status[w_i].status <= prev_status[w_i] && !config.exited)
+      ;
+  }
+}
+
+// wait for workers whose 'waiting' is false
+void rcu_barrier(const uint32_t worker_id) {
+  // set myself to waiting for barrier
+  config.rcu_status[worker_id].waiting = true;
+
+  int64_t prev_status[config.worker_n];
+  for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
+    prev_status[w_i] = config.rcu_status[w_i].status;
+  }
+  for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
+    // skipped workers that is wating for barrier (include myself)
+    while (config.rcu_status[w_i].status <= prev_status[w_i] &&
+           !config.rcu_status[w_i].waiting && !config.exited)
+      ;
+  }
+  config.rcu_status[worker_id].waiting = false;  // restore my state
+}
+
+template <class val_t>
+struct AtomicVal {
+  val_t val_;
+
+  // 60 bits for version
+  static const uint64_t version_mask = 0x0fffffffffffffff;
+  static const uint64_t lock_mask = 0x1000000000000000;
+  static const uint64_t removed_mask = 0x2000000000000000;
+
+  // lock - removed - is_ptr
+  volatile uint64_t status;
+
+  AtomicVal() : status(0) {}
+  AtomicVal(val_t val) : val_(val), status(0) {}
+
+  bool removed(uint64_t status) { return status & removed_mask; }
+  bool locked(uint64_t status) { return status & lock_mask; }
+  uint64_t get_version(uint64_t status) { return status & version_mask; }
+
+  void set_removed() { status |= removed_mask; }
+  void lock() {
+    while (true) {
+      uint64_t old = status;
+      uint64_t expected = old & ~lock_mask;  // expect to be unlocked
+      uint64_t desired = old | lock_mask;    // desire to lock
+      if (likely(cmpxchg((uint64_t *)&this->status, expected, desired) ==
+                 expected)) {
+        return;
+      }
+    }
+  }
+  void unlock() { status &= ~lock_mask; }
+  void incr_version() {
+    uint64_t version = get_version(status);
+    UNUSED(version);
+    status++;
+    assert(get_version(status) == version + 1);
+  }
+
+  friend std::ostream &operator<<(std::ostream &os, const AtomicVal &leaf) {
+    COUT_VAR(leaf.val_);
+    COUT_VAR(leaf.locked);
+    COUT_VAR(leaf.verion);
+    return os;
+  }
+
+  // semantics: atomically read the value and the `removed` flag
+  bool read(val_t &val) {
+    while (true) {
+      uint64_t status = this->status;
+      memory_fence();
+      val_t curr_val = this->val_;
+      memory_fence();
+
+      uint64_t current_status = this->status;
+      memory_fence();
+
+      if (unlikely(locked(current_status))) {  // check lock
+        continue;
+      }
+
+      if (likely(get_version(status) ==
+                 get_version(current_status))) {  // check version
+        val = curr_val;
+        return !removed(status);
+      }
+    }
+  }
+  bool update(const val_t &val) {
+    lock();
+    uint64_t status = this->status;
+    bool res;
+    if (!removed(status)) {
+      this->val_ = val;
+      res = true;
+    } else {
+      res = false;
+    }
+    memory_fence();
+    incr_version();
+    memory_fence();
+    unlock();
+    return res;
+  }
+  bool remove() {
+    lock();
+    uint64_t status = this->status;
+    bool res;
+    if (!removed(status)) {
+      set_removed();
+      res = true;
+    } else {
+      res = false;
+    }
+    memory_fence();
+    incr_version();
+    memory_fence();
+    unlock();
+    return res;
+  }
+};
+
 }
