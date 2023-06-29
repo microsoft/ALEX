@@ -100,33 +100,33 @@ int main(int argc, char* argv[]) {
   }
 
   //extra setup in case of string key
-  std::pair<alex::AlexKey<KEY_TYPE>, PAYLOAD_TYPE> *values;
+  std::pair<alex::AlexKey<KEY_TYPE>, alex::AtomicVal<PAYLOAD_TYPE>> *values;
   std::mt19937_64 gen_payload(std::random_device{}());
   if (typeid(KEY_TYPE) != typeid(char)) { //numeric
-    values = new std::pair<alex::AlexKey<KEY_TYPE>, PAYLOAD_TYPE>[init_num_keys];
+    values = new std::pair<alex::AlexKey<KEY_TYPE>, alex::AtomicVal<PAYLOAD_TYPE>>[init_num_keys];
   }
   else { //string
-    values = new std::pair<alex::AlexKey<KEY_TYPE>, PAYLOAD_TYPE>[init_num_keys + 2];
+    values = new std::pair<alex::AlexKey<KEY_TYPE>, alex::AtomicVal<PAYLOAD_TYPE>>[init_num_keys + 2];
     values[init_num_keys].first = alex::AlexKey<KEY_TYPE>(max_key_length);
     values[init_num_keys+1].first = alex::AlexKey<KEY_TYPE>(max_key_length);
     values[init_num_keys].first.key_arr_[0] = STR_VAL_MIN;
     for (unsigned int i = 0; i < max_key_length; i++) {
       values[init_num_keys+1].first.key_arr_[i] = STR_VAL_MAX;
     }
-    values[init_num_keys].second = static_cast<PAYLOAD_TYPE>(gen_payload());
-    values[init_num_keys+1].second = static_cast<PAYLOAD_TYPE>(gen_payload());
+    values[init_num_keys].second = static_cast<alex::AtomicVal<PAYLOAD_TYPE>>(gen_payload());
+    values[init_num_keys+1].second = static_cast<alex::AtomicVal<PAYLOAD_TYPE>>(gen_payload());
   }
 
   // Combine bulk loading keys with randomly generated payloads
   for (int i = 0; i < init_num_keys; i++) {
     values[i].first = keys[i];
-    values[i].second = static_cast<PAYLOAD_TYPE>(gen_payload());
+    values[i].second = static_cast<alex::AtomicVal<PAYLOAD_TYPE>>(gen_payload());
     if (print_key_stats) {
       std::cout << "will insert key : ";
       for (unsigned int j = 0; j < max_key_length; j++) {
         std::cout << values[i].first.key_arr_[j];
       } 
-      std::cout << ", with payload : " << values[i].second << std::endl;
+      std::cout << ", with payload : " << values[i].second.val_ << std::endl;
     }
   }
 
@@ -272,8 +272,9 @@ void *run_fg(void *param) {
 
   //do batch operations.
   for (uint64_t i = 0; i < num_actual_ops_perth; i++) {
-    if (insert_cnt >= num_actual_inserts_perth) { //insert complete
-      table->insert(keys[insertion_index], static_cast<PAYLOAD_TYPE>(gen_payload()));
+    double d = ratio_dis(gen); //randomly choose which operation to do.
+    if ((insert_cnt >= num_actual_inserts_perth) || d <= (insertion_ratio)) { //insert
+      table->insert(keys[insertion_index], static_cast<alex::AtomicVal<PAYLOAD_TYPE>>(gen_payload()));
       if (print_key_stats) {
         std::cout << "inserted key : ";
         for (unsigned int j = 0; j < max_key_length; j++) {
@@ -283,9 +284,9 @@ void *run_fg(void *param) {
       }
       insert_cnt++;
       insertion_index++;
-      continue;
+
     }
-    else if (read_cnt >= num_actual_lookups_perth) { //read complete
+    else { //read
       alex::AlexKey<KEY_TYPE> key = lookup_keys[read_cnt];
       PAYLOAD_TYPE* payload = table->get_payload(key);
       if (payload && print_key_stats) {
@@ -303,41 +304,8 @@ void *run_fg(void *param) {
         std::cout << std::endl;
       }
       read_cnt++;
-      continue;
     }
 
-    double d = ratio_dis(gen); //randomly choose which operation to do.
-    if (d <= insertion_ratio) { //insert
-      table->insert(keys[insertion_index], static_cast<PAYLOAD_TYPE>(gen_payload()));
-      if (print_key_stats) {
-        std::cout << "inserted key : ";
-        for (unsigned int j = 0; j < max_key_length; j++) {
-          std::cout << keys[i].key_arr_[j];
-        }
-        std::cout << std::endl;
-      }
-      insertion_index++;
-      insert_cnt++;
-    }
-    else { //get
-      alex::AlexKey<KEY_TYPE> key = lookup_keys[read_cnt];
-      PAYLOAD_TYPE* payload = table->get_payload(key);
-      if (payload && print_key_stats) {
-        std::cout << "lookup key : ";
-        for (unsigned int k = 0; k < max_key_length; k++) {
-          std::cout << key.key_arr_[k];
-        }
-        std::cout << ", payload : " << *payload << std::endl;
-      }
-      else if (print_key_stats) {
-        std::cout << "failed finding payload for ";
-        for (unsigned int k = 0; k < max_key_length; k++) {
-          std::cout << key.key_arr_[k];
-        }
-        std::cout << std::endl;
-      }
-      read_cnt++;
-    }
   }
 
   delete[] lookup_keys;
