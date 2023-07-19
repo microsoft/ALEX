@@ -16,7 +16,7 @@
 #include "utils.h"
 
 // Modify these if running your own workload
-#define KEY_TYPE char
+#define KEY_TYPE char //it now only supports char
 #define PAYLOAD_TYPE double
 
 //parameter for thread
@@ -29,7 +29,7 @@ struct FGParam {
 };
 
 //for multithreading synchronization
-volatile bool running = false;
+std::atomic<bool> running(false);
 std::atomic<size_t> ready_threads(0);
 
 //common read-only data used for each threads
@@ -40,7 +40,7 @@ double insertion_ratio = 0.0;
 std::string lookup_distribution;
 uint64_t max_key_length = 1;
 bool print_key_stats = false;
-int total_num_keys = 1;
+uint64_t total_num_keys = 1;
 uint32_t td_num = 1;
 uint64_t num_actual_ops_perth;
 uint64_t num_actual_lookups_perth;
@@ -81,7 +81,7 @@ int main(int argc, char* argv[]) {
 
   // Allocation for key containers.
   keys = new alex::AlexKey<KEY_TYPE>[total_num_keys];
-  for (int i = 0; i < total_num_keys; i++) { 
+  for (uint64_t i = 0; i < total_num_keys; i++) { 
     keys[i].key_arr_ = new KEY_TYPE[max_key_length]();
     keys[i].max_key_length_ = max_key_length;
   }
@@ -100,37 +100,32 @@ int main(int argc, char* argv[]) {
   }
 
   //extra setup in case of string key
-  std::pair<alex::AlexKey<KEY_TYPE>, alex::AtomicVal<PAYLOAD_TYPE>> *values;
+  std::pair<alex::AlexKey<KEY_TYPE>, PAYLOAD_TYPE> *values;
   std::mt19937_64 gen_payload(std::random_device{}());
-  if (typeid(KEY_TYPE) != typeid(char)) { //numeric
-    values = new std::pair<alex::AlexKey<KEY_TYPE>, alex::AtomicVal<PAYLOAD_TYPE>>[init_num_keys];
+  values = new std::pair<alex::AlexKey<KEY_TYPE>, PAYLOAD_TYPE>[init_num_keys + 2];
+  values[init_num_keys].first = alex::AlexKey<KEY_TYPE>(max_key_length);
+  values[init_num_keys+1].first = alex::AlexKey<KEY_TYPE>(max_key_length);
+  values[init_num_keys].first.key_arr_[0] = STR_VAL_MIN;
+  for (unsigned int i = 0; i < max_key_length; i++) {
+    values[init_num_keys+1].first.key_arr_[i] = STR_VAL_MAX;
   }
-  else { //string
-    values = new std::pair<alex::AlexKey<KEY_TYPE>, alex::AtomicVal<PAYLOAD_TYPE>>[init_num_keys + 2];
-    values[init_num_keys].first = alex::AlexKey<KEY_TYPE>(max_key_length);
-    values[init_num_keys+1].first = alex::AlexKey<KEY_TYPE>(max_key_length);
-    values[init_num_keys].first.key_arr_[0] = STR_VAL_MIN;
-    for (unsigned int i = 0; i < max_key_length; i++) {
-      values[init_num_keys+1].first.key_arr_[i] = STR_VAL_MAX;
-    }
-    values[init_num_keys].second = static_cast<alex::AtomicVal<PAYLOAD_TYPE>>(gen_payload());
-    values[init_num_keys+1].second = static_cast<alex::AtomicVal<PAYLOAD_TYPE>>(gen_payload());
-  }
+  values[init_num_keys].second = static_cast<PAYLOAD_TYPE>(gen_payload());
+  values[init_num_keys+1].second = static_cast<PAYLOAD_TYPE>(gen_payload());
 
   // Combine bulk loading keys with randomly generated payloads
   for (int i = 0; i < init_num_keys; i++) {
     values[i].first = keys[i];
-    values[i].second = static_cast<alex::AtomicVal<PAYLOAD_TYPE>>(gen_payload());
+    values[i].second = static_cast<PAYLOAD_TYPE>(gen_payload());
     if (print_key_stats) {
       std::cout << "will insert key : ";
       for (unsigned int j = 0; j < max_key_length; j++) {
         std::cout << values[i].first.key_arr_[j];
       } 
-      std::cout << ", with payload : " << values[i].second.val_ << std::endl;
+      std::cout << ", with payload : " << values[i].second << std::endl;
     }
   }
 
-  if (typeid(KEY_TYPE) == typeid(char)) {init_num_keys += 2;}
+  init_num_keys += 2;
 
   // Create ALEX and bulk load
   alex::Alex<KEY_TYPE, PAYLOAD_TYPE> index(max_key_length);
@@ -145,9 +140,9 @@ int main(int argc, char* argv[]) {
             bulkload_start_time).count() << "ns" << std::endl;
 
   //workload setup
-  int inserted_range = (typeid(KEY_TYPE) == typeid(char)) ? init_num_keys-2 : init_num_keys;
-  int num_inserts_per_batch = static_cast<int>(batch_size * insert_frac);
-  int num_lookups_per_batch = batch_size - num_inserts_per_batch;
+  inserted_range = init_num_keys-2;
+  uint64_t num_inserts_per_batch = static_cast<uint64_t>(batch_size * insert_frac);
+  uint64_t num_lookups_per_batch = batch_size - num_inserts_per_batch;
   table = &index;
   insertion_ratio = insert_frac;
 
@@ -155,12 +150,15 @@ int main(int argc, char* argv[]) {
   int batch_no = 0;
   double cumulative_time = 0.0;
   long long cumulative_operations = 0;
+  alex::config.worker_n = td_num;
   std::cout << std::scientific;
   std::cout << std::setprecision(3);
 
   // Run workload
   while (true) {
     batch_no++;
+    alex::rcu_init();
+    std::cout << "batch starts with no : " << batch_no << std::endl;
     //Each threads will do lookup/insert randomly for different part,
     //while following insertion ratio.
 
@@ -168,6 +166,11 @@ int main(int argc, char* argv[]) {
     pthread_t threads[td_num];
     fg_param_t fg_params[td_num];
     running = false;
+
+    num_actual_lookups_perth = num_lookups_per_batch / td_num;
+    num_actual_inserts_perth = std::min(num_inserts_per_batch / td_num , (total_num_keys - inserted_range) / td_num);
+    num_actual_ops_perth = num_actual_lookups_perth + num_actual_inserts_perth;
+    
     for (size_t worker_i = 0; worker_i < td_num; worker_i++) {
       fg_params[worker_i].thread_id = worker_i;
       int ret = pthread_create(&threads[worker_i], nullptr, run_fg,
@@ -177,11 +180,9 @@ int main(int argc, char* argv[]) {
         abort();
       }
     }
-    num_actual_lookups_perth = num_lookups_per_batch / td_num;
-    num_actual_inserts_perth = std::min(num_inserts_per_batch / td_num , (total_num_keys - inserted_range) / td_num);
-    num_actual_ops_perth = num_actual_lookups_perth + num_actual_inserts_perth;
 
     while(ready_threads < td_num) {sleep(1);}
+    std::cout << "multithreading starts for batch : " << batch_no << std::endl;
     auto batch_start_time = std::chrono::high_resolution_clock::now();
     running = true;
 
@@ -196,6 +197,7 @@ int main(int argc, char* argv[]) {
 
     running = false;
     auto batch_end_time = std::chrono::high_resolution_clock::now();
+    std::cout << "all joined for batch : " << batch_no << std::endl;
     inserted_range += num_actual_inserts_perth * td_num;
 
     if (print_batch_stats) {
@@ -212,6 +214,7 @@ int main(int argc, char* argv[]) {
                 << "\n\tcumulative throughput:\t"
                 << cumulative_operations / cumulative_time * 1e9 << " ops/sec"
                 << std::endl;
+      std:: cout << "inserted range is " << inserted_range << std::endl;
     }
 
     // Check for workload end conditions
@@ -265,43 +268,83 @@ void *run_fg(void *param) {
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_real_distribution<> ratio_dis(0, 1);
+  std::cout << "worker " << thread_id << " ready to start" << std::endl;
   ready_threads++;
 
   //wait
-  while (!running) ;
+  while (!running.load()) ;
 
   //do batch operations.
   for (uint64_t i = 0; i < num_actual_ops_perth; i++) {
     double d = ratio_dis(gen); //randomly choose which operation to do.
-    if ((insert_cnt >= num_actual_inserts_perth) || d <= (insertion_ratio)) { //insert
-      table->insert(keys[insertion_index], static_cast<alex::AtomicVal<PAYLOAD_TYPE>>(gen_payload()));
-      if (print_key_stats) {
-        std::cout << "inserted key : ";
-        for (unsigned int j = 0; j < max_key_length; j++) {
-          std::cout << keys[i].key_arr_[j];
+    if ((!(insert_cnt >= num_actual_inserts_perth) && d <= (insertion_ratio))
+       || (read_cnt >= num_actual_lookups_perth)) { //insert
+#if DEBUG_PRINT
+      std::cout << std::endl;
+      std::cout << "current insertion_index is : " << insertion_index << std::endl;
+      std::cout << "worker id : " << thread_id << " inserting " << keys[insertion_index].key_arr_ << std::endl;
+#endif
+      while (1) {
+        std::pair<alex::Alex<KEY_TYPE, PAYLOAD_TYPE>::Iterator, bool> insert_result
+            = table->insert(keys[insertion_index], static_cast<PAYLOAD_TYPE>(gen_payload()), thread_id);
+        if (!insert_result.second) {
+          if (!insert_result.first.cur_leaf_ && !insert_result.first.cur_idx_) { 
+            //failed finding leaf
+            std::cout << "worker ID : " << thread_id
+                      << " failed finding leaf to insert to.";
+            break;
+          }
+          else if (!insert_result.first.cur_leaf_ && (insert_result.first.cur_idx_ == 1)) {
+            //retrying insert due to sudden leaf destruction.
+#if DEBUG_PRINT
+            std::cout << "worker ID : " << thread_id
+                      << " retrying insert";
+            continue;
+#endif
+          }
+          else {
+            //failed because duplicates are not allowed.
+#if DEBUG_PRINT
+            std::cout << "worker ID : " << thread_id
+                      << " failed because duplicate is not allowed";
+            break;
+#endif
+          }
         }
-        std::cout << std::endl;
+        else { //succeeded.
+          if (print_key_stats) {
+            std::cout << "inserted key : ";
+            for (unsigned int j = 0; j < max_key_length; j++) {
+              std::cout << keys[insertion_index].key_arr_[j];
+            }
+            std::cout << std::endl;
+          }
+          insert_cnt++;
+          insertion_index++;
+          break;
+        }
       }
-      insert_cnt++;
-      insertion_index++;
-
     }
     else { //read
       alex::AlexKey<KEY_TYPE> key = lookup_keys[read_cnt];
-      PAYLOAD_TYPE* payload = table->get_payload(key);
-      if (payload && print_key_stats) {
-        std::cout << "lookup key : ";
+#if DEBUG_PRINT
+      std::cout << std::endl;
+      std::cout << "current read_cnt is : " << read_cnt << std::endl;
+      std::cout << "worker id : " << thread_id << " reading lookup key ";
+      for (unsigned int k = 0; k < max_key_length; k++) {
+        std::cout << key.key_arr_[k];
+      }
+      std::cout << std::endl;
+#endif
+      std::pair<bool, PAYLOAD_TYPE> payload = table->get_payload(key, thread_id);
+      if (payload.first && print_key_stats) {
         for (unsigned int k = 0; k < max_key_length; k++) {
           std::cout << key.key_arr_[k];
         }
-        std::cout << ", payload : " << *payload << std::endl;
+        std::cout << " payload is : " << payload.second << std::endl;
       }
       else if (print_key_stats) {
-        std::cout << "failed finding payload for ";
-        for (unsigned int k = 0; k < max_key_length; k++) {
-          std::cout << key.key_arr_[k];
-        }
-        std::cout << std::endl;
+        std::cout << "failed finding payload" << std::endl;
       }
       read_cnt++;
     }

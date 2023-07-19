@@ -11,6 +11,7 @@
 #pragma once
 
 #include "alex_base.h"
+#include <map>
 
 // Whether we store key and payload arrays separately in data nodes
 // By default, we store them separately
@@ -21,7 +22,7 @@
 #define ALEX_DATA_NODE_PAYLOAD_AT(i) payload_slots_[i]
 #else
 #define ALEX_DATA_NODE_KEY_AT(i) data_slots_[i].first
-#define ALEX_DATA_NODE_PAYLOAD_AT(i) data_slots_[i].second
+#define ALEX_DATA_NODE_PAYLOAD_AT(i) data_slots_[i].second.read()
 #endif
 
 // Whether we use lzcnt and tzcnt when manipulating a bitmap (e.g., when finding
@@ -34,6 +35,7 @@ namespace alex {
 
 //forward declaration.
 template <class T, class P, class Alloc> class AlexModelNode;
+template <class T, class P> struct TraversalNode;
 
 // A parent class for both types of ALEX nodes
 template <class T, class P, class Alloc = std::allocator<std::pair<AlexKey<T>, P>>>
@@ -70,67 +72,60 @@ class AlexNode {
 
   // Variables for determining append-mostly behavior and checking errors.
   // max key in node, updates after inserts but not erases.
-  AlexKey<T> *max_key_; 
+  AtomicVal<AlexKey<T> *>max_key_; 
   // min key in node, updates after inserts but not erases. 
-  AlexKey<T> *min_key_;
+  AtomicVal<AlexKey<T> *>min_key_;
 
   AlexNode() = default;
   explicit AlexNode(short level) : level_(level) {
-    max_key_ = new AlexKey<T>(1);
-    min_key_ = new AlexKey<T>(1);
-    max_key_->key_arr_[0] = STR_VAL_MIN;
-    min_key_->key_arr_[0] = STR_VAL_MAX;
+    max_key_.val_ = new AlexKey<T>(1);
+    min_key_.val_ = new AlexKey<T>(1);
+    max_key_.val_->key_arr_[0] = STR_VAL_MIN;
+    min_key_.val_->key_arr_[0] = STR_VAL_MAX;
   }
   AlexNode(short level, bool is_leaf) : is_leaf_(is_leaf), level_(level) {
-    max_key_ = new AlexKey<T>(1);
-    min_key_ = new AlexKey<T>(1);
-    max_key_->key_arr_[0] = STR_VAL_MIN;
-    min_key_->key_arr_[0] = STR_VAL_MAX;
+    max_key_.val_ = new AlexKey<T>(1);
+    min_key_.val_ = new AlexKey<T>(1);
+    max_key_.val_->key_arr_[0] = STR_VAL_MIN;
+    min_key_.val_->key_arr_[0] = STR_VAL_MAX;
   }
   AlexNode(short level, bool is_leaf, model_node_type *parent)
       : level_(level), is_leaf_(is_leaf), parent_(parent) {
-    max_key_ = new AlexKey<T>(1);
-    min_key_ = new AlexKey<T>(1);
-    max_key_->key_arr_[0] = STR_VAL_MIN;
-    min_key_->key_arr_[0] = STR_VAL_MAX;
+    max_key_.val_ = new AlexKey<T>(1);
+    min_key_.val_ = new AlexKey<T>(1);
+    max_key_.val_->key_arr_[0] = STR_VAL_MIN;
+    min_key_.val_->key_arr_[0] = STR_VAL_MAX;
   }
   AlexNode(short level, bool is_leaf, 
       model_node_type *parent, unsigned int max_key_length) 
         : is_leaf_(is_leaf), level_(level), model_(max_key_length),
           max_key_length_(max_key_length), parent_(parent) {
-    max_key_ = new AlexKey<T>(max_key_length_);
-    min_key_ = new AlexKey<T>(max_key_length_);
+    max_key_.val_ = new AlexKey<T>(max_key_length_);
+    min_key_.val_ = new AlexKey<T>(max_key_length_);
     if (typeid(T) != typeid(char)) { //numeric key
-      std::fill(max_key_->key_arr_, max_key_->key_arr_ + max_key_length,
+      std::fill(max_key_.val_->key_arr_, max_key_.val_->key_arr_ + max_key_length,
           std::numeric_limits<T>::lowest());
-      std::fill(min_key_->key_arr_, min_key_->key_arr_ + max_key_length,
+      std::fill(min_key_.val_->key_arr_, min_key_.val_->key_arr_ + max_key_length,
           std::numeric_limits<T>::max());
     }
     else { //string key
-      max_key_->key_arr_[0] = STR_VAL_MIN;
-      std::fill(max_key_->key_arr_ + 1, max_key_->key_arr_ + max_key_length, 0);
-      std::fill(min_key_->key_arr_, min_key_->key_arr_ + max_key_length,
+      max_key_.val_->key_arr_[0] = STR_VAL_MIN;
+      std::fill(max_key_.val_->key_arr_ + 1, max_key_.val_->key_arr_ + max_key_length, 0);
+      std::fill(min_key_.val_->key_arr_, min_key_.val_->key_arr_ + max_key_length,
           STR_VAL_MAX);
     }
   }
 
-  AlexNode(const self_type& other)
+  AlexNode(self_type& other)
       : is_leaf_(other.is_leaf_),
         duplication_factor_(other.duplication_factor_),
         level_(other.level_),
+        model_(other.model_),
         max_key_length_(other.max_key_length_),
         cost_(other.cost_),
         parent_(other.parent_) {
-    model_ = LinearModel<T>(other.max_key_length_);
-    if (other.model_.a_ != nullptr) {
-      for (int i = 0; i < other.max_key_length_; i++) {
-        model_.a_[i] = other.model_.a_[i];
-      }
-    }
-    model_.b_ = other.model_.b_;
-
-    max_key_ = new AlexKey<T>(other.max_key_->key_arr_, other.max_key_length_);
-    min_key_ = new AlexKey<T>(other.min_key_->key_arr_, other.max_key_length_);
+    max_key_.val_ = new AlexKey<T>(other.max_key_.val_->key_arr_, other.max_key_length_);
+    min_key_.val_ = new AlexKey<T>(other.min_key_.val_->key_arr_, other.max_key_length_);
   }
   virtual ~AlexNode() = default;
 
@@ -141,6 +136,9 @@ class AlexNode {
 template <class T, class P, class Alloc = std::allocator<std::pair<AlexKey<T>, P>>>
 class AlexModelNode : public AlexNode<T, P, Alloc> {
  public:
+  AtomicVal<AlexNode<T, P, Alloc>**> children_ = AtomicVal<AlexNode<T, P, Alloc>**>(nullptr);
+  int num_children_ = 0;
+
   typedef AlexNode<T, P, Alloc> basic_node_type;
   typedef AlexModelNode<T, P, Alloc> self_type;
   typedef typename Alloc::template rebind<self_type>::other alloc_type;
@@ -149,42 +147,43 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
 
   const Alloc& allocator_;
 
-  // Number of logical children. Must be a power of 2
-  int num_children_ = 0;
-
-  // Array of pointers to children
-  AlexNode<T, P, Alloc>** children_ = nullptr;
+  std::map<basic_node_type *, basic_node_type**> old_childrens_;
 
   explicit AlexModelNode(const Alloc& alloc = Alloc())
-      : AlexNode<T, P, Alloc>(0, false), allocator_(alloc) {}
+      : AlexNode<T, P, Alloc>(0, false), allocator_(alloc) {
+      }
 
   explicit AlexModelNode(short level, const Alloc& alloc = Alloc())
-      : AlexNode<T, P, Alloc>(level, false), allocator_(alloc) {}
+      : AlexNode<T, P, Alloc>(level, false), allocator_(alloc) {
+      }
 
   explicit AlexModelNode(short level, self_type *parent,
                          const Alloc& alloc = Alloc())
-      : AlexNode<T, P, Alloc>(level, false, parent), allocator_(alloc){}
+      : AlexNode<T, P, Alloc>(level, false, parent), allocator_(alloc){
+      }
   
   explicit AlexModelNode(short level, self_type *parent,
                          unsigned int max_key_length, const Alloc& alloc = Alloc())
-      : AlexNode<T, P, Alloc>(level, false, parent, max_key_length), allocator_(alloc) {}
+      : AlexNode<T, P, Alloc>(level, false, parent, max_key_length), allocator_(alloc) {
+      }
 
   ~AlexModelNode() {
-    if (children_ != nullptr) {
-      pointer_allocator().deallocate(children_, num_children_);
+    if (children_.val_ != nullptr) {
+      pointer_allocator().deallocate(children_.val_, num_children_);
     }
-    delete this->max_key_;
-    delete this->min_key_;
+    delete this->max_key_.val_;
+    delete this->min_key_.val_;
   }
 
   AlexModelNode(const self_type& other)
       : AlexNode<T, P, Alloc>(other),
         allocator_(other.allocator_),
         num_children_(other.num_children_) {
-    children_ = new (pointer_allocator().allocate(other.num_children_))
+    children_.val_ = new (pointer_allocator().allocate(other.num_children_))
         AlexNode<T, P, Alloc>*[other.num_children_];
-    std::copy(other.children_, other.children_ + other.num_children_,
-              children_);
+    std::copy(other.children_.val_, 
+              other.children_.val_ + other.num_children_,
+              children_.val_);
   }
 
   self_type& operator=(const self_type& other) {
@@ -197,47 +196,13 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
     this->parent_ = other.parent_;
 
     allocator_ = other.allocator_;
+
+    pointer_allocator().deallocate(children_.val_, num_children_);
+    children_.val_ = new AlexNode<T, P, Alloc>*[other.num_children_];
+    std::copy(other.children_.val_, 
+              other.children_.val_ + other.num_children_, 
+              children_.val_);
     num_children_ = other.num_children_;
-
-    pointer_allocator().deallocate(children_, num_children_);
-    children_ = new AlexNode<T, P, Alloc>*[other.num_children_];
-    std::copy(other.children_, other.children_ + other.num_children_, children_);
-  }
-
-  // Given a key, traverses to the child node responsible for that key
-  inline AlexNode<T, P, Alloc>* get_child_node(const AlexKey<T>& key) {
-    int bucketID = this->model_.predict(key);
-    bucketID = std::min<int>(std::max<int>(bucketID, 0), num_children_ - 1);
-    return children_[bucketID];
-  }
-
-  // Expand by a power of 2 by creating duplicates of all existing child
-  // pointers.
-  // Input is the base 2 log of the expansion factor, in order to guarantee
-  // expanding by a power of 2.
-  // Returns the expansion factor.
-  int expand(int log2_expansion_factor) {
-    assert(log2_expansion_factor >= 0);
-    int expansion_factor = 1 << log2_expansion_factor;
-    int num_new_children = num_children_ * expansion_factor;
-    auto new_children = new (pointer_allocator().allocate(num_new_children))
-        AlexNode<T, P, Alloc>*[num_new_children];
-    int cur = 0;
-    while (cur < num_children_) {
-      AlexNode<T, P, Alloc>* cur_child = children_[cur];
-      int cur_child_repeats = 1 << cur_child->duplication_factor_;
-      for (int i = expansion_factor * cur;
-           i < expansion_factor * (cur + cur_child_repeats); i++) {
-        new_children[i] = cur_child;
-      }
-      cur_child->duplication_factor_ += log2_expansion_factor;
-      cur += cur_child_repeats;
-    }
-    pointer_allocator().deallocate(children_, num_children_);
-    children_ = new_children;
-    num_children_ = num_new_children;
-    this->model_.expand(expansion_factor);
-    return expansion_factor;
   }
 
   pointer_alloc_type pointer_allocator() {
@@ -251,7 +216,13 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
   }
 
   // Helpful for debugging
+  // This function is not synchronized. 
+  // Call this only when your sure that model node is not being modified 
   bool validate_structure(bool verbose = false) const {
+    //current model node metadata.
+    LinearModel<T> *model_ = &(this->model_);
+    AlexNode<T, P, Alloc>** children_ = children_.val_;
+
     if (num_children_ == 0) {
       if (verbose) {
         std::cout << "[Childless node] addr: " << this << ", level "
@@ -276,8 +247,8 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
     }
 
     int zero_slope = 1;
-    for (int i = 0; i < this->model_.a_.max_key_length_; i++) {
-      if (this->model_.a_[i] != 0.0) {zero_slope = 0; break;}
+    for (int i = 0; i < model_->a_.max_key_length_; i++) {
+      if (model_->a_[i] != 0.0) {zero_slope = 0; break;}
     }
     if (zero_slope) {
       if (verbose) {
@@ -398,34 +369,44 @@ template <class T, class P, class Compare = AlexCompare,
 class AlexDataNode : public AlexNode<T, P, Alloc> {
  public:
   typedef std::pair<AlexKey<T>, P> V;
+  typedef std::pair<AlexKey<T>, AtomicVal<P>> AV;
   typedef AlexNode<T, P, Alloc> basic_node_type;
   typedef AlexModelNode<T, P, Alloc> model_node_type;
   typedef AlexDataNode<T, P, Compare, Alloc, allow_duplicates> self_type;
   typedef typename Alloc::template rebind<self_type>::other alloc_type;
   typedef typename Alloc::template rebind<P>::other payload_alloc_type;
+  typedef typename Alloc::template rebind<AtomicVal<P>>::other atomic_payload_alloc_type;
   typedef typename Alloc::template rebind<V>::other value_alloc_type;
+  typedef typename Alloc::template rebind<AV>::other atomic_value_alloc_type;
   typedef typename Alloc::template rebind<uint64_t>::other bitmap_alloc_type;
+  typedef typename Alloc::template rebind<basic_node_type*>::other
+      pointer_alloc_type;
 
   const Compare& key_less_;
   const Alloc& allocator_;
 
   // Forward declaration
-  template <typename node_type = self_type, typename payload_return_type = P,
-            typename value_return_type = V>
+  template <typename node_type = self_type, typename atomic_payload_return_type = AtomicVal<P>,
+            typename atomic_value_return_type = AV>
   class Iterator;
   typedef Iterator<> iterator_type;
   typedef Iterator<const self_type, const P, const V> const_iterator_type;
 
-  self_type* next_leaf_ = nullptr;
-  self_type* prev_leaf_ = nullptr;
+  AtomicVal<self_type*> next_leaf_ = AtomicVal<self_type*>(nullptr);
+  AtomicVal<self_type*> prev_leaf_ = AtomicVal<self_type*>(nullptr);
+  AtomicVal<self_type*> pending_left_leaf_ = AtomicVal<self_type*>(nullptr);
+  AtomicVal<self_type*> pending_right_leaf_ = AtomicVal<self_type*>(nullptr);
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
   AlexKey<T>* key_slots_ = nullptr;  // holds keys
   P* payload_slots_ =
       nullptr;  // holds payloads, must be same size as key_slots
 #else
-  V* data_slots_ = nullptr;  // holds key-payload pairs
+  AV* data_slots_ = nullptr;  // holds key-payload pairs
 #endif
+
+  AtomicVal<P> unused = AtomicVal<P>(0); // whether data node exists in alex or is about to be removed.
+  struct RW_lock key_array_rw_lock = RW_lock();
 
   /* Below are unused attributes */
   //unsigned int max_key_length_ = 1; // maximum length of each key 
@@ -458,7 +439,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
       1 << 24;  // by default, maximum data node size is 16MB
   int max_slots_ =
       kDefaultMaxDataNodeBytes_ /
-      sizeof(V);  // cannot expand beyond this number of key/data slots
+      sizeof(AV);  // cannot expand beyond this number of key/data slots
 
   // Counters used in cost models
   long long num_shifts_ = 0;                 // does not reset after resizing
@@ -580,22 +561,20 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     }
 #else
     if (data_slots_ != nullptr) {
-      value_allocator().deallocate(data_slots_, data_capacity_);
+      atomic_value_allocator().deallocate(data_slots_, data_capacity_);
       bitmap_allocator().deallocate(bitmap_, bitmap_size_);
     }
 #endif
-    delete this->min_key_;
-    delete this->max_key_;
+    delete this->min_key_.val_;
+    delete this->max_key_.val_;
     delete[] the_max_key_arr_;
     delete[] the_min_key_arr_;
   }
 
-  AlexDataNode(const self_type& other)
+  AlexDataNode(self_type& other)
       : AlexNode<T, P, Alloc>(other),
         key_less_(other.key_less_),
         allocator_(other.allocator_),
-        next_leaf_(other.next_leaf_),
-        prev_leaf_(other.prev_leaf_),
         data_capacity_(other.data_capacity_),
         num_keys_(other.num_keys_),
         bitmap_size_(other.bitmap_size_),
@@ -625,6 +604,9 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
         the_min_key_arr_);
     kEndSentinel_ = other.kEndSentinel_;
 
+    prev_leaf_.val_ = other.prev_leaf_.val_;
+    next_leaf_.val_ = other.next_leaf_.val_;
+
 #if ALEX_DATA_NODE_SEP_ARRAYS
     key_slots_ = new AlexKey<T>[other.data_capacity_]();
     std::copy(other.key_slots_, other.key_slots_ + other.data_capacity_,
@@ -634,8 +616,8 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     std::copy(other.payload_slots_, other.payload_slots_ + other.data_capacity_,
               payload_slots_);
 #else
-    data_slots_ = new (value_allocator().allocate(other.data_capacity_))
-        V[other.data_capacity_];
+    data_slots_ = new (atomic_value_allocator().allocate(other.data_capacity_))
+        AV[other.data_capacity_];
     std::copy(other.data_slots_, other.data_slots_ + other.data_capacity_,
               data_slots_);
 #endif
@@ -645,11 +627,21 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   }
 
   /*** Allocators ***/
+  pointer_alloc_type pointer_allocator() {
+    return pointer_alloc_type(allocator_);
+  }
+
   payload_alloc_type payload_allocator() {
     return payload_alloc_type(allocator_);
   }
 
+  atomic_payload_alloc_type atomic_payload_allocator() {
+    return atomic_payload_alloc_type(allocator_);
+  }
+
   value_alloc_type value_allocator() { return value_alloc_type(allocator_); }
+
+  atomic_value_alloc_type atomic_value_allocator() {return atomic_value_alloc_type(allocator_);}
 
   bitmap_alloc_type bitmap_allocator() { return bitmap_alloc_type(allocator_); }
 
@@ -794,8 +786,8 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   // Forward iterator meant for iterating over a single data node.
   // By default, it is a "normal" non-const iterator.
   // Can be templated to be a const iterator.
-  template <typename node_type, typename payload_return_type,
-            typename value_return_type>
+  template <typename node_type, typename atomic_payload_return_type,
+            typename atomic_value_return_type>
   class Iterator {
    public:
     node_type* node_;
@@ -836,12 +828,12 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     }
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
-    V operator*() const {
+    AV operator*() const {
       return std::make_pair(node_->key_slots_[cur_idx_],
                             node_->payload_slots_[cur_idx_]);
     }
 #else
-    value_return_type& operator*() const {
+    atomic_value_return_type& operator*() const {
       return node_->data_slots_[cur_idx_];
     }
 #endif
@@ -854,7 +846,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
 #endif
     }
 
-    payload_return_type& payload() const {
+    atomic_payload_return_type& payload() const {
 #if ALEX_DATA_NODE_SEP_ARRAYS
       return node_->payload_slots_[cur_idx_];
 #else
@@ -1354,7 +1346,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
         new (payload_allocator().allocate(data_capacity_)) P[data_capacity_];
 #else
     data_slots_ =
-        new (value_allocator().allocate(data_capacity_)) V[data_capacity];
+        new (atomic_value_allocator().allocate(data_capacity_)) AV[data_capacity];
 #endif
   }
 
@@ -1450,16 +1442,16 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     contraction_threshold_ = data_capacity_ * kMinDensity_;
 
     std::copy(values[0].first.key_arr_, values[0].first.key_arr_ + this->max_key_length_,
-      this->min_key_->key_arr_);
+      this->min_key_.val_->key_arr_);
     std::copy(values[num_keys-1].first.key_arr_, values[num_keys-1].first.key_arr_ + this->max_key_length_,
-      this->max_key_->key_arr_);
+      this->max_key_.val_->key_arr_);
     
 #if DEBUG_PRINT
       std::cout << values[0].first.key_arr_ << std::endl;
       std::cout << values[num_keys-1].first.key_arr_ << std::endl;
       std::cout << "with max length as " << this->max_key_length_ << std::endl;
-      std::cout << "min_key_(data_node) : " << this->min_key_->key_arr_ << std::endl;
-      std::cout << "max_key_(data_node) : " << this->max_key_->key_arr_ << std::endl;
+      std::cout << "min_key_(data_node) : " << this->min_key_.val_->key_arr_ << std::endl;
+      std::cout << "max_key_(data_node) : " << this->max_key_.val_->key_arr_ << std::endl;
 #endif
   }
 
@@ -1473,6 +1465,10 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
       bool keep_right = false,
       const LinearModel<T>* precomputed_model = nullptr,
       int precomputed_num_actual_keys = -1) {
+#if DEBUG_PRINT
+    if (left < 0) {std::cout <<"fucked left" << std::endl;}
+    if (right > node->data_capacity_) {std::cout << "fucked right" << std::endl;}
+#endif
     assert(left >= 0 && right <= node->data_capacity_);
     assert(node->max_key_length_ == this->max_key_length_);
 
@@ -1520,7 +1516,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     int keys_remaining = num_keys_;
     const_iterator_type it(node, left);
     for (unsigned int i = 0; i < this->max_key_length_; i++) {
-      this->min_key_->key_arr_[i] = it.key().key_arr_[i];
+      this->min_key_.val_->key_arr_[i] = it.key().key_arr_[i];
     }
     for (; it.cur_idx_ < right && !it.is_end(); it++) {
       int position = this->model_.predict(it.key());
@@ -1568,7 +1564,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     }
 
     for (unsigned int i = 0; i < this->max_key_length_; i++) {
-      this->max_key_->key_arr_[i] = ALEX_DATA_NODE_KEY_AT(last_position).key_arr_[i];
+      this->max_key_.val_->key_arr_[i] = ALEX_DATA_NODE_KEY_AT(last_position).key_arr_[i];
     }
 
     expansion_threshold_ =
@@ -1719,6 +1715,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   // Searches for the last non-gap position equal to key
   // If no positions equal to key, returns -1
   int find_key(const AlexKey<T>& key) {
+    //start searching when no write is running.
     num_lookups_++;
     int predicted_pos = predict_position(key);
 
@@ -1929,95 +1926,161 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     return shifts_per_insert() > 100 || expected_avg_shifts_ > 100;
   }
 
-  // First value in returned pair is fail flag:
-  // 0 if successful insert (possibly with automatic expansion).
+  // First pair's first value in returned pair is fail flag:
+  // 0 if successful insert , maybe with automatic expansion.
   // 1 if no insert because of significant cost deviation.
   // 2 if no insert because of "catastrophic" cost.
   // 3 if no insert because node is at max capacity.
   // -1 if key already exists and duplicates not allowed.
   //
-  // Second value in returned pair is position of inserted key, or of the
+  // First pair's second value in returned pair is position of inserted key, or of the
   // already-existing key.
   // -1 if no insertion.
-  std::pair<int, int> insert(const AlexKey<T>& key, const P& payload) {
+  //
+  // second pair has original data node pointer, and maybe new data node pointer
+  std::pair<std::pair<int, int>, std::pair<self_type *, self_type *>> insert(
+    const AlexKey<T>& key, const P& payload, std::vector<TraversalNode<T,P>> *traversal_path = nullptr) {
     // Periodically check for catastrophe
 #if DEBUG_PRINT
-    std::cout << "expected_avg_shifts_ : " << expected_avg_shifts_ << std::endl;
+    std::cout << "alex_nodes.h - expected_avg_shifts_ : " << expected_avg_shifts_ << std::endl;
 #endif
     if (num_inserts_ % 64 == 0 && catastrophic_cost()) {
-      return {2, -1};
+      return {{2, -1}, {this, nullptr}};
     }
 
+    self_type *resized_data_node = nullptr;
     // Check if node is full (based on expansion_threshold)
     if (num_keys_ >= expansion_threshold_) {
       if (significant_cost_deviation()) {
-        return {1, -1};
+        return {{1, -1}, {this, nullptr}};
       }
       if (catastrophic_cost()) {
-        return {2, -1};
+        return {{2, -1}, {this, nullptr}};
       }
       if (num_keys_ > max_slots_ * kMinDensity_) {
-        return {3, -1};
+        return {{3, -1}, {this, nullptr}};
       }
-      // Expand
+      // make new expanded node
+#if DEBUG_PRINT
+      std::cout << "alex_nodes.h insert : resizing data node" << std::endl;
+#endif
       bool keep_left = is_append_mostly_right();
       bool keep_right = is_append_mostly_left();
-      resize(kMinDensity_, false, keep_left, keep_right);
+      resized_data_node = resize(kMinDensity_, false, keep_left, keep_right);
+      this->unused.val_ = 1;
       num_resizes_++;
     }
 
-    // Insert
-    std::pair<int, int> positions = find_insert_position(key);
-    int upper_bound_pos = positions.second;
-    if (!allow_duplicates && upper_bound_pos > 0 &&
-        key_equal(ALEX_DATA_NODE_KEY_AT(upper_bound_pos - 1), key)) {
-      return {-1, upper_bound_pos - 1};
-    }
-    int insertion_position = positions.first;
-    if (insertion_position < data_capacity_ &&
-        !check_exists(insertion_position)) {
-      insert_element_at(key, payload, insertion_position);
-    } else {
-      insertion_position =
-          insert_using_shifts(key, payload, insertion_position);
-    }
+    int insertion_position = -1;
 
-    // Update stats + data node min/max key
-    num_keys_++;
-    num_inserts_++;
-    if (key_less_(*(this->max_key_), key)) {
-      for (unsigned int i = 0; i < this->max_key_length_; i++) {
-        this->max_key_->key_arr_[i] = key.key_arr_[i];
+    if (resized_data_node) {
+      //made new expanded node, should insert at that node.
+      //also update model node's children_array.
+      resized_data_node->unused.lock();
+      int bucketID = traversal_path->back().bucketID;
+      int repeats = 1 << this->duplication_factor_;
+      int start_bucketID =
+          bucketID - (bucketID % repeats);
+      int end_bucketID = 
+          start_bucketID + repeats;
+      model_node_type *parent = resized_data_node->parent_;
+      parent->children_.lock();
+      basic_node_type** parent_new_children = new (pointer_allocator().allocate(parent->num_children_))
+        basic_node_type*[parent->num_children_];
+      basic_node_type** parent_old_children = parent->children_.val_;
+      std::copy(parent_old_children, parent_old_children + parent->num_children_,
+                parent_new_children);
+      for (int i = start_bucketID; i < end_bucketID; i++) {
+        parent_new_children[i] = resized_data_node;
       }
-      num_right_out_of_bounds_inserts_++;
-    }
-    if (key_less_(key, *(this->min_key_))) {
-      for (unsigned int i = 0; i < this->max_key_length_; i++) {
-        this->min_key_->key_arr_[i] = key.key_arr_[i];
-      }
-      num_left_out_of_bounds_inserts_++;
-    }
+#if DEBUG_PRINT
+          std::cout << "alex_nodes.h resizing children_" << std::endl;
+          for (int i = 0; i < parent->num_children_; i++) {
+            std::cout << i << " : " << parent_new_children[i] << std::endl;
+          }
+#endif
+      parent->children_.val_ = parent_new_children;
+      parent->children_.unlock();
+      parent->old_childrens_.insert({this, parent_old_children});
 
-    // update parent node's min/max key.
-    model_node_type *parent = this->parent_;
-    while (parent != nullptr) {
-      if (key_less_(*(parent->max_key_), key)) {
-        std::copy(key.key_arr_, key.key_arr_ + this->max_key_length_, parent->max_key_->key_arr_);
+      std::pair<int, int> positions = resized_data_node->find_insert_position(key);
+      int upper_bound_pos = positions.second;
+      if (!(allow_duplicates) && upper_bound_pos > 0 &&
+          resized_data_node->key_equal(resized_data_node->key_slots_[upper_bound_pos - 1], key)) {
+        return {{-1, upper_bound_pos - 1}, {this, resized_data_node}};
       }
-      if (key_less_(key, *(this->min_key_))) {
-        std::copy(key.key_arr_, key.key_arr_ + this->max_key_length_, parent->min_key_->key_arr_);
+      insertion_position = positions.first;
+      if (insertion_position < resized_data_node->data_capacity_ &&
+          !resized_data_node->check_exists(insertion_position)) {
+        resized_data_node->insert_element_at(key, payload, insertion_position, 1);
+      } else {
+        insertion_position =
+            resized_data_node->insert_using_shifts(key, payload, insertion_position);
       }
-      parent = parent->parent_;
+      // Update stats
+      resized_data_node->num_keys_++;
+      resized_data_node->num_inserts_++;
+    }
+    else {//should insert at current node.
+#if DEBUG_PRINT
+      std::cout << "alex_nodes.h insert : resizing didn't happened and inserting." << std::endl;
+#endif
+      std::pair<int, int> positions = find_insert_position(key);
+      int upper_bound_pos = positions.second;
+      if (!allow_duplicates && upper_bound_pos > 0 &&
+          key_equal(ALEX_DATA_NODE_KEY_AT(upper_bound_pos - 1), key)) {
+        return {{-1, upper_bound_pos - 1}, {this, nullptr}};
+      }
+      insertion_position = positions.first;
+      if (insertion_position < data_capacity_ &&
+          !check_exists(insertion_position)) {
+        insert_element_at(key, payload, insertion_position, 1);
+      } else {
+        insertion_position =
+            insert_using_shifts(key, payload, insertion_position);
+      }
+      // Update stats
+      num_keys_++;
+      num_inserts_++;
     }
     
-    return {0, insertion_position};
+    return {{0, insertion_position}, {this, resized_data_node}};
   }
 
   // Resize the data node to the target density
-  void resize(double target_density, bool force_retrain = false,
+  // For multithreading : makes new node with resized data node.
+  self_type *resize(double target_density, bool force_retrain = false,
               bool keep_left = false, bool keep_right = false) {
     if (num_keys_ == 0) {
-      return;
+      return this;
+    }
+
+    self_type *new_data_node = new AlexDataNode(*this);
+  
+    //needs to connect new node with other data node
+    self_type *this_prev_leaf_ = prev_leaf_.read();
+    self_type *this_next_leaf_ = next_leaf_.read();
+    if (this_prev_leaf_ != nullptr) {
+      self_type *pl_pending_rl = this_prev_leaf_->pending_right_leaf_.read();
+      if (pl_pending_rl != nullptr) {
+        pl_pending_rl->next_leaf_.update(new_data_node);
+        new_data_node->prev_leaf_.update(pl_pending_rl);
+      }
+      else {
+        this_prev_leaf_->next_leaf_.update(new_data_node);
+        new_data_node->prev_leaf_.update(this_prev_leaf_);
+      }
+    }
+    if (this_next_leaf_ != nullptr) {
+      self_type *nl_pending_ll = this_next_leaf_->pending_left_leaf_.read();
+      if (nl_pending_ll != nullptr) {
+        nl_pending_ll->prev_leaf_.update(new_data_node);
+        new_data_node->next_leaf_.update(nl_pending_ll);
+      }
+      else {
+        this_next_leaf_->prev_leaf_.update(new_data_node);
+        new_data_node->next_leaf_.update(this_next_leaf_);
+      }
     }
 
     int new_data_capacity =
@@ -2032,40 +2095,40 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     P* new_payload_slots = new (payload_allocator().allocate(new_data_capacity))
         P[new_data_capacity];
 #else
-    V* new_data_slots = new (value_allocator().allocate(new_data_capacity))
-        V[new_data_capacity];
+    AV* new_data_slots = new (atomic_value_allocator().allocate(new_data_capacity))
+        AV[new_data_capacity];
 #endif
 
     // Retrain model if the number of keys is sufficiently small (under 50)
     if (num_keys_ < 50 || force_retrain) {
-      const_iterator_type it(this, 0);
-      LinearModelBuilder<T> builder(&(this->model_));
+      const_iterator_type it(new_data_node, 0);
+      LinearModelBuilder<T> builder(&(new_data_node->model_));
       for (int i = 0; it.cur_idx_ < data_capacity_ && !it.is_end(); it++, i++) {
         builder.add(it.key(), i);
       }
       builder.build();
       if (keep_left) {
-        this->model_.expand(static_cast<double>(data_capacity_) / num_keys_);
+        new_data_node->model_.expand(static_cast<double>(data_capacity_) / num_keys_);
       } else if (keep_right) {
-        this->model_.expand(static_cast<double>(data_capacity_) / num_keys_);
-        this->model_.b_ += (new_data_capacity - data_capacity_);
+        new_data_node->model_.expand(static_cast<double>(data_capacity_) / num_keys_);
+        new_data_node->model_.b_ += (new_data_capacity - data_capacity_);
       } else {
-        this->model_.expand(static_cast<double>(new_data_capacity) / num_keys_);
+        new_data_node->model_.expand(static_cast<double>(new_data_capacity) / num_keys_);
       }
     } else {
       if (keep_right) {
-        this->model_.b_ += (new_data_capacity - data_capacity_);
+        new_data_node->model_.b_ += (new_data_capacity - data_capacity_);
       } else if (!keep_left) {
-        this->model_.expand(static_cast<double>(new_data_capacity) /
+        new_data_node->model_.expand(static_cast<double>(new_data_capacity) /
                             data_capacity_);
       }
     }
 
     int last_position = -1;
     int keys_remaining = num_keys_;
-    const_iterator_type it(this, 0);
+    const_iterator_type it(new_data_node, 0);
     for (; it.cur_idx_ < data_capacity_ && !it.is_end(); it++) {
-      int position = this->model_.predict(it.key());
+      int position = new_data_node->model_.predict(it.key());
       position = std::max<int>(position, last_position + 1);
 
       int positions_remaining = new_data_capacity - position;
@@ -2115,35 +2178,39 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
 
     for (int i = last_position + 1; i < new_data_capacity; i++) {
 #if ALEX_DATA_NODE_SEP_ARRAYS
-      new_key_slots[i] = kEndSentinel_;
+      new_key_slots[i] = new_data_node->kEndSentinel_;
 #else
-      new_data_slots[i].first = kEndSentinel;
+      new_data_slots[i].first = new_data_node->kEndSentinel;
 #endif
     }
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
-    delete[] key_slots_;
-    payload_allocator().deallocate(payload_slots_, data_capacity_);
+    delete[] new_data_node->key_slots_;
+    new_data_node->payload_allocator().deallocate(
+    new_data_node->payload_slots_, data_capacity_);
 #else
-    value_allocator().deallocate(data_slots_, data_capacity_);
+    new_data_node->atomic_value_allocator().deallocate(
+      new_data_node->data_slots_, data_capacity_);
 #endif
-    bitmap_allocator().deallocate(bitmap_, bitmap_size_);
+    new_data_node->bitmap_allocator().deallocate(new_data_node->bitmap_, bitmap_size_);
 
-    data_capacity_ = new_data_capacity;
-    bitmap_size_ = new_bitmap_size;
+    new_data_node->data_capacity_ = new_data_capacity;
+    new_data_node->bitmap_size_ = new_bitmap_size;
 #if ALEX_DATA_NODE_SEP_ARRAYS
-    key_slots_ = new_key_slots;
-    payload_slots_ = new_payload_slots;
+    new_data_node->key_slots_ = new_key_slots;
+    new_data_node->payload_slots_ = new_payload_slots;
 #else
     data_slots_ = new_data_slots;
 #endif
-    bitmap_ = new_bitmap;
+    new_data_node->bitmap_ = new_bitmap;
 
-    expansion_threshold_ =
-        std::min(std::max(data_capacity_ * kMaxDensity_,
+    new_data_node->expansion_threshold_ =
+        std::min(std::max(new_data_node->data_capacity_ * kMaxDensity_,
                           static_cast<double>(num_keys_ + 1)),
-                 static_cast<double>(data_capacity_));
-    contraction_threshold_ = data_capacity_ * kMinDensity_;
+                 static_cast<double>(new_data_node->data_capacity_));
+    new_data_node->contraction_threshold_ = new_data_node->data_capacity_ * kMinDensity_;
+
+    return new_data_node;
   }
 
   inline bool is_append_mostly_right() const {
@@ -2158,7 +2225,10 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   }
 
   // Insert key into pos. The caller must guarantee that pos is a gap.
-  void insert_element_at(const AlexKey<T>& key, P payload, int pos) {
+  // mode 0 : rw_lock already obtained, no need for another write wait (for insert_using_shifts)
+  // mode 1 : rw_lock not obtained, need to do write wait (for other use cases)
+  void insert_element_at(const AlexKey<T>& key, P payload, int pos, int mode = 0) {
+    if (mode == 1) {key_array_rw_lock.write_wait();} //synchronization.
 #if ALEX_DATA_NODE_SEP_ARRAYS
     key_slots_[pos] = key;
     payload_slots_[pos] = payload;
@@ -2173,6 +2243,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
       ALEX_DATA_NODE_KEY_AT(pos) = key;
       pos--;
     }
+    if (mode == 1) {key_array_rw_lock.write_finished();}
   }
 
   // Insert key into pos, shifting as necessary in the range [left, right)
@@ -2180,7 +2251,9 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   int insert_using_shifts(const AlexKey<T>& key, P payload, int pos) {
     // Find the closest gap
     int gap_pos = closest_gap(pos);
+    //std::cout << "gap pos is " << gap_pos << std::endl;
     set_bit(gap_pos);
+    key_array_rw_lock.write_wait(); //for synchronization.
     if (gap_pos >= pos) {
       for (int i = gap_pos; i > pos; i--) {
 #if ALEX_DATA_NODE_SEP_ARRAYS
@@ -2192,6 +2265,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
       }
       insert_element_at(key, payload, pos);
       num_shifts_ += gap_pos - pos;
+      key_array_rw_lock.write_finished();
       return pos;
     } else {
       for (int i = gap_pos; i < pos - 1; i++) {
@@ -2204,6 +2278,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
       }
       insert_element_at(key, payload, pos - 1);
       num_shifts_ += pos - gap_pos - 1;
+      key_array_rw_lock.write_finished();
       return pos - 1;
     }
   }
@@ -2386,122 +2461,6 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   }
 #endif
 
-  /*** Deletes ***/
-
-  // Erase the left-most key with the input value
-  // Returns the number of keys erased (0 or 1)
-  int erase_one(const AlexKey<T>& key) {
-    int pos = find_lower(key);
-
-    if (pos == data_capacity_ || !key_equal(ALEX_DATA_NODE_KEY_AT(pos), key))
-      return 0;
-
-    // Erase key at pos
-    erase_one_at(pos);
-    return 1;
-  }
-
-  // Erase the key at the given position
-  // CURRENTLY ASSUMING THAT DUPLICATE KEYS HAVE SEPARATE MEMORY... CHECK PLEASE (seems ok)
-  void erase_one_at(int pos) {
-    AlexKey<T> next_key;
-    if (pos == data_capacity_ - 1) {
-      next_key = kEndSentinel_;
-    } else {
-      next_key = ALEX_DATA_NODE_KEY_AT(pos + 1);
-    }
-    delete ALEX_DATA_NODE_KEY_AT(pos);
-    ALEX_DATA_NODE_KEY_AT(pos) = next_key;
-    unset_bit(pos);
-    pos--;
-
-    // Erase preceding gaps until we reach an existing key
-    while (pos >= 0 && !check_exists(pos)) {
-      delete ALEX_DATA_NODE_KEY_AT(pos);
-      ALEX_DATA_NODE_KEY_AT(pos) = next_key;
-      pos--;
-    }
-
-    num_keys_--;
-
-    if (num_keys_ < contraction_threshold_) {
-      resize(kMaxDensity_);  // contract
-      num_resizes_++;
-    }
-  }
-
-  // Erase all keys with the input value
-  // Returns the number of keys erased (there may be multiple keys with the same
-  // value)
-  int erase(const AlexKey<T>& key) {
-    int pos = upper_bound(key);
-
-    if (pos == 0 || !key_equal(ALEX_DATA_NODE_KEY_AT(pos - 1), key)) return 0;
-
-    // Erase preceding positions until we reach a key with smaller value
-    int num_erased = 0;
-    AlexKey<T> next_key;
-    if (pos == data_capacity_) {
-      next_key = kEndSentinel_;
-    } else {
-      next_key = ALEX_DATA_NODE_KEY_AT(pos);
-    }
-    pos--;
-    while (pos >= 0 && key_equal(ALEX_DATA_NODE_KEY_AT(pos), key)) {
-      delete ALEX_DATA_NODE_KEY_AT(pos);
-      ALEX_DATA_NODE_KEY_AT(pos) = next_key;
-      num_erased += check_exists(pos);
-      unset_bit(pos);
-      pos--;
-    }
-
-    num_keys_ -= num_erased;
-
-    if (num_keys_ < contraction_threshold_) {
-      resize(kMaxDensity_);  // contract
-      num_resizes_++;
-    }
-    return num_erased;
-  }
-
-  // Erase keys with value between start key (inclusive) and end key.
-  // Returns the number of keys erased.
-  int erase_range(AlexKey<T> start_key, AlexKey<T> end_key, bool end_key_inclusive = false) {
-    int pos;
-    if (end_key_inclusive) {
-      pos = upper_bound(end_key);
-    } else {
-      pos = lower_bound(end_key);
-    }
-
-    if (pos == 0) return 0;
-
-    // Erase preceding positions until key value is below the start key
-    int num_erased = 0;
-    AlexKey<T> next_key;
-    if (pos == data_capacity_) {
-      next_key = kEndSentinel_;
-    } else {
-      next_key = ALEX_DATA_NODE_KEY_AT(pos);
-    }
-    pos--;
-    while (pos >= 0 &&
-           key_greaterequal(ALEX_DATA_NODE_KEY_AT(pos), start_key)) {
-      ALEX_DATA_NODE_KEY_AT(pos) = next_key;
-      num_erased += check_exists(pos);
-      unset_bit(pos);
-      pos--;
-    }
-
-    num_keys_ -= num_erased;
-
-    if (num_keys_ < contraction_threshold_) {
-      resize(kMaxDensity_);  // contract
-      num_resizes_++;
-    }
-    return num_erased;
-  }
-
   /*** Stats ***/
 
   // Total size of node metadata
@@ -2621,4 +2580,14 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     return str;
   }
 };
+
+/* For use of alex
+ * Save the traversal path down the RMI by having a linked list of these
+ * structs. */
+template<class T, class P>
+struct TraversalNode {
+  AlexModelNode<T,P>* node = nullptr;
+  int bucketID = -1;
+};
+
 }

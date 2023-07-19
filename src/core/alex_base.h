@@ -709,7 +709,7 @@ inline uint8_t cmpxchgb(uint8_t *object, uint8_t expected,
 }
 
 struct RCUStatus {
-  std::atomic<int64_t> status;
+  std::atomic<uint64_t> status;
   std::atomic<bool> waiting;
 };
 
@@ -760,7 +760,7 @@ void rcu_progress(const uint32_t worker_id) {
 
 // wait for all workers
 void rcu_barrier() {
-  int64_t prev_status[config.worker_n];
+  uint64_t prev_status[config.worker_n];
   for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
     prev_status[w_i] = config.rcu_status[w_i].status;
   }
@@ -775,7 +775,7 @@ void rcu_barrier(const uint32_t worker_id) {
   // set myself to waiting for barrier
   config.rcu_status[worker_id].waiting = true;
 
-  int64_t prev_status[config.worker_n];
+  uint64_t prev_status[config.worker_n];
   for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
     prev_status[w_i] = config.rcu_status[w_i].status;
   }
@@ -795,7 +795,6 @@ struct AtomicVal {
   // 60 bits for version
   static const uint64_t version_mask = 0x0fffffffffffffff;
   static const uint64_t lock_mask = 0x1000000000000000;
-  static const uint64_t removed_mask = 0x2000000000000000;
 
   // lock - removed - is_ptr
   volatile uint64_t status;
@@ -803,11 +802,9 @@ struct AtomicVal {
   AtomicVal() : status(0) {}
   AtomicVal(val_t val) : val_(val), status(0) {}
 
-  bool removed(uint64_t status) { return status & removed_mask; }
   bool locked(uint64_t status) { return status & lock_mask; }
   uint64_t get_version(uint64_t status) { return status & version_mask; }
 
-  void set_removed() { status |= removed_mask; }
   void lock() {
     while (true) {
       uint64_t old = status;
@@ -835,7 +832,7 @@ struct AtomicVal {
   }
 
   // semantics: atomically read the value and the `removed` flag
-  bool read(val_t &val) {
+  val_t read() {
     while (true) {
       uint64_t status = this->status;
       memory_fence();
@@ -851,43 +848,171 @@ struct AtomicVal {
 
       if (likely(get_version(status) ==
                  get_version(current_status))) {  // check version
-        val = curr_val;
-        return !removed(status);
+        return curr_val;
       }
     }
   }
+
   bool update(const val_t &val) {
     lock();
-    uint64_t status = this->status;
     bool res;
-    if (!removed(status)) {
-      this->val_ = val;
-      res = true;
-    } else {
-      res = false;
-    }
+    this->val_ = val;
+    res = true;
     memory_fence();
     incr_version();
     memory_fence();
     unlock();
     return res;
   }
-  bool remove() {
+
+  bool increment() {
     lock();
-    uint64_t status = this->status;
     bool res;
-    if (!removed(status)) {
-      set_removed();
-      res = true;
-    } else {
-      res = false;
-    }
+    this->val_++;
+    res = true;
     memory_fence();
     incr_version();
     memory_fence();
     unlock();
     return res;
   }
+
+  bool decrement() {
+    lock();
+    bool res;
+    this->val_--;
+    res = true;
+    memory_fence();
+    incr_version();
+    memory_fence();
+    unlock();
+    return res;
+  }
+
+  bool add(val_t cnt) {
+    lock();
+    bool res;
+    this->val_ += cnt;
+    res = true;
+    memory_fence();
+    incr_version();
+    memory_fence();
+    unlock();
+    return res;
+  }
+
+  bool subtract(val_t cnt) {
+    lock();
+    bool res;
+    this->val_ -= cnt;
+    res = true;
+    memory_fence();
+    incr_version();
+    memory_fence();
+    unlock();
+    return res;
+  }
+};
+
+struct RW_lock {
+  int32_t read_cnt = 0;
+  bool write_pending = false;
+
+  // 63 bits for version
+  static const uint64_t version_mask = 0xefffffffffffffff;
+  static const uint64_t lock_mask = 0x1000000000000000;
+
+  // lock - removed - is_ptr
+  volatile uint64_t status;
+
+  RW_lock() : status(0) {}
+
+  bool locked(uint64_t status) { return status & lock_mask; }
+  uint64_t get_version(uint64_t status) { return status & version_mask; }
+
+  void lock() {
+    while (true) {
+      uint64_t old = status;
+      uint64_t expected = old & ~lock_mask;  // expect to be unlocked
+      uint64_t desired = old | lock_mask;    // desire to lock
+      if (likely(cmpxchg((uint64_t *)&this->status, expected, desired) ==
+                 expected)) {
+        return;
+      }
+    }
+  }
+  void unlock() { status &= ~lock_mask; }
+  void incr_version() {
+    uint64_t version = get_version(status);
+    UNUSED(version);
+    status++;
+    assert(get_version(status) == version + 1);
+  }
+
+  friend std::ostream &operator<<(std::ostream &os, const RW_lock &leaf) {
+    COUT_VAR(leaf.read_cnt);
+    COUT_VAR(leaf.write_pending);
+    COUT_VAR(leaf.status);
+    return os;
+  }
+
+  bool increment_rd() {
+    lock();
+    if (write_pending) {
+      unlock();
+      return false;
+    }
+    this->read_cnt++;
+    memory_fence();
+    incr_version();
+    memory_fence();
+    unlock();
+    return true;
+  }
+
+  bool decrement_rd() {
+    lock();
+    this->read_cnt--;
+    memory_fence();
+    incr_version();
+    memory_fence();
+    unlock();
+    return true;
+  }
+
+  // set up write pending and wait until all reads are finished.
+  // only one thread should try waiting to write.
+  void write_wait() {
+    lock();
+    this->write_pending = true;
+    memory_fence();
+    unlock();
+    while (true) {
+      uint64_t status = this->status;
+      memory_fence();
+
+      int32_t curr_rd_cnt = this->read_cnt;
+      memory_fence();
+
+      uint64_t current_status = this->status;
+      memory_fence();
+
+      if ((get_version(status) == get_version(current_status))
+        && curr_rd_cnt == 0) {  // check version and check if all read finished.
+        break;
+      }
+    }
+
+    return;
+  }
+
+  void write_finished() {
+    lock();
+    this->write_pending = false;
+    memory_fence();
+    unlock();
+  }
+
 };
 
 }
