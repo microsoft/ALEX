@@ -280,9 +280,11 @@ void *run_fg(void *param) {
     if ((!(insert_cnt >= num_actual_inserts_perth) && d <= (insertion_ratio))
        || (read_cnt >= num_actual_lookups_perth)) { //insert
 #if DEBUG_PRINT
+      alex::coutLock.lock();
       std::cout << std::endl;
       std::cout << "current insertion_index is : " << insertion_index << std::endl;
       std::cout << "worker id : " << thread_id << " inserting " << keys[insertion_index].key_arr_ << std::endl;
+      alex::coutLock.unlock();
 #endif
       while (1) {
         std::pair<alex::Alex<KEY_TYPE, PAYLOAD_TYPE>::Iterator, bool> insert_result
@@ -290,34 +292,43 @@ void *run_fg(void *param) {
         if (!insert_result.second) {
           if (!insert_result.first.cur_leaf_ && !insert_result.first.cur_idx_) { 
             //failed finding leaf
+            alex::coutLock.lock();
             std::cout << "worker ID : " << thread_id
                       << " failed finding leaf to insert to.";
+            alex::coutLock.unlock();
             break;
           }
           else if (!insert_result.first.cur_leaf_ && (insert_result.first.cur_idx_ == 1)) {
             //retrying insert due to sudden leaf destruction.
 #if DEBUG_PRINT
+            alex::coutLock.lock();
             std::cout << "worker ID : " << thread_id
                       << " retrying insert";
+            alex::coutLock.unlock();
             continue;
 #endif
           }
           else {
             //failed because duplicates are not allowed.
 #if DEBUG_PRINT
+            alex::coutLock.lock();
             std::cout << "worker ID : " << thread_id
                       << " failed because duplicate is not allowed";
+            alex::coutLock.unlock();
             break;
 #endif
           }
         }
         else { //succeeded.
           if (print_key_stats) {
+            alex::coutLock.lock();
+            std::cout << "t" << thread_id << " - ";
             std::cout << "inserted key : ";
             for (unsigned int j = 0; j < max_key_length; j++) {
               std::cout << keys[insertion_index].key_arr_[j];
             }
             std::cout << std::endl;
+            alex::coutLock.unlock();
           }
           insert_cnt++;
           insertion_index++;
@@ -328,6 +339,7 @@ void *run_fg(void *param) {
     else { //read
       alex::AlexKey<KEY_TYPE> key = lookup_keys[read_cnt];
 #if DEBUG_PRINT
+      alex::coutLock.lock();
       std::cout << std::endl;
       std::cout << "current read_cnt is : " << read_cnt << std::endl;
       std::cout << "worker id : " << thread_id << " reading lookup key ";
@@ -335,16 +347,23 @@ void *run_fg(void *param) {
         std::cout << key.key_arr_[k];
       }
       std::cout << std::endl;
+      alex::coutLock.unlock();
 #endif
       std::pair<bool, PAYLOAD_TYPE> payload = table->get_payload(key, thread_id);
       if (payload.first && print_key_stats) {
+        alex::coutLock.lock();
+        std::cout << "t" << thread_id << " - ";
         for (unsigned int k = 0; k < max_key_length; k++) {
           std::cout << key.key_arr_[k];
         }
         std::cout << " payload is : " << payload.second << std::endl;
+        alex::coutLock.unlock();
       }
       else if (print_key_stats) {
+        alex::coutLock.lock();
+        std::cout << "t" << thread_id << " - ";
         std::cout << "failed finding payload" << std::endl;
+        alex::coutLock.unlock();
       }
       read_cnt++;
     }

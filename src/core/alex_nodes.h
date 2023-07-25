@@ -939,8 +939,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   // array of keys
   // Assumes existing_model is trained on the dense array of keys
   static double compute_expected_cost(
-      const V* values, int num_keys, double density,
-      double expected_insert_frac,
+      const V* values, int num_keys, double density, double expected_insert_frac,
       const LinearModel<T>* existing_model = nullptr, bool use_sampling = false,
       DataNodeStats* stats = nullptr) {
     if (use_sampling) {
@@ -1032,10 +1031,8 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   // Uses progressive sampling: keep increasing the sample size until the
   // computed stats stop changing drastically
   static double compute_expected_cost_sampling(
-      const V* values, int num_keys, double density,
-      double expected_insert_frac,
-      const LinearModel<T>* existing_model = nullptr,
-      DataNodeStats* stats = nullptr) {
+      const V* values, int num_keys, double density, double expected_insert_frac,
+      const LinearModel<T>* existing_model = nullptr, DataNodeStats* stats = nullptr) {
     const static int min_sample_size = 25;
 
     // Stop increasing sample size if relative diff of stats between samples is
@@ -1461,13 +1458,20 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   // If the linear model and num_actual_keys have been precomputed, we can avoid
   // redundant work
   void bulk_load_from_existing(
-      const self_type* node, int left, int right, bool keep_left = false,
-      bool keep_right = false,
+      const self_type* node, int left, int right, uint32_t worker_id,
+      bool keep_left = false, bool keep_right = false,
       const LinearModel<T>* precomputed_model = nullptr,
       int precomputed_num_actual_keys = -1) {
 #if DEBUG_PRINT
-    if (left < 0) {std::cout <<"fucked left" << std::endl;}
-    if (right > node->data_capacity_) {std::cout << "fucked right" << std::endl;}
+    alex::coutLock.lock();
+    if (left < 0) {
+      std::cout << "t" << worker_id << " - ";
+      std::cout <<"fucked left" << std::endl;
+    }
+    if (right > node->data_capacity_) {
+      std::cout << "t" << worker_id << " - ";
+      std::cout << "fucked right" << std::endl;}
+    alex::coutLock.unlock();
 #endif
     assert(left >= 0 && right <= node->data_capacity_);
     assert(node->max_key_length_ == this->max_key_length_);
@@ -1939,10 +1943,14 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   //
   // second pair has original data node pointer, and maybe new data node pointer
   std::pair<std::pair<int, int>, std::pair<self_type *, self_type *>> insert(
-    const AlexKey<T>& key, const P& payload, std::vector<TraversalNode<T,P>> *traversal_path = nullptr) {
+    const AlexKey<T>& key, const P& payload, 
+    uint32_t worker_id, std::vector<TraversalNode<T,P>> *traversal_path = nullptr) {
     // Periodically check for catastrophe
 #if DEBUG_PRINT
+    alex::coutLock.lock();
+    std::cout << "t" << worker_id << " - ";
     std::cout << "alex_nodes.h - expected_avg_shifts_ : " << expected_avg_shifts_ << std::endl;
+    alex::coutLock.unlock();
 #endif
     if (num_inserts_ % 64 == 0 && catastrophic_cost()) {
       return {{2, -1}, {this, nullptr}};
@@ -1962,7 +1970,10 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
       }
       // make new expanded node
 #if DEBUG_PRINT
+      alex::coutLock.lock();
+      std::cout << "t" << worker_id << " - ";
       std::cout << "alex_nodes.h insert : resizing data node" << std::endl;
+      alex::coutLock.unlock();
 #endif
       bool keep_left = is_append_mostly_right();
       bool keep_right = is_append_mostly_left();
@@ -1994,10 +2005,13 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
         parent_new_children[i] = resized_data_node;
       }
 #if DEBUG_PRINT
+          alex::coutLock.lock();
+          std::cout << "t" << worker_id << " - ";
           std::cout << "alex_nodes.h resizing children_" << std::endl;
           for (int i = 0; i < parent->num_children_; i++) {
             std::cout << i << " : " << parent_new_children[i] << std::endl;
           }
+          alex::coutLock.unlock();
 #endif
       parent->children_.val_ = parent_new_children;
       parent->children_.unlock();
@@ -2023,7 +2037,10 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     }
     else {//should insert at current node.
 #if DEBUG_PRINT
+      alex::coutLock.lock();
+      std::cout << "t" << worker_id << " - ";
       std::cout << "alex_nodes.h insert : resizing didn't happened and inserting." << std::endl;
+      alex::coutLock.unlock();
 #endif
       std::pair<int, int> positions = find_insert_position(key);
       int upper_bound_pos = positions.second;

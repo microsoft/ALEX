@@ -392,11 +392,13 @@ class LinearModelBuilder {
 
 #if DEBUG_PRINT
       //for debugging
-      std::cout << "current a_ (LMB build): ";
-      for (unsigned int i = 0; i < model_->max_key_length_; i++) {
-        std::cout << model_->a_[i] << " ";
-      }
-      std::cout << ", current b_ (LMB build) :" << model_->b_ << std::endl;
+      //alex::coutLock.lock();
+      //std::cout << "current a_ (LMB build): ";
+      //for (unsigned int i = 0; i < model_->max_key_length_; i++) {
+      //  std::cout << model_->a_[i] << " ";
+      //}
+      //std::cout << ", current b_ (LMB build) :" << model_->b_ << std::endl;
+      //alex::coutLock.unlock();
 #endif
     }
     assert(fitting_res == 0);
@@ -1014,5 +1016,30 @@ struct RW_lock {
   }
 
 };
+
+struct printLock {
+
+  static const uint64_t lock_mask = 0x1000000000000000;
+
+  // lock - removed - is_ptr
+  volatile uint64_t status;
+
+  printLock() : status(0) {}
+
+  void lock() {
+    while (true) {
+      uint64_t old = status;
+      uint64_t expected = old & ~lock_mask;  // expect to be unlocked
+      uint64_t desired = old | lock_mask;    // desire to lock
+      if (likely(cmpxchg((uint64_t *)&this->status, expected, desired) ==
+                 expected)) {
+        return;
+      }
+    }
+  }
+  void unlock() { status &= ~lock_mask; }
+};
+
+printLock coutLock;
 
 }
