@@ -2152,7 +2152,7 @@ EmptyNodeStart:
 #if DEBUG_PRINT
           alex::coutLock.lock();
           std::cout << "t" << worker_id << " - ";
-          std::cout << "alex.h changed parent model's since it expanded data node" << std::endl;
+          std::cout << "alex.h changed parent model's metadata since thread expanded data node" << std::endl;
           for (int i = 0; i < parent->num_children_; i++) {
             std::cout << i << " : " << parent_new_children[i] << std::endl;
           }
