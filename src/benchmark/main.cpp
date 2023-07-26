@@ -372,5 +372,7 @@ void *run_fg(void *param) {
 
   delete[] lookup_keys;
 
+  alex::config.rcu_status[thread_id].waiting = true;
+
   pthread_exit(nullptr);
 }
