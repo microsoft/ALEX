@@ -78,12 +78,10 @@ static const size_t desired_training_key_n_ = 10000000; /* desired training key 
 
 struct alignas(CACHELINE_SIZE) RCUStatus;
 enum class Result;
-struct alignas(CACHELINE_SIZE) BGInfo;
 struct IndexConfig;
 
 typedef RCUStatus rcu_status_t;
 typedef Result result_t;
-typedef BGInfo bg_info_t;
 typedef IndexConfig index_config_t;
 
 /*** MAY BE USED UNDER CIRCUMSTANCES ***/
@@ -717,16 +715,6 @@ struct RCUStatus {
 
 enum class Result { ok, failed, retry };
 
-struct BGInfo {
-  size_t bg_i;  // for calculation responsible range
-  size_t bg_n;  // for calculation responsible range
-  volatile void *root_ptr;
-  volatile bool should_update_array;
-  std::atomic<bool> started;
-  std::atomic<bool> finished;
-  volatile bool running;
-};
-
 struct IndexConfig {
   double root_error_bound = 32;
   double root_memory_constraint = 1024 * 1024;
@@ -1017,14 +1005,14 @@ struct RW_lock {
 
 };
 
-struct printLock {
+struct myLock {
 
   static const uint64_t lock_mask = 0x1000000000000000;
 
   // lock - removed - is_ptr
   volatile uint64_t status;
 
-  printLock() : status(0) {}
+  myLock() : status(0) {}
 
   void lock() {
     while (true) {
@@ -1040,6 +1028,6 @@ struct printLock {
   void unlock() { status &= ~lock_mask; }
 };
 
-printLock coutLock;
+myLock coutLock;
 
 }

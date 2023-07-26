@@ -2024,6 +2024,7 @@ EmptyNodeStart:
       //this leaf is about to be substituted.
       //should retry insert completely.
       leaf->unused.unlock();
+      memory_fence();
       rcu_progress(worker_id);
       return {Iterator(nullptr, 1), false};
     }
@@ -2045,8 +2046,10 @@ EmptyNodeStart:
         memory_fence();
         rcu_barrier(worker_id);
         delete_node(leaf);
+        maybe_new_data_node->parent_->old_childrens_lock.lock();
         delete  maybe_new_data_node->parent_->old_childrens_.at(leaf);
         maybe_new_data_node->parent_->old_childrens_.erase(leaf);
+        maybe_new_data_node->parent_->old_childrens_lock.unlock();
       }
       rcu_progress(worker_id);
       if (maybe_new_data_node) {return {Iterator(maybe_new_data_node, insert_pos), false};}
@@ -2067,8 +2070,10 @@ EmptyNodeStart:
         memory_fence();
         rcu_barrier(worker_id);
         delete_node(leaf);
+        maybe_new_data_node->parent_->old_childrens_lock.lock();
         delete maybe_new_data_node->parent_->old_childrens_.at(leaf);
         maybe_new_data_node->parent_->old_childrens_.erase(leaf);
+        maybe_new_data_node->parent_->old_childrens_lock.unlock();
       }
       stats_.num_inserts.increment();
       stats_.num_keys.increment();
@@ -2087,7 +2092,6 @@ EmptyNodeStart:
         std::cout << "paernt is : " << parent << std::endl;
         alex::coutLock.unlock();
 #endif
-        leaf->unused.val_ = 1;
         auto start_time = std::chrono::high_resolution_clock::now();
         stats_.num_expand_and_scales.add(leaf->num_resizes_);
 
@@ -2148,7 +2152,7 @@ EmptyNodeStart:
 #if DEBUG_PRINT
           alex::coutLock.lock();
           std::cout << "t" << worker_id << " - ";
-          std::cout << "alex.h resizing children_" << std::endl;
+          std::cout << "alex.h changed parent model's since it expanded data node" << std::endl;
           for (int i = 0; i < parent->num_children_; i++) {
             std::cout << i << " : " << parent_new_children[i] << std::endl;
           }
@@ -2160,11 +2164,19 @@ EmptyNodeStart:
           //wait before destruction of old leaf and metadata
           //Note that we don't let resized_leaf to be written by any other node yet.
           leaf->unused.unlock();
+          resized_leaf->unused.unlock();
           memory_fence();
           rcu_barrier(worker_id);
           delete_node(leaf);
           delete parent_old_children;
-
+          resized_leaf->unused.lock(); //unlock and retry locking to prevent deadlock.
+          memory_fence();
+          if (resized_leaf->unused.val_) { //should retry insert completely.
+            resized_leaf->unused.unlock();
+            memory_fence();
+            rcu_progress(worker_id);
+            return {Iterator(nullptr, 1), false};
+          }
           leaf = resized_leaf;
         } else {
           bool reuse_model = (fail == 3);
@@ -2197,11 +2209,13 @@ EmptyNodeStart:
           }
           
           rcu_progress(worker_id);
-          leaf = get_leaf(key, worker_id);
+          traversal_path.clear();
+          leaf = get_leaf(key, worker_id, 1, &traversal_path);
           leaf->unused.lock(); //note that this makes error if leaf is nullptr, or at get_leaf failure.
           memory_fence();
           if (leaf->unused.val_) { //should retry insert completely.
             leaf->unused.unlock();
+            memory_fence();
             rcu_progress(worker_id);
             return {Iterator(nullptr, 1), false};
           }
@@ -2216,7 +2230,6 @@ EmptyNodeStart:
         for (fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {delete[] tree_node.a;}
 
         // Try again to insert the key
-        traversal_path.clear();
         ret = leaf->insert(key, payload, worker_id, &traversal_path);
         fail = ret.first.first;
         insert_pos = ret.first.second;
@@ -2231,8 +2244,10 @@ EmptyNodeStart:
             memory_fence();
             rcu_barrier(worker_id);
             delete_node(leaf);
+            parent->old_childrens_lock.lock();
             delete parent->old_childrens_.at(leaf);
             parent->old_childrens_.erase(leaf);
+            parent->old_childrens_lock.lock();
           }
           rcu_progress(worker_id);
           if (maybe_new_data_node) {return {Iterator(maybe_new_data_node, insert_pos), false};}
@@ -2246,8 +2261,10 @@ EmptyNodeStart:
         memory_fence();
         rcu_barrier(worker_id);
         delete_node(leaf);
+        maybe_new_data_node->parent_->old_childrens_lock.lock();
         delete maybe_new_data_node->parent_->old_childrens_.at(leaf);
         maybe_new_data_node->parent_->old_childrens_.erase(leaf);
+        maybe_new_data_node->parent_->old_childrens_lock.unlock();
       }
       stats_.num_inserts.increment();
       stats_.num_keys.increment();
