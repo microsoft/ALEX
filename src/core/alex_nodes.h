@@ -2007,7 +2007,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
 #if DEBUG_PRINT
           alex::coutLock.lock();
           std::cout << "t" << worker_id << " - ";
-          std::cout << "alex_nodes.h resizing children_" << std::endl;
+          std::cout << "alex_nodes.h resized node and updated children_" << std::endl;
           for (int i = 0; i < parent->num_children_; i++) {
             std::cout << i << " : " << parent_new_children[i] << std::endl;
           }
