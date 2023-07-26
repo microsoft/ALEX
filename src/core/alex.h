@@ -2588,7 +2588,7 @@ EmptyNodeStart:
 #if DEBUG_PRINT
     alex::coutLock.lock();
     std::cout << "t" << worker_id << " - ";
-    std::cout << start_bucketID << std::endl;
+    std::cout << "starting bucket is" << start_bucketID << std::endl;
     alex::coutLock.unlock();
 #endif
     data_node_type* prev_leaf =
