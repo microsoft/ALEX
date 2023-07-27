@@ -2123,6 +2123,7 @@ EmptyNodeStart:
           alex::coutLock.unlock();
 #endif
           // expand existing data node and retrain model
+          leaf->unused.val_ = 1;
           data_node_type *resized_leaf = 
             leaf->resize(data_node_type::kMinDensity_, true,
                         leaf->is_append_mostly_right(),
