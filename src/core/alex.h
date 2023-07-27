@@ -511,8 +511,8 @@ Initialization:
         //std::cout << "current key max length : " << key.max_key_length_ << std::endl;
         //std::cout << "lb max length : " << cur->min_key_.val_->max_key_length_ << std::endl;
         //std::cout << "ub max length : " << cur->max_key_.val_->max_key_length_ << std::endl;
-        std::cout << "min_key : " << cur->min_key_.val_->key_arr_ << std::endl;
-        std::cout << "max_key : " << cur->max_key_.val_->key_arr_ << std::endl;
+        std::cout << "min_key : " << cur->min_key_.read() << std::endl;
+        std::cout << "max_key : " << cur->max_key_.read() << std::endl;
         alex::coutLock.unlock();
 #endif
 
@@ -1044,8 +1044,8 @@ EmptyNodeStart:
 #if DEBUG_PRINT
       alex::coutLock.lock();
       std::cout << "t" << worker_id << " - ";
-      std::cout << "this leaf has min_key_ as " << cur->min_key_.val_->key_arr_ 
-                << " and max_key_ as " << cur->max_key_.val_->key_arr_ << std::endl;
+      std::cout << "this leaf has min_key_ as " << cur->min_key_.read() 
+                << " and max_key_ as " << cur->max_key_.read() << std::endl;
       alex::coutLock.unlock();
 #endif
       if (cur->is_leaf_) {
@@ -2383,6 +2383,19 @@ EmptyNodeStart:
     alex::coutLock.unlock();
 #endif
     parent->children_.val_ = parent_new_children;
+#if DEBUG_PRINT
+    alex::coutLock.lock();
+    std::cout << "t" << worker_id << " - ";
+    std::cout << "min_key_(model_node) : " << new_node->min_key_.val_->key_arr_ << std::endl;
+    std::cout << "max_key_(model_node) : " << new_node->max_key_.val_->key_arr_ << std::endl;
+    for (int i = 0; i < fanout; i++) {
+        std::cout << i << "'s min_key is : "
+                  << new_node->children_.val_[i]->min_key_.val_->key_arr_ << std::endl;
+        std::cout << i << "'s max_key is : " 
+                  << new_node->children_.val_[i]->max_key_.val_->key_arr_ << std::endl;
+    }
+    alex::coutLock.unlock();
+#endif
     parent->children_.unlock();
     if (parent == superroot_) {
       root_node_ = new_node;
@@ -2397,20 +2410,6 @@ EmptyNodeStart:
     delete_node(leaf);
     delete parent_old_children;
     delete switched_children;
-
-#if DEBUG_PRINT
-    alex::coutLock.lock();
-    std::cout << "t" << worker_id << " - ";
-    std::cout << "min_key_(model_node) : " << new_node->min_key_.val_->key_arr_ << std::endl;
-    std::cout << "max_key_(model_node) : " << new_node->max_key_.val_->key_arr_ << std::endl;
-    for (int i = 0; i < fanout; i++) {
-        std::cout << i << "'s min_key is : "
-                  << new_node->children_.val_[i]->min_key_.val_->key_arr_ << std::endl;
-        std::cout << i << "'s max_key is : " 
-                  << new_node->children_.val_[i]->max_key_.val_->key_arr_ << std::endl;
-    }
-    alex::coutLock.unlock();
-#endif
 
     return new_node;
   }
