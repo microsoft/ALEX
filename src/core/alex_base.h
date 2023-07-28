@@ -708,76 +708,6 @@ inline uint8_t cmpxchgb(uint8_t *object, uint8_t expected,
   return expected;
 }
 
-struct RCUStatus {
-  std::atomic<uint64_t> status;
-  std::atomic<bool> waiting;
-};
-
-enum class Result { ok, failed, retry };
-
-struct IndexConfig {
-  double root_error_bound = 32;
-  double root_memory_constraint = 1024 * 1024;
-  double group_error_bound = 32;
-  double group_error_tolerance = 4;
-  size_t buffer_size_bound = 256;
-  double buffer_size_tolerance = 3;
-  size_t buffer_compact_threshold = 8;
-  size_t worker_n = 0;
-  std::unique_ptr<rcu_status_t[]> rcu_status;
-  volatile bool exited = false;
-};
-
-index_config_t config;
-std::mutex config_mutex;
-
-// TODO replace it with user space RCU (e.g., qsbr)
-void rcu_init() {
-  config_mutex.lock();
-  if (config.rcu_status.get() == nullptr) {
-    config.rcu_status = std::make_unique<rcu_status_t[]>(config.worker_n);
-    for (size_t worker_i = 0; worker_i < config.worker_n; worker_i++) {
-      config.rcu_status[worker_i].status = 0;
-      config.rcu_status[worker_i].waiting = false;
-    }
-  }
-  config_mutex.unlock();
-}
-
-void rcu_progress(const uint32_t worker_id) {
-  config.rcu_status[worker_id].status++;
-}
-
-// wait for all workers
-void rcu_barrier() {
-  uint64_t prev_status[config.worker_n];
-  for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
-    prev_status[w_i] = config.rcu_status[w_i].status;
-  }
-  for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
-    while (config.rcu_status[w_i].status <= prev_status[w_i] && !config.exited)
-      ;
-  }
-}
-
-// wait for workers whose 'waiting' is false
-void rcu_barrier(const uint32_t worker_id) {
-  // set myself to waiting for barrier
-  config.rcu_status[worker_id].waiting = true;
-
-  uint64_t prev_status[config.worker_n];
-  for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
-    prev_status[w_i] = config.rcu_status[w_i].status;
-  }
-  for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
-    // skipped workers that is wating for barrier (include myself)
-    while (config.rcu_status[w_i].status <= prev_status[w_i] &&
-           !config.rcu_status[w_i].waiting && !config.exited)
-      ;
-  }
-  config.rcu_status[worker_id].waiting = false;  // restore my state
-}
-
 template <class val_t>
 struct AtomicVal {
   val_t val_;
@@ -1029,5 +959,91 @@ struct myLock {
 };
 
 myLock coutLock;
+
+struct RCUStatus {
+  std::atomic<uint64_t> status;
+  std::atomic<bool> waiting;
+};
+
+enum class Result { ok, failed, retry };
+
+struct IndexConfig {
+  double root_error_bound = 32;
+  double root_memory_constraint = 1024 * 1024;
+  double group_error_bound = 32;
+  double group_error_tolerance = 4;
+  size_t buffer_size_bound = 256;
+  double buffer_size_tolerance = 3;
+  size_t buffer_compact_threshold = 8;
+  size_t worker_n = 0;
+  std::unique_ptr<rcu_status_t[]> rcu_status;
+  volatile bool exited = false;
+};
+
+index_config_t config;
+std::mutex config_mutex;
+
+// TODO replace it with user space RCU (e.g., qsbr)
+void rcu_init() {
+  config_mutex.lock();
+  if (config.rcu_status.get() == nullptr) {abort();}
+  for (size_t worker_i = 0; worker_i < config.worker_n; worker_i++) {
+    config.rcu_status[worker_i].status = 0;
+    config.rcu_status[worker_i].waiting = false;
+  }
+  config_mutex.unlock();
+}
+
+void rcu_alloc() {
+  config_mutex.lock();
+  if (config.rcu_status.get() == nullptr) {
+    config.rcu_status = std::make_unique<rcu_status_t[]>(config.worker_n);
+  }
+  config_mutex.unlock();
+}
+
+void rcu_progress(const uint32_t worker_id) {
+  config.rcu_status[worker_id].status++;
+}
+
+// wait for all workers
+void rcu_barrier() {
+  uint64_t prev_status[config.worker_n];
+  for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
+    prev_status[w_i] = config.rcu_status[w_i].status;
+  }
+  for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
+    while (config.rcu_status[w_i].status <= prev_status[w_i] && !config.exited)
+      ;
+  }
+}
+
+// wait for workers whose 'waiting' is false
+void rcu_barrier(const uint32_t worker_id) {
+  // set myself to waiting for barrier
+#if DEBUG_PRINT
+  coutLock.lock();
+  std::cout << "t" << worker_id << " - waiting started in rcu_barrier" << std::endl;
+  coutLock.unlock();
+#endif
+  config.rcu_status[worker_id].waiting = true;
+
+  uint64_t prev_status[config.worker_n];
+  for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
+    prev_status[w_i] = config.rcu_status[w_i].status;
+  }
+  for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
+    // skipped workers that is wating for barrier (include myself)
+    while (config.rcu_status[w_i].status <= prev_status[w_i] &&
+           !config.rcu_status[w_i].waiting && !config.exited)
+      ;
+  }
+  config.rcu_status[worker_id].waiting = false;  // restore my state
+#if DEBUG_PRINT
+  coutLock.lock();
+  std::cout << "t" << worker_id << " - waiting finished in rcu_barrier" << std::endl;
+  coutLock.unlock();
+#endif
+}
 
 }

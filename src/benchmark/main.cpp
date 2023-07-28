@@ -153,11 +153,12 @@ int main(int argc, char* argv[]) {
   alex::config.worker_n = td_num;
   std::cout << std::scientific;
   std::cout << std::setprecision(3);
+  alex::rcu_alloc();
 
   // Run workload
   while (true) {
-    batch_no++;
     alex::rcu_init();
+    batch_no++;
     std::cout << "batch starts with no : " << batch_no << std::endl;
     //Each threads will do lookup/insert randomly for different part,
     //while following insertion ratio.

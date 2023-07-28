@@ -511,8 +511,8 @@ Initialization:
         //std::cout << "current key max length : " << key.max_key_length_ << std::endl;
         //std::cout << "lb max length : " << cur->min_key_.val_->max_key_length_ << std::endl;
         //std::cout << "ub max length : " << cur->max_key_.val_->max_key_length_ << std::endl;
-        std::cout << "min_key : " << cur->min_key_.read() << std::endl;
-        std::cout << "max_key : " << cur->max_key_.read() << std::endl;
+        //std::cout << "min_key : " << cur->min_key_.read() << std::endl;
+        //std::cout << "max_key : " << cur->max_key_.read() << std::endl;
         alex::coutLock.unlock();
 #endif
 
@@ -929,6 +929,8 @@ EmptyNodeStart:
                 alex::coutLock.lock();
                 std::cout << "t" << worker_id << " - ";
                 std::cout << "decided to enter next next node (bucket ID : " << bucketID << ")" << std::endl;
+                std::cout << "this node has min_key_ as " << cur_dbl_next->min_key_.val_->key_arr_ 
+                          << " and max_key_ as " << cur_dbl_next->max_key_.val_->key_arr_ << std::endl;
                 alex::coutLock.unlock();
 #endif
                 cur->min_key_.unlock();
@@ -948,6 +950,8 @@ EmptyNodeStart:
               alex::coutLock.lock();
               std::cout << "t" << worker_id << " - ";
               std::cout << "decided to extend current node and enter (it's bucket ID : " << cur_bucketID << ")" << std::endl;
+              std::cout << "It'll have min_key_ as " << cur->min_key_.val_->key_arr_ 
+                        << " and max_key_ as " << key.key_arr_ << std::endl;
               alex::coutLock.unlock();
 #endif
               AlexKey<T> *new_max_key = new AlexKey<T>(max_key_length_);
@@ -1016,6 +1020,8 @@ EmptyNodeStart:
               alex::coutLock.lock();
               std::cout << "t" << worker_id << " - ";
               std::cout << "decided to enter next node (it's bucket ID : " << bucketID << ")" << std::endl;
+              std::cout << "this node has min_key_ as " << cur_next->min_key_.val_->key_arr_ 
+                        << " and max_key_ as " << cur_next->max_key_.val_->key_arr_ << std::endl;
               alex::coutLock.unlock();
 #endif
               cur->min_key_.unlock();
@@ -1032,6 +1038,8 @@ EmptyNodeStart:
           alex::coutLock.lock();
           std::cout << "t" << worker_id << " - ";
           std::cout << "decided to enter current node (it's bucket ID : " << bucketID << ")" << std::endl;
+          std::cout << "this node has min_key_ as " << cur->min_key_.val_->key_arr_ 
+                    << " and max_key_ as " << cur->max_key_.val_->key_arr_ << std::endl;
           alex::coutLock.unlock();
 #endif
           cur->min_key_.unlock();
@@ -1041,13 +1049,7 @@ EmptyNodeStart:
       if (traversal_path) {
         traversal_path->push_back({node, bucketID});
       }
-#if DEBUG_PRINT
-      alex::coutLock.lock();
-      std::cout << "t" << worker_id << " - ";
-      std::cout << "this leaf has min_key_ as " << cur->min_key_.read() 
-                << " and max_key_ as " << cur->max_key_.read() << std::endl;
-      alex::coutLock.unlock();
-#endif
+
       if (cur->is_leaf_) {
         stats_.num_node_lookups.add(cur->level_);
         // we don't do rcu_progress here, since we are entering data node.
@@ -2398,7 +2400,9 @@ EmptyNodeStart:
 #endif
     parent->children_.unlock();
     if (parent == superroot_) {
-      root_node_ = new_node;
+      std::cout << "shouldn't happen?" << std::endl;
+      abort();
+      //root_node_ = new_node;
     }
 
     //destroy unused leaf and meta data after all threads finished using.
