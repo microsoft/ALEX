@@ -183,7 +183,9 @@ int main(int argc, char* argv[]) {
     }
 
     while(ready_threads < td_num) {sleep(1);}
+    alex::coutLock.lock();
     std::cout << "multithreading starts for batch : " << batch_no << std::endl;
+    alex::coutLock.unlock();
     auto batch_start_time = std::chrono::high_resolution_clock::now();
     running = true;
 
@@ -269,7 +271,9 @@ void *run_fg(void *param) {
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_real_distribution<> ratio_dis(0, 1);
+  alex::coutLock.lock();
   std::cout << "worker " << thread_id << " ready to start" << std::endl;
+  alex::coutLock.unlock();
   ready_threads++;
 
   //wait
