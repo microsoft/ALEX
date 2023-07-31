@@ -2047,11 +2047,11 @@ EmptyNodeStart:
         maybe_new_data_node->unused.unlock();
         memory_fence();
         rcu_barrier(worker_id);
+        leaf->parent_->old_childrens_lock.lock();
+        delete  leaf->parent_->old_childrens_.at(worker_id);
+        leaf->parent_->old_childrens_.erase(worker_id);
+        leaf->parent_->old_childrens_lock.unlock();
         delete_node(leaf);
-        maybe_new_data_node->parent_->old_childrens_lock.lock();
-        delete  maybe_new_data_node->parent_->old_childrens_.at(leaf);
-        maybe_new_data_node->parent_->old_childrens_.erase(leaf);
-        maybe_new_data_node->parent_->old_childrens_lock.unlock();
       }
       rcu_progress(worker_id);
       if (maybe_new_data_node) {return {Iterator(maybe_new_data_node, insert_pos), false};}
@@ -2071,11 +2071,11 @@ EmptyNodeStart:
         maybe_new_data_node->unused.unlock();
         memory_fence();
         rcu_barrier(worker_id);
+        leaf->parent_->old_childrens_lock.lock();
+        delete leaf->parent_->old_childrens_.at(worker_id);
+        leaf->parent_->old_childrens_.erase(worker_id);
+        leaf->parent_->old_childrens_lock.unlock();
         delete_node(leaf);
-        maybe_new_data_node->parent_->old_childrens_lock.lock();
-        delete maybe_new_data_node->parent_->old_childrens_.at(leaf);
-        maybe_new_data_node->parent_->old_childrens_.erase(leaf);
-        maybe_new_data_node->parent_->old_childrens_lock.unlock();
       }
       stats_.num_inserts.increment();
       stats_.num_keys.increment();
@@ -2246,11 +2246,11 @@ EmptyNodeStart:
             maybe_new_data_node->unused.unlock();
             memory_fence();
             rcu_barrier(worker_id);
+            leaf->parent_->old_childrens_lock.lock();
+            delete leaf->parent_->old_childrens_.at(worker_id);
+            leaf->parent_->old_childrens_.erase(worker_id);
+            leaf->parent_->old_childrens_lock.lock();
             delete_node(leaf);
-            parent->old_childrens_lock.lock();
-            delete parent->old_childrens_.at(leaf);
-            parent->old_childrens_.erase(leaf);
-            parent->old_childrens_lock.lock();
           }
           rcu_progress(worker_id);
           if (maybe_new_data_node) {return {Iterator(maybe_new_data_node, insert_pos), false};}
@@ -2263,11 +2263,11 @@ EmptyNodeStart:
         maybe_new_data_node->unused.unlock();
         memory_fence();
         rcu_barrier(worker_id);
+        leaf->parent_->old_childrens_lock.lock();
+        delete leaf->parent_->old_childrens_.at(worker_id);
+        leaf->parent_->old_childrens_.erase(worker_id);
+        leaf->parent_->old_childrens_lock.unlock();
         delete_node(leaf);
-        maybe_new_data_node->parent_->old_childrens_lock.lock();
-        delete maybe_new_data_node->parent_->old_childrens_.at(leaf);
-        maybe_new_data_node->parent_->old_childrens_.erase(leaf);
-        maybe_new_data_node->parent_->old_childrens_lock.unlock();
       }
       stats_.num_inserts.increment();
       stats_.num_keys.increment();

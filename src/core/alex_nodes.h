@@ -147,7 +147,7 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
 
   const Alloc& allocator_;
 
-  std::map<basic_node_type *, basic_node_type**> old_childrens_;
+  std::map<uint32_t, basic_node_type**> old_childrens_;
   myLock old_childrens_lock;
 
   explicit AlexModelNode(const Alloc& alloc = Alloc())
@@ -2017,7 +2017,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
       parent->children_.val_ = parent_new_children;
       parent->children_.unlock();
       parent->old_childrens_lock.lock();
-      parent->old_childrens_.insert({this, parent_old_children});
+      parent->old_childrens_.insert({worker_id, parent_old_children});
       parent->old_childrens_lock.unlock();
 
       std::pair<int, int> positions = resized_data_node->find_insert_position(key);
