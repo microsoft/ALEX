@@ -40,6 +40,7 @@ double insertion_ratio = 0.0;
 std::string lookup_distribution;
 uint64_t max_key_length = 1;
 bool print_key_stats = false;
+bool strict_run = false;
 uint64_t total_num_keys = 1;
 uint32_t td_num = 1;
 uint64_t num_actual_ops_perth;
@@ -62,6 +63,7 @@ uint64_t num_actual_inserts_perth;
  * --max_key_length         length of key for string type keys.
  * --print_batch_stats      whether to output stats for each batch
  * --print_key_stats        key related stat print
+ * --strict_run             abort when failed finding payload
  */
 int main(int argc, char* argv[]) {
   auto flags = parse_flags(argc, argv);
@@ -78,6 +80,7 @@ int main(int argc, char* argv[]) {
   max_key_length = (unsigned int) stoul(get_with_default(flags, "max_key_length", "1"));
   bool print_batch_stats = get_boolean_flag(flags, "print_batch_stats");
   print_key_stats = get_boolean_flag(flags, "print_key_stats");
+  strict_run = get_boolean_flag(flags, "strict_run");
 
   // Allocation for key containers.
   keys = new alex::AlexKey<KEY_TYPE>[total_num_keys];
@@ -369,6 +372,9 @@ void *run_fg(void *param) {
         std::cout << "t" << thread_id << " - ";
         std::cout << "failed finding payload" << std::endl;
         alex::coutLock.unlock();
+      }
+      else if (strict_run) {
+        abort();
       }
       read_cnt++;
     }
