@@ -470,17 +470,18 @@ class Alex {
   forceinline data_node_type* get_leaf(
       AlexKey<T> key, const uint32_t worker_id,
       int mode = 1, std::vector<TraversalNode<T, P>>* traversal_path = nullptr) {
-    if (traversal_path) {
-      traversal_path->push_back({superroot_, 0});
-    }
+    //if (traversal_path) {
+    //  traversal_path->push_back({superroot_, 0});
+    //}
 #if DEBUG_PRINT
     alex::coutLock.lock();
     std::cout << "t" << worker_id << " - ";
-    std::cout << "traveling from root" << std::endl;
+    std::cout << "traveling from superroot" << std::endl;
     alex::coutLock.unlock();
 #endif
-    node_type* cur = root_node_;
+    node_type* cur = superroot_;
     if (cur->is_leaf_) {
+      //now shouldn't happen, since superroot_ is always model node.
 #if DEBUG_PRINT
       alex::coutLock.lock();
       std::cout << "t" << worker_id << " - ";
@@ -1283,6 +1284,7 @@ EmptyNodeStart:
     superroot_->num_children_ = 1;
     superroot_->children_.val_ =
         new (pointer_allocator().allocate(1)) node_type*[1];
+    root_node_->parent_ = superroot_;
     update_superroot_pointer();
   }
 
@@ -1314,6 +1316,8 @@ EmptyNodeStart:
 #endif
     std::copy(min_key_arr, min_key_arr + max_key_length_, istats_.key_domain_min_);
     std::copy(max_key_arr, max_key_arr + max_key_length_, istats_.key_domain_max_);
+    std::copy(min_key_arr, min_key_arr + max_key_length_, superroot_->min_key_.val_->key_arr_);
+    std::copy(max_key_arr, max_key_arr + max_key_length_, superroot_->max_key_.val_->key_arr_);
 
     AlexKey<T> mintmpkey(istats_.key_domain_min_, max_key_length_);
     AlexKey<T> maxtmpkey(istats_.key_domain_max_, max_key_length_);
@@ -2400,9 +2404,12 @@ EmptyNodeStart:
 #endif
     parent->children_.unlock();
     if (parent == superroot_) {
-      std::cout << "shouldn't happen?" << std::endl;
-      abort();
-      //root_node_ = new_node;
+#if DEBUG_PRINT
+      alex::coutLock.lock();
+      std::cout << "t" << worker_id << " - root node splitted downwards" << std::endl;
+      alex::coutLock.unlock();
+#endif
+      root_node_ = new_node;
     }
 
     //destroy unused leaf and meta data after all threads finished using.
