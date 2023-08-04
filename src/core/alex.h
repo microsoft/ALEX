@@ -506,15 +506,15 @@ Initialization:
       memory_fence();
 
 #if DEBUG_PRINT
-        alex::coutLock.lock();
-        std::cout << "t" << worker_id << " - ";
-        std::cout << "current bucket : " << bucketID << std::endl;
+        //alex::coutLock.lock();
+        //std::cout << "t" << worker_id << " - ";
+        //std::cout << "current bucket : " << bucketID << std::endl;
         //std::cout << "current key max length : " << key.max_key_length_ << std::endl;
         //std::cout << "lb max length : " << cur->min_key_.val_->max_key_length_ << std::endl;
         //std::cout << "ub max length : " << cur->max_key_.val_->max_key_length_ << std::endl;
         //std::cout << "min_key : " << cur->min_key_.read() << std::endl;
         //std::cout << "max_key : " << cur->max_key_.read() << std::endl;
-        alex::coutLock.unlock();
+        //alex::coutLock.unlock();
 #endif
 
       AlexKey<T> min_tmp_key(istats_.key_domain_min_, max_key_length_);
@@ -581,28 +581,23 @@ Initialization:
             was_walking_in_empty = 0;
           }
 
-#if DEBUG_PRINT
-          alex::coutLock.lock();
-          std::cout << "t" << worker_id << " - ";
-          std::cout << "bucket moved to " << bucketID << std::endl;
-          alex::coutLock.unlock();
-#endif
           cur = cur_children[bucketID];
           memory_fence();
           cur_node_min_key = cur->min_key_.read();
           memory_fence();
           cur_node_max_key = cur->max_key_.read();
           memory_fence();
-#if DEBUG_PRINT
-          alex::coutLock.lock();
-          std::cout << "t" << worker_id << " - ";
-          std::cout << "bucket's min_key is " << cur_node_min_key->key_arr_
-                    << " and max_key is " << cur_node_max_key->key_arr_ << std::endl;
-          alex::coutLock.unlock();
-#endif
           smaller_than_min = key_less_(key, *(cur_node_min_key));
           larger_than_max = key_less_(*(cur_node_max_key), key);
         }
+#if DEBUG_PRINT
+        alex::coutLock.lock();
+        std::cout << "t" << worker_id << " - ";
+        std::cout << "decided to enter bucketID : " << bucketID << '\n';
+        std::cout << "bucket's min_key is " << cur_node_min_key->key_arr_
+                  << " and max_key is " << cur_node_max_key->key_arr_ << std::endl;
+        alex::coutLock.unlock();
+#endif
       }
       else if (mode == 1) { //for insert.
         /*we need to check if inserting the key won't make collision with other node's boundary.
@@ -616,10 +611,10 @@ Initialization:
         //we first go all the way to left until min_key is smaller than our key.
         while (smaller_than_min) {
 #if DEBUG_PRINT
-          alex::coutLock.lock();
-          std::cout << "t" << worker_id << " - ";
-          std::cout << "we are smaller than min (bucket ID : " << bucketID << ")" << std::endl;
-          alex::coutLock.unlock();
+          //alex::coutLock.lock();
+          //std::cout << "t" << worker_id << " - ";
+          //std::cout << "we are smaller than min (bucket ID : " << bucketID << ")" << std::endl;
+          //alex::coutLock.unlock();
 #endif
           if (bucketID == 0) {return nullptr;}
           bucketID -= 1;
@@ -646,21 +641,21 @@ Initialization:
             cur_node_max_key = cur->max_key_.read();
             memory_fence();
 #if DEBUG_PRINT
-            alex::coutLock.lock();
-            std::cout << "t" << worker_id << " - ";
-            std::cout << "continuing search where min/max key is " 
-                      << cur_node_min_key->key_arr_ << " " << cur_node_max_key->key_arr_ << std::endl;
-            alex::coutLock.unlock();
+            //alex::coutLock.lock();
+            //std::cout << "t" << worker_id << " - ";
+            //std::cout << "continuing search where min/max key is " 
+            //          << cur_node_min_key->key_arr_ << " " << cur_node_max_key->key_arr_ << std::endl;
+            //alex::coutLock.unlock();
 #endif
             smaller_than_min = key_less_(key, *(cur_node_min_key));
             larger_than_max = key_less_(*(cur_node_max_key), key);
           }
         }
 #if DEBUG_PRINT
-        alex::coutLock.lock();
-        std::cout << "t" << worker_id << " - ";
-        std::cout << "found node whose min key is smaller than current key (bucket ID : " << bucketID << ")" << std::endl;
-        alex::coutLock.unlock();
+        //alex::coutLock.lock();
+        //std::cout << "t" << worker_id << " - ";
+        //std::cout << "found node whose min key is smaller than current key (bucket ID : " << bucketID << ")" << std::endl;
+        //alex::coutLock.unlock();
 #endif
         cur->min_key_.lock();
         memory_fence();
@@ -671,11 +666,11 @@ Initialization:
         cur_node_max_key = cur->max_key_.val_;
         memory_fence();
 #if DEBUG_PRINT
-        alex::coutLock.lock();
-        std::cout << "t" << worker_id << " - ";
-        std::cout << "node's min_key is " << cur_node_min_key->key_arr_
-                  << " and max key is " << cur_node_max_key->key_arr_ << std::endl;
-        alex::coutLock.unlock();
+        //alex::coutLock.lock();
+        //std::cout << "t" << worker_id << " - ";
+        //std::cout << "node's min_key is " << cur_node_min_key->key_arr_
+        //          << " and max key is " << cur_node_max_key->key_arr_ << std::endl;
+        //alex::coutLock.unlock();
 #endif
         smaller_than_min = key_less_(key, *(cur_node_min_key));
         larger_than_max = key_less_(*(cur_node_max_key), key);
@@ -689,10 +684,10 @@ Initialization:
             node_type *cur_next;
             int cur_bucketID = bucketID;
 #if DEBUG_PRINT
-            alex::coutLock.lock();
-            std::cout << "t" << worker_id << " - ";
-            std::cout << "we are larger than max (bucket ID : " << bucketID << ")" << std::endl;
-            alex::coutLock.unlock();
+            //alex::coutLock.lock();
+            //std::cout << "t" << worker_id << " - ";
+            //std::cout << "we are larger than max (bucket ID : " << bucketID << ")" << std::endl;
+            //alex::coutLock.unlock();
 #endif
             do {
               bucketID++;
@@ -746,10 +741,10 @@ Initialization:
 
             //If we found the new node, we try to obtain the lock of those nodes.
 #if DEBUG_PRINT
-            alex::coutLock.lock();
-            std::cout << "t" << worker_id << " - ";
-            std::cout << "found new node (bucket ID : " << bucketID << ")" << std::endl;
-            alex::coutLock.unlock();
+            //alex::coutLock.lock();
+            //std::cout << "t" << worker_id << " - ";
+            //std::cout << "found new node (bucket ID : " << bucketID << ")" << std::endl;
+            //alex::coutLock.unlock();
 #endif
             AlexKey<T> *next_node_min_key, *next_node_max_key;
             cur_next->min_key_.lock();
@@ -761,11 +756,11 @@ Initialization:
             next_node_max_key = cur_next->max_key_.val_;
             memory_fence();
 #if DEBUG_PRINT
-            alex::coutLock.lock();
-            std::cout << "t" << worker_id << " - ";
-            std::cout << "node's min_key is " << next_node_min_key->key_arr_
-                      << " and max key is " << next_node_max_key->key_arr_ << std::endl;
-            alex::coutLock.unlock();
+            //alex::coutLock.lock();
+            //std::cout << "t" << worker_id << " - ";
+            //std::cout << "node's min_key is " << next_node_min_key->key_arr_
+            //          << " and max key is " << next_node_max_key->key_arr_ << std::endl;
+            //alex::coutLock.unlock();
 #endif
             smaller_than_min = key_less_(key, *(next_node_min_key));
             larger_than_max = key_less_(*(next_node_max_key), key);
@@ -774,10 +769,10 @@ Initialization:
               // next node was empty node
               // we again need to search the node after this empty node.
 #if DEBUG_PRINT
-              alex::coutLock.lock();
-              std::cout << "t" << worker_id << " - ";
-              std::cout << "new node was empty node (bucket ID : " << bucketID << ")" << std::endl;
-              alex::coutLock.unlock();
+              //alex::coutLock.lock();
+              //std::cout << "t" << worker_id << " - ";
+              //std::cout << "new node was empty node (bucket ID : " << bucketID << ")" << std::endl;
+              //alex::coutLock.unlock();
 #endif
 EmptyNodeStart:
               node_type *cur_dbl_next;
@@ -811,10 +806,10 @@ EmptyNodeStart:
               //If we found the new node, and if we're not in special case,
               //we try to obtain the lock of those nodes.
 #if DEBUG_PRINT
-              alex::coutLock.lock();
-              std::cout << "t" << worker_id << " - ";
-              std::cout << "we found another node (next next node) (bucket ID : " << bucketID << ")" << std::endl;
-              alex::coutLock.unlock();
+              //alex::coutLock.lock();
+              //std::cout << "t" << worker_id << " - ";
+              //std::cout << "we found another node (next next node) (bucket ID : " << bucketID << ")" << std::endl;
+              //alex::coutLock.unlock();
 #endif
               AlexKey<T> *dbl_next_node_min_key, *dbl_next_node_max_key;
               cur_dbl_next->min_key_.lock();
@@ -826,11 +821,11 @@ EmptyNodeStart:
               dbl_next_node_max_key = cur_dbl_next->max_key_.val_;
               memory_fence();
 #if DEBUG_PRINT
-              alex::coutLock.lock();
-              std::cout << "t" << worker_id << " - ";
-              std::cout << "node's min_key is " << dbl_next_node_min_key->key_arr_
-                        << " and max key is " << dbl_next_node_max_key->key_arr_ << std::endl;
-              alex::coutLock.unlock();
+              //alex::coutLock.lock();
+              //std::cout << "t" << worker_id << " - ";
+              //std::cout << "node's min_key is " << dbl_next_node_min_key->key_arr_
+              //          << " and max key is " << dbl_next_node_max_key->key_arr_ << std::endl;
+              //alex::coutLock.unlock();
 #endif
               smaller_than_min = key_less_(key, *(dbl_next_node_min_key));
               larger_than_max = key_less_(*(dbl_next_node_max_key), key);
@@ -841,10 +836,10 @@ EmptyNodeStart:
                 //there is no special reason of choosing that node as cur_next
                 //but searching must continue becuase of possible wrong boundary.
 #if DEBUG_PRINT
-                alex::coutLock.lock();
-                std::cout << "t" << worker_id << " - ";
-                std::cout << "another empty data node found. " << std::endl;
-                alex::coutLock.unlock();
+                //alex::coutLock.lock();
+                //std::cout << "t" << worker_id << " - ";
+                //std::cout << "another empty data node found. " << std::endl;
+                //alex::coutLock.unlock();
 #endif
                 cur_next->min_key_.unlock();
                 cur_next->max_key_.unlock();
@@ -910,10 +905,10 @@ EmptyNodeStart:
                 //we are even larger than largest key of next node.
                 //do the same progress as before, except that cur_dbl_next node is cur node.
 #if DEBUG_PRINT
-                alex::coutLock.lock();
-                std::cout << "t" << worker_id << " - ";
-                std::cout << "we are larger than next next node (bucket ID : " << bucketID << ")" << std::endl;
-                alex::coutLock.unlock();
+                //alex::coutLock.lock();
+                //std::cout << "t" << worker_id << " - ";
+                //std::cout << "we are larger than next next node (bucket ID : " << bucketID << ")" << std::endl;
+                //alex::coutLock.unlock();
 #endif
                 cur->min_key_.unlock();
                 cur->max_key_.unlock();
@@ -929,7 +924,7 @@ EmptyNodeStart:
 #if DEBUG_PRINT
                 alex::coutLock.lock();
                 std::cout << "t" << worker_id << " - ";
-                std::cout << "decided to enter next next node (bucket ID : " << bucketID << ")" << std::endl;
+                std::cout << "decided to enter next next node (bucket ID : " << bucketID << ")\n";
                 std::cout << "this node has min_key_ as " << cur_dbl_next->min_key_.val_->key_arr_ 
                           << " and max_key_ as " << cur_dbl_next->max_key_.val_->key_arr_ << std::endl;
                 alex::coutLock.unlock();
@@ -950,7 +945,7 @@ EmptyNodeStart:
 #if DEBUG_PRINT
               alex::coutLock.lock();
               std::cout << "t" << worker_id << " - ";
-              std::cout << "decided to extend current node and enter (it's bucket ID : " << cur_bucketID << ")" << std::endl;
+              std::cout << "decided to extend current node and enter (it's bucket ID : " << cur_bucketID << ")\n";
               std::cout << "It'll have min_key_ as " << cur->min_key_.val_->key_arr_ 
                         << " and max_key_ as " << key.key_arr_ << std::endl;
               alex::coutLock.unlock();
@@ -994,10 +989,10 @@ EmptyNodeStart:
               cur = after_rcu_cur;
               bucketID = cur_bucketID;
 #if DEBUG_PRINT
-              alex::coutLock.lock();
-              std::cout << "t" << worker_id << " - ";
-              std::cout << "update finished" << std::endl;
-              alex::coutLock.unlock();
+              //alex::coutLock.lock();
+              //std::cout << "t" << worker_id << " - ";
+              //std::cout << "update finished" << std::endl;
+              //alex::coutLock.unlock();
 #endif
               break;
             }
@@ -1005,10 +1000,10 @@ EmptyNodeStart:
               //we are even larger than largest key of next node.
               //do the same progress as before, except that cur_next node is cur node.
 #if DEBUG_PRINT
-              alex::coutLock.lock();
-              std::cout << "t" << worker_id << " - ";
-              std::cout << "we are larger than next node (bucket ID : " << bucketID << ")" << std::endl;
-              alex::coutLock.unlock();
+              //alex::coutLock.lock();
+              //std::cout << "t" << worker_id << " - ";
+              //std::cout << "we are larger than next node (bucket ID : " << bucketID << ")" << std::endl;
+              //alex::coutLock.unlock();
 #endif
               cur->min_key_.unlock();
               cur->max_key_.unlock();
@@ -1020,7 +1015,7 @@ EmptyNodeStart:
 #if DEBUG_PRINT
               alex::coutLock.lock();
               std::cout << "t" << worker_id << " - ";
-              std::cout << "decided to enter next node (it's bucket ID : " << bucketID << ")" << std::endl;
+              std::cout << "decided to enter next node (it's bucket ID : " << bucketID << ")\n";
               std::cout << "this node has min_key_ as " << cur_next->min_key_.val_->key_arr_ 
                         << " and max_key_ as " << cur_next->max_key_.val_->key_arr_ << std::endl;
               alex::coutLock.unlock();
@@ -1038,7 +1033,7 @@ EmptyNodeStart:
 #if DEBUG_PRINT
           alex::coutLock.lock();
           std::cout << "t" << worker_id << " - ";
-          std::cout << "decided to enter current node (it's bucket ID : " << bucketID << ")" << std::endl;
+          std::cout << "decided to enter current node (it's bucket ID : " << bucketID << ")\n";
           std::cout << "this node has min_key_ as " << cur->min_key_.val_->key_arr_ 
                     << " and max_key_ as " << cur->max_key_.val_->key_arr_ << std::endl;
           alex::coutLock.unlock();
@@ -1047,6 +1042,7 @@ EmptyNodeStart:
           cur->max_key_.unlock();
         }
       }
+
       if (traversal_path) {
         traversal_path->push_back({node, bucketID});
       }
@@ -1219,7 +1215,7 @@ EmptyNodeStart:
       LinearModelBuilder<T> root_model_builder(&(root_node_->model_));
       for (int i = 0; i < num_keys; i++) {
 #if DEBUG_PRINT
-        printf("adding : %f\n", (double) (i) / (num_keys-1));
+        //printf("adding : %f\n", (double) (i) / (num_keys-1));
 #endif
         root_model_builder.add(values[i].first, (double) (i) / (num_keys-1));
       }
@@ -1230,17 +1226,17 @@ EmptyNodeStart:
       abort();
     }
 #if DEBUG_PRINT
-    for (int i = 0; i < num_keys; i++) {
-      std::cout << values[i].first.key_arr_ << " prediction "
-                << root_node_->model_.predict_double(values[i].first) 
-                << std::endl;
-    }
-    std::cout << "left prediction result (bulk_load) " 
-              << root_node_->model_.predict_double(values[1].first) 
-              << std::endl;
-    std::cout << "right prediction result (bulk_load) " 
-              << root_node_->model_.predict_double(values[num_keys-2].first) 
-              << std::endl;
+    //for (int i = 0; i < num_keys; i++) {
+    //  std::cout << values[i].first.key_arr_ << " prediction "
+    //            << root_node_->model_.predict_double(values[i].first) 
+    //            << std::endl;
+    //}
+    //std::cout << "left prediction result (bulk_load) " 
+    //          << root_node_->model_.predict_double(values[1].first) 
+    //          << std::endl;
+    //std::cout << "right prediction result (bulk_load) " 
+    //          << root_node_->model_.predict_double(values[num_keys-2].first) 
+    //          << std::endl;
 #endif
 
     // Compute cost of root node
@@ -1269,8 +1265,8 @@ EmptyNodeStart:
     link_all_data_nodes();
 
 #if DEBUG_PRINT
-    std::cout << "structure's min_key after bln : " << istats_.key_domain_min_ << std::endl;
-    std::cout << "structure's max_key after bln : " << istats_.key_domain_max_ << std::endl;
+    //std::cout << "structure's min_key after bln : " << istats_.key_domain_min_ << std::endl;
+    //std::cout << "structure's max_key after bln : " << istats_.key_domain_max_ << std::endl;
 #endif
   }
 
@@ -1305,14 +1301,14 @@ EmptyNodeStart:
     }
 
 #if DEBUG_PRINT
-    for (unsigned int i = 0; i < max_key_length_; i++) {
-      std::cout << min_key_arr[i] << ' ';
-    }
-    std::cout << std::endl;
-    for (unsigned int i = 0; i < max_key_length_; i++) {
-      std::cout << max_key_arr[i] << ' ';
-    }
-    std::cout << std::endl;
+    //for (unsigned int i = 0; i < max_key_length_; i++) {
+    //  std::cout << min_key_arr[i] << ' ';
+    //}
+    //std::cout << std::endl;
+    //for (unsigned int i = 0; i < max_key_length_; i++) {
+    //  std::cout << max_key_arr[i] << ' ';
+    //}
+    //std::cout << std::endl;
 #endif
     std::copy(min_key_arr, min_key_arr + max_key_length_, istats_.key_domain_min_);
     std::copy(max_key_arr, max_key_arr + max_key_length_, istats_.key_domain_max_);
@@ -1370,8 +1366,8 @@ EmptyNodeStart:
     }
 
 #if DEBUG_PRINT
-    std::cout << "left prediction result (uskd) " << superroot_->model_.predict_double(mintmpkey) << std::endl;
-    std::cout << "right prediction result (uskd) " << superroot_->model_.predict_double(maxtmpkey) << std::endl;
+    //std::cout << "left prediction result (uskd) " << superroot_->model_.predict_double(mintmpkey) << std::endl;
+    //std::cout << "right prediction result (uskd) " << superroot_->model_.predict_double(maxtmpkey) << std::endl;
 #endif
   }
 
@@ -1492,7 +1488,7 @@ EmptyNodeStart:
       int cur = 0;
       int idx = 0, f_idx = 0, l_idx = 0;
 #if DEBUG_PRINT
-      int cumu_repeat = 0;
+      //int cumu_repeat = 0;
 #endif
       for (fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {
         auto child_node = new (model_node_allocator().allocate(1))
@@ -1505,11 +1501,11 @@ EmptyNodeStart:
         left_value = cur;
         right_value = cur + repeats;
 #if DEBUG_PRINT
-        cumu_repeat += repeats;
-        std::cout << "started finding boundary..." << std::endl;
-        std::cout << "for left_value with : " << left_value << std::endl;
-        std::cout << "and right_value with : " << right_value << std::endl;
-        std::cout << "so covering indexes are : " << cumu_repeat - repeats << "~" << cumu_repeat - 1 << std::endl;
+        //cumu_repeat += repeats;
+        //std::cout << "started finding boundary..." << std::endl;
+        //std::cout << "for left_value with : " << left_value << std::endl;
+        //std::cout << "and right_value with : " << right_value << std::endl;
+        //std::cout << "so covering indexes are : " << cumu_repeat - repeats << "~" << cumu_repeat - 1 << std::endl;
 #endif
         double left_boundary[node->max_key_length_];
         double right_boundary[node->max_key_length_];
@@ -1518,7 +1514,7 @@ EmptyNodeStart:
         // Then assumes those are the left/right boundary.
         for (; idx < num_keys; idx++) {
 #if DEBUG_PRINT
-          std::cout << values[idx].first.key_arr_ << " predicted as " << model_node->model_.predict_double(values[idx].first) << std::endl;
+          //std::cout << values[idx].first.key_arr_ << " predicted as " << model_node->model_.predict_double(values[idx].first) << std::endl;
 #endif
           if (model_node->model_.predict_double(values[idx].first) >= left_value) {
             for (unsigned int i = 0; i < model_node->max_key_length_; i++) {
@@ -1536,7 +1532,7 @@ EmptyNodeStart:
         }
         for (; idx < num_keys; idx++) {
 #if DEBUG_PRINT
-          std::cout << values[idx].first.key_arr_ << " predicted as " << model_node->model_.predict_double(values[idx].first) << std::endl;
+          //std::cout << values[idx].first.key_arr_ << " predicted as " << model_node->model_.predict_double(values[idx].first) << std::endl;
 #endif
           if (model_node->model_.predict_double(values[idx].first) >= right_value) {
             for (unsigned int i = 0; i < model_node->max_key_length_; i++) {
@@ -1553,19 +1549,19 @@ EmptyNodeStart:
           l_idx = num_keys - 1;
         }
 #if DEBUG_PRINT
-        std::cout << "finished finding boundary..." << std::endl;
-        if (typeid(T) != typeid(char)) {
-          std::cout << "left boundary is : " << std::setprecision (17) << left_boundary[0] << std::endl;
-          std::cout << "right boundary is : " << std::setprecision (17) << right_boundary[0] << std::endl;
-        }
-        else {
-          std::cout << "left boundary is : ";
-          for (unsigned int i = 0; i < node->max_key_length_; i++) {std::cout << (char) left_boundary[i];}
-          std::cout << std::endl;
-          std::cout << "right boundary is : ";
-          for (unsigned int i = 0; i < node->max_key_length_; i++) {std::cout << (char) right_boundary[i];}
-          std::cout << std::endl;
-        }
+        //std::cout << "finished finding boundary..." << std::endl;
+        //if (typeid(T) != typeid(char)) {
+        //  std::cout << "left boundary is : " << std::setprecision (17) << left_boundary[0] << std::endl;
+        //  std::cout << "right boundary is : " << std::setprecision (17) << right_boundary[0] << std::endl;
+        //}
+        //else {
+        //  std::cout << "left boundary is : ";
+        //  for (unsigned int i = 0; i < node->max_key_length_; i++) {std::cout << (char) left_boundary[i];}
+        //  std::cout << std::endl;
+        //  std::cout << "right boundary is : ";
+        //  for (unsigned int i = 0; i < node->max_key_length_; i++) {std::cout << (char) right_boundary[i];}
+        //  std::cout << std::endl;
+        //}
 #endif
 
         //obtain CDF with range [0,1]
@@ -1573,7 +1569,7 @@ EmptyNodeStart:
           int num_keys = l_idx - f_idx + 1;
           LinearModelBuilder<T> child_model_builder(&child_node->model_);
 #if DEBUG_PRINT
-          printf("l_idx : %d, f_idx : %d, num_keys : %d\n", l_idx, f_idx, num_keys);
+          //printf("l_idx : %d, f_idx : %d, num_keys : %d\n", l_idx, f_idx, num_keys);
 #endif
           if (num_keys == 1) {
             child_model_builder.add(values[f_idx].first, 1.0);
@@ -1591,14 +1587,14 @@ EmptyNodeStart:
         }
 
 #if DEBUG_PRINT
-        T left_key[max_key_length_];
-        T right_key[max_key_length_];
-        for (unsigned int i = 0; i < max_key_length_; i++) {
-          left_key[i] = left_boundary[i];
-          right_key[i] = right_boundary[i];
-        }
-        std::cout << "left prediction result (bln) " << child_node->model_.predict_double(AlexKey<T>(left_key, max_key_length_)) << std::endl;
-        std::cout << "right prediction result (bln) " << child_node->model_.predict_double(AlexKey<T>(right_key, max_key_length_)) << std::endl;
+        //T left_key[max_key_length_];
+        //T right_key[max_key_length_];
+        //for (unsigned int i = 0; i < max_key_length_; i++) {
+        //  left_key[i] = left_boundary[i];
+        //  right_key[i] = right_boundary[i];
+        //}
+        //std::cout << "left prediction result (bln) " << child_node->model_.predict_double(AlexKey<T>(left_key, max_key_length_)) << std::endl;
+        //std::cout << "right prediction result (bln) " << child_node->model_.predict_double(AlexKey<T>(right_key, max_key_length_)) << std::endl;
 #endif
 
         model_node->children_.val_[cur] = child_node;
@@ -1630,13 +1626,14 @@ EmptyNodeStart:
       
       
 #if DEBUG_PRINT
-      std::cout << "min_key_(model_node) : " << model_node->min_key_.val_->key_arr_ << std::endl;
-      std::cout << "max_key_(model_node) : " << model_node->max_key_.val_->key_arr_ << std::endl;
+      std::cout << "min_key_(model_node) : " << model_node->min_key_.val_->key_arr_ << '\n';
+      std::cout << "max_key_(model_node) : " << model_node->max_key_.val_->key_arr_ << '\n';
       for (int i = 0; i < fanout; i++) {
-        std::cout << i << "'s initial pointer value is : " << model_node->children_.val_[i] << std::endl;
-        std::cout << i << "'s min_key is : " << model_node->children_.val_[i]->min_key_.val_->key_arr_ << std::endl;
-        std::cout << i << "'s max_key is : " << model_node->children_.val_[i]->max_key_.val_->key_arr_ << std::endl;
+        std::cout << i << "'s initial pointer value is : " << model_node->children_.val_[i] << '\n';
+        std::cout << i << "'s min_key is : " << model_node->children_.val_[i]->min_key_.val_->key_arr_ << '\n';
+        std::cout << i << "'s max_key is : " << model_node->children_.val_[i]->max_key_.val_->key_arr_ << '\n';
       }
+      std::cout << std::flush;
 #endif
 
       delete_node(node);
@@ -2159,10 +2156,11 @@ EmptyNodeStart:
 #if DEBUG_PRINT
           alex::coutLock.lock();
           std::cout << "t" << worker_id << " - ";
-          std::cout << "alex.h changed parent model's metadata since thread expanded data node" << std::endl;
+          std::cout << "alex.h changed parent model's metadata since thread expanded data node\n";
           for (int i = 0; i < parent->num_children_; i++) {
-            std::cout << i << " : " << parent_new_children[i] << std::endl;
+            std::cout << i << " : " << parent_new_children[i] << '\n';
           }
+          std::cout << std::flush;
           alex::coutLock.unlock();
 #endif
           parent->children_.val_ = parent_new_children;
@@ -2348,11 +2346,11 @@ EmptyNodeStart:
     new_node->model_.b_ = tmp_model.b_;
 
 #if DEBUG_PRINT
-    alex::coutLock.lock();
-    std::cout << "t" << worker_id << " - ";
-    std::cout << "left prediction result (sd) " << new_node->model_.predict_double(leaf->key_slots_[leaf->first_pos()]) << std::endl;
-    std::cout << "right prediction result (sd) " << new_node->model_.predict_double(leaf->key_slots_[leaf->last_pos()]) << std::endl;
-    alex::coutLock.unlock();
+    //alex::coutLock.lock();
+    //std::cout << "t" << worker_id << " - ";
+    //std::cout << "left prediction result (sd) " << new_node->model_.predict_double(leaf->key_slots_[leaf->first_pos()]) << std::endl;
+    //std::cout << "right prediction result (sd) " << new_node->model_.predict_double(leaf->key_slots_[leaf->last_pos()]) << std::endl;
+    //alex::coutLock.unlock();
 #endif
     node_type **switched_children;
 
@@ -2382,24 +2380,26 @@ EmptyNodeStart:
 #if DEBUG_PRINT
     alex::coutLock.lock();
     std::cout << "t" << worker_id << " - ";
-    std::cout << "split_downwards parent children_" << std::endl;
+    std::cout << "split_downwards parent children_\n";
     for (int i = 0; i < parent->num_children_; i++) {
-      std::cout << i << " : " << parent_new_children[i] << std::endl;
+      std::cout << i << " : " << parent_new_children[i] << '\n';
     }
+    std::cout << std::flush;
     alex::coutLock.unlock();
 #endif
     parent->children_.val_ = parent_new_children;
 #if DEBUG_PRINT
     alex::coutLock.lock();
     std::cout << "t" << worker_id << " - ";
-    std::cout << "min_key_(model_node) : " << new_node->min_key_.val_->key_arr_ << std::endl;
-    std::cout << "max_key_(model_node) : " << new_node->max_key_.val_->key_arr_ << std::endl;
+    std::cout << "min_key_(model_node) : " << new_node->min_key_.val_->key_arr_ << '\n';
+    std::cout << "max_key_(model_node) : " << new_node->max_key_.val_->key_arr_ << '\n';
     for (int i = 0; i < fanout; i++) {
         std::cout << i << "'s min_key is : "
-                  << new_node->children_.val_[i]->min_key_.val_->key_arr_ << std::endl;
+                  << new_node->children_.val_[i]->min_key_.val_->key_arr_ << '\n';
         std::cout << i << "'s max_key is : " 
-                  << new_node->children_.val_[i]->max_key_.val_->key_arr_ << std::endl;
+                  << new_node->children_.val_[i]->max_key_.val_->key_arr_ << '\n';
     }
+    std::cout << std::flush;
     alex::coutLock.unlock();
 #endif
     parent->children_.unlock();
@@ -2487,10 +2487,10 @@ EmptyNodeStart:
                                  int duplication_factor, bool reuse_model,
                                  uint32_t worker_id, int start_bucketID = 0) {
 #if DEBUG_PRINT
-    alex::coutLock.lock();
-    std::cout << "t" << worker_id << " - ";
-    std::cout << "called create_two_new_dn" << std::endl;
-    alex::coutLock.unlock();
+    //alex::coutLock.lock();
+    //std::cout << "t" << worker_id << " - ";
+    //std::cout << "called create_two_new_dn" << std::endl;
+    //alex::coutLock.unlock();
 #endif
     assert(duplication_factor >= 1);
     int num_buckets = 1 << duplication_factor;
@@ -2576,10 +2576,10 @@ EmptyNodeStart:
     parent->children_.unlock();
     link_data_nodes(old_node, left_leaf, right_leaf);
 #if DEBUG_PRINT
-    alex::coutLock.lock();
-    std::cout << "t" << worker_id << " - ";
-    std::cout << "finished create_two_new_dn" << std::endl;
-    alex::coutLock.unlock();
+    //alex::coutLock.lock();
+    //std::cout << "t" << worker_id << " - ";
+    //std::cout << "finished create_two_new_dn" << std::endl;
+    //alex::coutLock.unlock();
 #endif
 
     return parent_old_children;
@@ -2596,11 +2596,11 @@ EmptyNodeStart:
       int fanout_tree_depth, std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes,
       uint32_t worker_id, int start_bucketID = 0, int extra_duplication_factor = 0) {
 #if DEBUG_PRINT
-    alex::coutLock.lock();
-    std::cout << "t" << worker_id << " - ";
-    std::cout << "called create_new_dn" << std::endl;
-    std::cout << "old node is " << old_node << std::endl;
-    alex::coutLock.unlock();
+    //alex::coutLock.lock();
+    //std::cout << "t" << worker_id << " - ";
+    //std::cout << "called create_new_dn" << std::endl;
+    //std::cout << "old node is " << old_node << std::endl;
+    //alex::coutLock.unlock();
 #endif
     bool append_mostly_right = old_node->is_append_mostly_right();
     int appending_right_bucketID = std::min<int>(
@@ -2682,10 +2682,10 @@ EmptyNodeStart:
       if (first_iter) { //left leaf is not a new data node
         old_node->pending_left_leaf_.update(child_node);
 #if DEBUG_PRINT
-        alex::coutLock.lock();
-        std::cout << "t" << worker_id << " - ";
-        std::cout << "updated pll with " << child_node << std::endl;
-        alex::coutLock.unlock();
+        //alex::coutLock.lock();
+        //std::cout << "t" << worker_id << " - ";
+        //std::cout << "updated pll with " << child_node << std::endl;
+        //alex::coutLock.unlock();
 #endif
         if (prev_leaf != nullptr) {
           data_node_type *prev_leaf_pending_rl = prev_leaf->pending_right_leaf_.read();
@@ -2741,10 +2741,11 @@ EmptyNodeStart:
 #if DEBUG_PRINT
       alex::coutLock.lock();
       std::cout << "t" << worker_id << " - ";
-      std::cout << "cndn children_" << std::endl;
+      std::cout << "cndn children_\n";
       for (int i = 0 ; i < parent->num_children_; i++) {
-        std::cout << i << " : " << parent_new_children[i] << std::endl;
+        std::cout << i << " : " << parent_new_children[i] << '\n';
       }
+      std::cout << std::flush;
       alex::coutLock.unlock();
 #endif
     parent->children_.val_ = parent_new_children;
@@ -2753,10 +2754,10 @@ EmptyNodeStart:
     //update right-most leaf's next/prev leaf.
     old_node->pending_right_leaf_.update(prev_leaf);
 #if DEBUG_PRINT
-    alex::coutLock.lock();
-    std::cout << "t" << worker_id << " - ";
-    std::cout << "updated prl with " << prev_leaf << std::endl;
-    alex::coutLock.unlock();
+    //alex::coutLock.lock();
+    //std::cout << "t" << worker_id << " - ";
+    //std::cout << "updated prl with " << prev_leaf << std::endl;
+    //alex::coutLock.unlock();
 #endif
     data_node_type *next_leaf = old_node->next_leaf_.read();
     if (next_leaf != nullptr) {

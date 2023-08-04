@@ -1380,9 +1380,9 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     this->model_.expand(static_cast<double>(data_capacity_) / num_keys);
 
 #if DEBUG_PRINT
-    for (int i = 0; i < num_keys; i++) {
-      std::cout << values[i].first.key_arr_ << " is " << this->model_.predict_double(values[i].first) << std::endl;
-    }
+    //for (int i = 0; i < num_keys; i++) {
+    //  std::cout << values[i].first.key_arr_ << " is " << this->model_.predict_double(values[i].first) << std::endl;
+    //}
 #endif
 
     // Model-based inserts
@@ -1445,11 +1445,11 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
       this->max_key_.val_->key_arr_);
     
 #if DEBUG_PRINT
-      std::cout << values[0].first.key_arr_ << std::endl;
-      std::cout << values[num_keys-1].first.key_arr_ << std::endl;
-      std::cout << "with max length as " << this->max_key_length_ << std::endl;
-      std::cout << "min_key_(data_node) : " << this->min_key_.val_->key_arr_ << std::endl;
-      std::cout << "max_key_(data_node) : " << this->max_key_.val_->key_arr_ << std::endl;
+      //std::cout << values[0].first.key_arr_ << '\n;
+      //std::cout << values[num_keys-1].first.key_arr_ << '\n';
+      //std::cout << "with max length as " << this->max_key_length_ << '\n';
+      //std::cout << "min_key_(data_node) : " << this->min_key_.val_->key_arr_ << '\n';
+      //std::cout << "max_key_(data_node) : " << this->max_key_.val_->key_arr_ << std::endl;
 #endif
   }
 
@@ -1464,15 +1464,18 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
       const LinearModel<T>* precomputed_model = nullptr,
       int precomputed_num_actual_keys = -1) {
 #if DEBUG_PRINT
-    alex::coutLock.lock();
     if (left < 0) {
+      alex::coutLock.lock();
       std::cout << "t" << worker_id << " - ";
       std::cout <<"fucked left" << std::endl;
+      alex::coutLock.unlock();
     }
     if (right > node->data_capacity_) {
+      alex::coutLock.lock();
       std::cout << "t" << worker_id << " - ";
-      std::cout << "fucked right" << std::endl;}
-    alex::coutLock.unlock();
+      std::cout << "fucked right" << std::endl;
+      alex::coutLock.unlock();
+    }
 #endif
     assert(left >= 0 && right <= node->data_capacity_);
     assert(node->max_key_length_ == this->max_key_length_);
@@ -1948,10 +1951,10 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     uint32_t worker_id, std::vector<TraversalNode<T,P>> *traversal_path = nullptr) {
     // Periodically check for catastrophe
 #if DEBUG_PRINT
-    alex::coutLock.lock();
-    std::cout << "t" << worker_id << " - ";
-    std::cout << "alex_nodes.h - expected_avg_shifts_ : " << expected_avg_shifts_ << std::endl;
-    alex::coutLock.unlock();
+    //alex::coutLock.lock();
+    //std::cout << "t" << worker_id << " - ";
+    //std::cout << "alex_nodes.h - expected_avg_shifts_ : " << expected_avg_shifts_ << std::endl;
+    //alex::coutLock.unlock();
 #endif
     if (num_inserts_ % 64 == 0 && catastrophic_cost()) {
       return {{2, -1}, {this, nullptr}};
@@ -1971,10 +1974,10 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
       }
       // make new expanded node
 #if DEBUG_PRINT
-      alex::coutLock.lock();
-      std::cout << "t" << worker_id << " - ";
-      std::cout << "alex_nodes.h insert : resizing data node" << std::endl;
-      alex::coutLock.unlock();
+      //alex::coutLock.lock();
+      //std::cout << "t" << worker_id << " - ";
+      //std::cout << "alex_nodes.h insert : resizing data node" << std::endl;
+      //alex::coutLock.unlock();
 #endif
       bool keep_left = is_append_mostly_right();
       bool keep_right = is_append_mostly_left();
@@ -2009,9 +2012,9 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
           alex::coutLock.lock();
           std::cout << "t" << worker_id << " - ";
           std::cout << "alex_nodes.h resized node and updated children_" << std::endl;
-          for (int i = 0; i < parent->num_children_; i++) {
-            std::cout << i << " : " << parent_new_children[i] << std::endl;
-          }
+          //for (int i = 0; i < parent->num_children_; i++) {
+          //  std::cout << i << " : " << parent_new_children[i] << std::endl;
+          //}
           alex::coutLock.unlock();
 #endif
       parent->children_.val_ = parent_new_children;

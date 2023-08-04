@@ -120,11 +120,11 @@ int main(int argc, char* argv[]) {
     values[i].first = keys[i];
     values[i].second = static_cast<PAYLOAD_TYPE>(gen_payload());
     if (print_key_stats) {
-      std::cout << "will insert key : ";
-      for (unsigned int j = 0; j < max_key_length; j++) {
-        std::cout << values[i].first.key_arr_[j];
-      } 
-      std::cout << ", with payload : " << values[i].second << std::endl;
+      //std::cout << "will insert key : ";
+      //for (unsigned int j = 0; j < max_key_length; j++) {
+      //  std::cout << values[i].first.key_arr_[j];
+      //} 
+      //std::cout << ", with payload : " << values[i].second << std::endl;
     }
   }
 
@@ -137,7 +137,7 @@ int main(int argc, char* argv[]) {
   auto bulkload_start_time = std::chrono::high_resolution_clock::now();
   std::cout << "started bulk_load" << std::endl;
   index.bulk_load(values, init_num_keys);
-  std::cout << "finished bulk_load" << std::endl;
+  std::cout << "finished bulk_load\n";
   auto bulkload_end_time = std::chrono::high_resolution_clock::now();
   std::cout << "It took " << std::chrono::duration_cast<std::chrono::nanoseconds>(bulkload_end_time -
             bulkload_start_time).count() << "ns" << std::endl;
@@ -219,8 +219,7 @@ int main(int argc, char* argv[]) {
                 << num_batch_operations / batch_time * 1e9 << " ops/sec"
                 << "\n\tcumulative throughput:\t"
                 << cumulative_operations / cumulative_time * 1e9 << " ops/sec"
-                << std::endl;
-      std:: cout << "inserted range is " << inserted_range << std::endl;
+                << "\ninserted range is " << inserted_range << std::endl;
     }
 
     // Check for workload end conditions
@@ -289,8 +288,8 @@ void *run_fg(void *param) {
        || (read_cnt >= num_actual_lookups_perth)) { //insert
 #if DEBUG_PRINT
       alex::coutLock.lock();
-      std::cout << std::endl;
-      std::cout << "current insertion_index is : " << insertion_index << std::endl;
+      std::cout << '\n';
+      //std::cout << "current insertion_index is : " << insertion_index << std::endl;
       std::cout << "worker id : " << thread_id << " inserting " << keys[insertion_index].key_arr_ << std::endl;
       alex::coutLock.unlock();
 #endif
@@ -302,7 +301,7 @@ void *run_fg(void *param) {
             //failed finding leaf
             alex::coutLock.lock();
             std::cout << "worker ID : " << thread_id
-                      << " failed finding leaf to insert to.";
+                      << " failed finding leaf to insert to." << std::endl;
             alex::coutLock.unlock();
             break;
           }
@@ -311,7 +310,7 @@ void *run_fg(void *param) {
 #if DEBUG_PRINT
             alex::coutLock.lock();
             std::cout << "worker ID : " << thread_id
-                      << " retrying insert";
+                      << " retrying insert" << std::endl;
             alex::coutLock.unlock();
             continue;
 #endif
@@ -321,7 +320,7 @@ void *run_fg(void *param) {
 #if DEBUG_PRINT
             alex::coutLock.lock();
             std::cout << "worker ID : " << thread_id
-                      << " failed because duplicate is not allowed";
+                      << " failed because duplicate is not allowed" << std::endl;
             alex::coutLock.unlock();
             break;
 #endif
@@ -348,8 +347,8 @@ void *run_fg(void *param) {
       alex::AlexKey<KEY_TYPE> key = lookup_keys[read_cnt];
 #if DEBUG_PRINT
       alex::coutLock.lock();
-      std::cout << std::endl;
-      std::cout << "current read_cnt is : " << read_cnt << std::endl;
+      std::cout << '\n';
+      //std::cout << "current read_cnt is : " << read_cnt << std::endl;
       std::cout << "worker id : " << thread_id << " reading lookup key ";
       for (unsigned int k = 0; k < max_key_length; k++) {
         std::cout << key.key_arr_[k];
@@ -367,14 +366,18 @@ void *run_fg(void *param) {
         std::cout << " payload is : " << payload.second << std::endl;
         alex::coutLock.unlock();
       }
+      else if (strict_run) {
+        alex::coutLock.lock();
+        std::cout << "t" << thread_id << " - ";
+        std::cout << "failed finding payload. aborting." << std::endl;
+        alex::coutLock.unlock();
+        abort();
+      }
       else if (print_key_stats) {
         alex::coutLock.lock();
         std::cout << "t" << thread_id << " - ";
         std::cout << "failed finding payload" << std::endl;
         alex::coutLock.unlock();
-      }
-      else if (strict_run) {
-        abort();
       }
       read_cnt++;
     }

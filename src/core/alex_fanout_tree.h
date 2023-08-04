@@ -140,7 +140,7 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
   int left_boundary = 0;
   int right_boundary = 0;
 #if DEBUG_PRINT
-  std::cout << "compute_level searching for boundary with fanout : " << fanout << std::endl;
+  //std::cout << "compute_level searching for boundary with fanout : " << fanout << std::endl;
 #endif
   for (int i = 0; i < fanout; i++) {
     left_boundary = right_boundary;
@@ -184,9 +184,9 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
       else {break;}
     }
 #if DEBUG_PRINT
-    std::cout << "compute_level boundary searching finished for fanout " << fanout << std::endl;
-    std::cout << "left_boundary is : " <<  left_boundary << std::endl;
-    std::cout << "right_boundary is : " << right_boundary << std::endl;
+    //std::cout << "compute_level boundary searching finished for fanout " << fanout << std::endl;
+    //std::cout << "left_boundary is : " <<  left_boundary << std::endl;
+    //std::cout << "right_boundary is : " << right_boundary << std::endl;
 #endif
     if (left_boundary == right_boundary) {
       double *slope = new double[node->max_key_length_]();
@@ -224,7 +224,7 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
       (kModelSizeWeight * fanout *
        (sizeof(AlexDataNode<T, P>) + sizeof(void*)) * total_keys / num_keys);
 #if DEBUG_PRINT
-  std::cout << "total node_cost : " << cost << ", traversal_cost : " << traversal_cost << std::endl;
+  //std::cout << "total node_cost : " << cost << ", traversal_cost : " << traversal_cost << std::endl;
 #endif
   cost += traversal_cost;
   return cost;
@@ -246,7 +246,7 @@ std::pair<int, double> find_best_fanout_bottom_up(
   // Repeatedly add levels to the fanout tree until the overall cost of each
   // level starts to increase
 #if DEBUG_PRINT
-  std::cout << "called find_best_fanout_bottom_up" << std::endl;
+  //std::cout << "called find_best_fanout_bottom_up" << std::endl;
 #endif
   int best_level = 0;
   double best_cost = node->cost_ + kNodeLookupsWeight;
@@ -294,7 +294,7 @@ std::pair<int, double> find_best_fanout_bottom_up(
     }
   }
 #if DEBUG_PRINT
-  std::cout << "find_best_fanout_bottom_up finished" << std::endl;
+  //std::cout << "find_best_fanout_bottom_up finished" << std::endl;
 #endif
   return std::make_pair(best_level, best_cost);
 }
@@ -323,10 +323,10 @@ int find_best_fanout_existing_node(AlexDataNode<T, P>* node, int total_keys,
   for (int fanout = 1, fanout_tree_level = 0; fanout <= max_fanout;
        fanout *= 2, fanout_tree_level++) {
 #if DEBUG_PRINT
-    alex::coutLock.lock();
-    std::cout << "t" << worker_id << " - ";
-    std::cout << "find_best_fanout_existing_node searching for boundary with fanout : " << fanout << std::endl;
-    alex::coutLock.unlock();
+    //alex::coutLock.lock();
+    //std::cout << "t" << worker_id << " - ";
+    //std::cout << "find_best_fanout_existing_node searching for boundary with fanout : " << fanout << std::endl;
+    //alex::coutLock.unlock();
 #endif
     std::vector<FTNode> new_level;
     double cost = 0.0;
@@ -343,10 +343,10 @@ int find_best_fanout_existing_node(AlexDataNode<T, P>* node, int total_keys,
       
     int key_cnt = 0;
 #if DEBUG_PRINT
-    alex::coutLock.lock();
-    std::cout << "t" << worker_id << " - ";
-    std::cout << "note that node's key count is : " << num_keys << std::endl;
-    alex::coutLock.unlock();
+    //alex::coutLock.lock();
+    //std::cout << "t" << worker_id << " - ";
+    //std::cout << "note that node's key count is : " << num_keys << std::endl;
+    //alex::coutLock.unlock();
 #endif
 
     while (it.cur_idx_ != -1) {
@@ -354,11 +354,11 @@ int find_best_fanout_existing_node(AlexDataNode<T, P>* node, int total_keys,
       key_cnt++;
       it++;
 #if DEBUG_PRINT
-    alex::coutLock.lock();
-    std::cout << "t" << worker_id << " - ";
-    std::cout << "key_cnt is " << key_cnt << std::endl;
-    std::cout << "next it idx is " << it.cur_idx_ << std::endl;
-    alex::coutLock.unlock();
+    //alex::coutLock.lock();
+    //std::cout << "t" << worker_id << " - ";
+    //std::cout << "key_cnt is " << key_cnt << '\n';
+    //std::cout << "next it idx is " << it.cur_idx_ << std::endl;
+    //alex::coutLock.unlock();
 #endif
     }
     tmp_model_builder.build();
@@ -367,11 +367,11 @@ int find_best_fanout_existing_node(AlexDataNode<T, P>* node, int total_keys,
 
     LinearModel<T> newLModel(a, b, base_model.max_key_length_);
 #if DEBUG_PRINT
-      alex::coutLock.lock();
-      std::cout << "t" << worker_id << " - ";
-      std::cout << "first key predicted as" << newLModel.predict_double(node->key_slots_[node->first_pos()]) << std::endl;
-      std::cout << "last key predicted as" << newLModel.predict_double(node->key_slots_[node->last_pos()]) << std::endl;
-      alex::coutLock.unlock();
+      //alex::coutLock.lock();
+      //std::cout << "t" << worker_id << " - ";
+      //std::cout << "first key predicted as" << newLModel.predict_double(node->key_slots_[node->first_pos()]) << '\n';
+      //std::cout << "last key predicted as" << newLModel.predict_double(node->key_slots_[node->last_pos()]) << std::endl;
+      //alex::coutLock.unlock();
 #endif
 
     int left_boundary = 0;
@@ -441,11 +441,11 @@ int find_best_fanout_existing_node(AlexDataNode<T, P>* node, int total_keys,
                            stats.num_shifts, slope, model.b_,
                            num_actual_keys});
 #if DEBUG_PRINT
-      alex::coutLock.lock();
-      std::cout << "t" << worker_id << " - ";
-      std::cout << "left boundary is : " <<  left_boundary << std::endl;
-      std::cout << "right boundary is : " << right_boundary << std::endl;
-      alex::coutLock.unlock();
+      //alex::coutLock.lock();
+      //std::cout << "t" << worker_id << " - ";
+      //std::cout << "left boundary is : " <<  left_boundary << '\n';
+      //std::cout << "right boundary is : " << right_boundary << std::endl;
+      //alex::coutLock.unlock();
 #endif
     }
     // model weight reflects that it has global effect, not local effect
@@ -471,18 +471,18 @@ int find_best_fanout_existing_node(AlexDataNode<T, P>* node, int total_keys,
     fanout_tree.push_back(new_level);
 
 #if DEBUG_PRINT
-    alex::coutLock.lock();
-    std::cout << "t" << worker_id << " - ";
-    std::cout << "find_best_fanout_existing_node boundary searching finished for fanout " << fanout << std::endl;
-    alex::coutLock.unlock();
+    //alex::coutLock.lock();
+    //std::cout << "t" << worker_id << " - ";
+    //std::cout << "find_best_fanout_existing_node boundary searching finished for fanout " << fanout << std::endl;
+    //alex::coutLock.unlock();
 #endif
   }
 
 #if DEBUG_PRINT
-    alex::coutLock.lock();
-    std::cout << "t" << worker_id << " - ";
-    std::cout << "chosen best level is : " << (1 << best_level) << std::endl;
-    alex::coutLock.unlock();
+    //alex::coutLock.lock();
+    //std::cout << "t" << worker_id << " - ";
+    //std::cout << "chosen best level is : " << (1 << best_level) << std::endl;
+    //alex::coutLock.unlock();
 #endif
 
   for (FTNode& tree_node : fanout_tree[best_level]) {

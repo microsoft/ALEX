@@ -322,7 +322,7 @@ class LinearModelBuilder {
       double *A = (double *) malloc(m * n * sizeof(double));
       double *b = (double *) malloc(std::max(m, n) * sizeof(double));
       if (A == nullptr || b == nullptr) {
-        std::cout<<"cannot allocate memory for matrix A or b"<<std::endl;
+        std::cout<<"cannot allocate memory for matrix A or b\n";
         std::cout<<"at "<<__FILE__<<":"<<__LINE__<<std::endl;
         abort();
       }
@@ -361,8 +361,7 @@ class LinearModelBuilder {
         }
 
         if (useful_feat_index_.size() == 0 && use_bias_ == false) {
-          std::cout<<"impossible! cannot fail when there is only 1 bias column in matrix a"
-            <<std::endl;
+          std::cout<<"impossible! cannot fail when there is only 1 bias column in matrix a\n";
           std::cout<<"at "<<__FILE__<<":"<<__LINE__<<std::endl;
           abort();
         }
