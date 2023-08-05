@@ -2008,7 +2008,7 @@ EmptyNodeStart:
       else if (key.key_arr_[i] < istats_.key_domain_min_[i]) {smaller_key = 1; break;}
     }
     if (larger_key || smaller_key) {
-      std::cout << "worker ID : " << worker_id 
+      std::cout << "worker id : " << worker_id 
                 << " root expansion should not happen." << std::endl;
       abort();
     }
@@ -2092,7 +2092,7 @@ EmptyNodeStart:
 #if DEBUG_PRINT
         alex::coutLock.lock();
         std::cout << "t" << worker_id << " - ";
-        std::cout << "paernt is : " << parent << std::endl;
+        std::cout << "parent is : " << parent << std::endl;
         alex::coutLock.unlock();
 #endif
         auto start_time = std::chrono::high_resolution_clock::now();
