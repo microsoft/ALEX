@@ -459,6 +459,20 @@ class Alex {
   /*** General helpers ***/
 
  public:
+#if ALEX_SAFE_LOOKUP
+  forceinline data_node_type* get_leaf(
+    AlexKey<T> key, const uint32_t worker_id,
+    int mode = 1, std::vector<TraversalNode<T, P>>* traversal_path = nullptr) {
+#if DEBUG_PRINT
+      alex::coutLock.lock();
+      std::cout << "t" << worker_id << " - ";
+      std::cout << "traveling from superroot" << std::endl;
+      alex::coutLock.unlock();
+#endif
+      return get_leaf_from_parent(key, worker_id, superroot_, mode, traversal_path);
+  }
+
+#endif
 // Return the data node that contains the key (if it exists).
 // Also optionally return the traversal path to the data node.
 // traversal_path should be empty when calling this function.
@@ -467,27 +481,13 @@ class Alex {
 // Mode 0 : It's for looking the existing key. It should check boundaries.
 // Mode 1 : It's for inserting new key. It checks boundaries, but could extend it.
 #if ALEX_SAFE_LOOKUP
-  forceinline data_node_type* get_leaf(
-      AlexKey<T> key, const uint32_t worker_id,
+  forceinline data_node_type* get_leaf_from_parent(
+      AlexKey<T> key, const uint32_t worker_id, node_type *starting_parent,
       int mode = 1, std::vector<TraversalNode<T, P>>* traversal_path = nullptr) {
-    //if (traversal_path) {
-    //  traversal_path->push_back({superroot_, 0});
-    //}
-#if DEBUG_PRINT
-    alex::coutLock.lock();
-    std::cout << "t" << worker_id << " - ";
-    std::cout << "traveling from superroot" << std::endl;
-    alex::coutLock.unlock();
-#endif
-    node_type* cur = superroot_;
+
+    node_type* cur = starting_parent;
     if (cur->is_leaf_) {
-      //now shouldn't happen, since superroot_ is always model node.
-#if DEBUG_PRINT
-      alex::coutLock.lock();
-      std::cout << "t" << worker_id << " - ";
-      std::cout << "root is data node" << std::endl;
-      alex::coutLock.unlock();
-#endif
+      //now shouldn't happen, since starting node is always model node.
       return static_cast<data_node_type*>(cur);
     }
 
@@ -1997,8 +1997,6 @@ EmptyNodeStart:
   // Insert does not happen if duplicates are not allowed and duplicate is
   // found.
   // If it failed finding a leaf, it returns iterator with null leaf with 0 index.
-  // If it succeeded in finding a leaf, but failed because it's going to be destroyed
-  // it returns iterator with null leaf with 1 index.
   std::pair<Iterator, bool> insert(const AlexKey<T>& key, const P& payload, uint32_t worker_id) {
     // in string ALEX, keys should not fall outside the key domain
     char larger_key = 0;
@@ -2023,13 +2021,19 @@ EmptyNodeStart:
     
     leaf->unused.lock();
     memory_fence();
-    if (leaf->unused.val_) { 
+    while (leaf->unused.val_) { 
       //this leaf is about to be substituted.
-      //should retry insert completely.
+      //keep retrying going into recent leaf.
       leaf->unused.unlock();
       memory_fence();
       rcu_progress(worker_id);
-      return {Iterator(nullptr, 1), false};
+      leaf = get_leaf_from_parent(key, worker_id, leaf->parent_, 1, &traversal_path);
+      if (leaf == nullptr) {
+        rcu_progress(worker_id);
+        return {Iterator(nullptr, 0), false};
+      }
+      leaf->unused.lock();
+      memory_fence();
     }
 
     // Nonzero fail flag means that the insert did not happen
@@ -2055,8 +2059,8 @@ EmptyNodeStart:
         delete_node(leaf);
       }
       rcu_progress(worker_id);
-      if (maybe_new_data_node) {return {Iterator(maybe_new_data_node, insert_pos), false};}
-      else {return {Iterator(leaf, insert_pos), false};}
+      if (maybe_new_data_node) {return {Iterator(maybe_new_data_node, insert_pos), false};} //iterator could be invalid.
+      else {return {Iterator(leaf, insert_pos), false};} //iterator could be invalid.
     }
     else if (!fail) {
 #if DEBUG_PRINT
@@ -2081,8 +2085,8 @@ EmptyNodeStart:
       stats_.num_inserts.increment();
       stats_.num_keys.increment();
       rcu_progress(worker_id);
-      if (maybe_new_data_node) {return {Iterator(maybe_new_data_node, insert_pos), true};}
-      else {return {Iterator(leaf, insert_pos), true};}
+      if (maybe_new_data_node) {return {Iterator(maybe_new_data_node, insert_pos), true};} //iterator could be invalid
+      else {return {Iterator(leaf, insert_pos), true};} //iterator could be invalid.
     }
     // If no insert, and not duplicate,
     // figure out what to do with the data node to decrease the cost
@@ -2167,22 +2171,32 @@ EmptyNodeStart:
           parent->children_.unlock();
 
           //wait before destruction of old leaf and metadata
-          //Note that we don't let resized_leaf to be written by any other node yet.
+          //Note that we 'do' let resized_leaf to be written by other node. (because of deadlock)
           leaf->unused.unlock();
           resized_leaf->unused.unlock();
           memory_fence();
           rcu_barrier(worker_id);
           delete_node(leaf);
           delete parent_old_children;
-          resized_leaf->unused.lock(); //unlock and retry locking to prevent deadlock.
+          leaf = get_leaf_from_parent(key, worker_id, parent, 1, &traversal_path);
+          if (leaf == nullptr) { //failed finding leaf.
+            rcu_progress(worker_id);
+            return {Iterator(nullptr, 0), false};
+          }
+          leaf->unused.lock(); //unlock and retry locking to prevent deadlock.
           memory_fence();
-          if (resized_leaf->unused.val_) { //should retry insert completely.
-            resized_leaf->unused.unlock();
+          while (leaf->unused.val_) { //keep retrying.
+            leaf->unused.unlock();
             memory_fence();
             rcu_progress(worker_id);
-            return {Iterator(nullptr, 1), false};
+            leaf = get_leaf_from_parent(key, worker_id, parent, 1, &traversal_path);
+            if (leaf == nullptr) { //failed finding leaf.
+              rcu_progress(worker_id);
+              return {Iterator(nullptr, 0), false};
+            }
+            leaf->unused.lock();
+            memory_fence();
           }
-          leaf = resized_leaf;
         } else {
           bool reuse_model = (fail == 3);
           // either split sideways or downwards
@@ -2215,14 +2229,24 @@ EmptyNodeStart:
           
           rcu_progress(worker_id);
           traversal_path.clear();
-          leaf = get_leaf(key, worker_id, 1, &traversal_path);
+          leaf = get_leaf_from_parent(key, worker_id, parent, 1, &traversal_path);
+          if (leaf == nullptr) { //failed finding leaf.
+            rcu_progress(worker_id);
+            return {Iterator(nullptr, 0), false};
+          }
           leaf->unused.lock(); //note that this makes error if leaf is nullptr, or at get_leaf failure.
           memory_fence();
-          if (leaf->unused.val_) { //should retry insert completely.
+          while (leaf->unused.val_) { //keep retrying.
             leaf->unused.unlock();
             memory_fence();
             rcu_progress(worker_id);
-            return {Iterator(nullptr, 1), false};
+            leaf = get_leaf_from_parent(key, worker_id, parent, 1, &traversal_path);
+            if (leaf == nullptr) { //failed finding leaf.
+              rcu_progress(worker_id);
+              return {Iterator(nullptr, 0), false};
+            }
+            leaf->unused.lock();
+            memory_fence();
           }
         }
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -2255,8 +2279,8 @@ EmptyNodeStart:
             delete_node(leaf);
           }
           rcu_progress(worker_id);
-          if (maybe_new_data_node) {return {Iterator(maybe_new_data_node, insert_pos), false};}
-          else {return {Iterator(leaf, insert_pos), false};}
+          if (maybe_new_data_node) {return {Iterator(maybe_new_data_node, insert_pos), false};} //iterator could be invalid.
+          else {return {Iterator(leaf, insert_pos), false};} //iteartor could be invalid.
         }
       }
       leaf->unused.unlock();
@@ -2274,8 +2298,8 @@ EmptyNodeStart:
       stats_.num_inserts.increment();
       stats_.num_keys.increment();
       rcu_progress(worker_id);
-      if (maybe_new_data_node) {return {Iterator(maybe_new_data_node, insert_pos), true};}
-      else {return {Iterator(leaf, insert_pos), true};}
+      if (maybe_new_data_node) {return {Iterator(maybe_new_data_node, insert_pos), true};} //iterator could be invalid
+      else {return {Iterator(leaf, insert_pos), true};} //iterator could be invalid.
     }
   }
 

@@ -300,26 +300,16 @@ void *run_fg(void *param) {
           if (!insert_result.first.cur_leaf_ && !insert_result.first.cur_idx_) { 
             //failed finding leaf
             alex::coutLock.lock();
-            std::cout << "worker ID : " << thread_id
+            std::cout << "worker id : " << thread_id
                       << " failed finding leaf to insert to." << std::endl;
             alex::coutLock.unlock();
             break;
-          }
-          else if (!insert_result.first.cur_leaf_ && (insert_result.first.cur_idx_ == 1)) {
-            //retrying insert due to sudden leaf destruction.
-#if DEBUG_PRINT
-            alex::coutLock.lock();
-            std::cout << "worker ID : " << thread_id
-                      << " retrying insert" << std::endl;
-            alex::coutLock.unlock();
-            continue;
-#endif
           }
           else {
             //failed because duplicates are not allowed.
 #if DEBUG_PRINT
             alex::coutLock.lock();
-            std::cout << "worker ID : " << thread_id
+            std::cout << "worker id : " << thread_id
                       << " failed because duplicate is not allowed" << std::endl;
             alex::coutLock.unlock();
             break;
