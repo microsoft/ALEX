@@ -538,16 +538,16 @@ Initialization:
             //could start at empty node, in this case, move left (since larger key is not possible)
             //SHOULD FIND OUT FAST SEARCHING USING NUMBER OF DUPLICATE POINTER
             was_walking_in_empty = 1;
-            if (dir == -1) {
+            if (dir == 1) {
+              bucketID = bucketID - (bucketID % cur_duplication_factor) + cur_duplication_factor;
+              if (bucketID > num_children-1) {return nullptr;} //out of bound
+              dir = 1;
+            }
+            else {
               bucketID = bucketID - (bucketID % cur_duplication_factor);
               if (bucketID == 0) {return nullptr;} //out of bound
               bucketID -= 1;
               dir = -1;
-            }
-            else {
-              bucketID = bucketID - (bucketID % cur_duplication_factor) + cur_duplication_factor;
-              if (bucketID > num_children-1) {return nullptr;} //out of bound
-              dir = 1;
             }
           }
           else if (smaller_than_min) {
@@ -601,7 +601,7 @@ Initialization:
 #if DEBUG_PRINT
         alex::coutLock.lock();
         std::cout << "t" << worker_id << " - ";
-        std::cout << "decided to enter bucketID : " << bucketID << '\n';
+        std::cout << "decided to enter bucketID : " << bucketID << " with pointer : " << cur << '\n';
         std::cout << "bucket's min_key is " << cur_node_min_key->key_arr_
                   << " and max_key is " << cur_node_max_key->key_arr_ << std::endl;
         alex::coutLock.unlock();
