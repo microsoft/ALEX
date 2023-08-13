@@ -36,6 +36,7 @@ namespace alex {
 //forward declaration.
 template <class T, class P, class Alloc> class AlexModelNode;
 template <class T, class P> struct TraversalNode;
+template <class T, class P, class Alloc> struct ChildrenElem;
 
 // A parent class for both types of ALEX nodes
 template <class T, class P, class Alloc = std::allocator<std::pair<AlexKey<T>, P>>>
@@ -136,7 +137,7 @@ class AlexNode {
 template <class T, class P, class Alloc = std::allocator<std::pair<AlexKey<T>, P>>>
 class AlexModelNode : public AlexNode<T, P, Alloc> {
  public:
-  AtomicVal<AlexNode<T, P, Alloc>**> children_ = AtomicVal<AlexNode<T, P, Alloc>**>(nullptr);
+  AtomicVal<ChildrenElem<T, P, Alloc>*> children_ = AtomicVal<ChildrenElem<T, P, Alloc>*>(nullptr);
   int num_children_ = 0;
 
   typedef AlexNode<T, P, Alloc> basic_node_type;
@@ -147,7 +148,7 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
 
   const Alloc& allocator_;
 
-  std::map<uint32_t, basic_node_type**> old_childrens_;
+  std::map<uint32_t, ChildrenElem<T, P, Alloc>*> old_childrens_;
   myLock old_childrens_lock;
 
   explicit AlexModelNode(const Alloc& alloc = Alloc())
@@ -169,9 +170,7 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
       }
 
   ~AlexModelNode() {
-    if (children_.val_ != nullptr) {
-      pointer_allocator().deallocate(children_.val_, num_children_);
-    }
+    delete children_.val_;
     delete this->max_key_.val_;
     delete this->min_key_.val_;
   }
@@ -180,8 +179,7 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
       : AlexNode<T, P, Alloc>(other),
         allocator_(other.allocator_),
         num_children_(other.num_children_) {
-    children_.val_ = new (pointer_allocator().allocate(other.num_children_))
-        AlexNode<T, P, Alloc>*[other.num_children_];
+    children_.val_ = new ChildrenElem<T, P, Alloc>[other.num_children_];
     std::copy(other.children_.val_, 
               other.children_.val_ + other.num_children_,
               children_.val_);
@@ -198,8 +196,8 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
 
     allocator_ = other.allocator_;
 
-    pointer_allocator().deallocate(children_.val_, num_children_);
-    children_.val_ = new AlexNode<T, P, Alloc>*[other.num_children_];
+    delete children_.val_;
+    children_.val_ = new ChildrenElem<T, P, Alloc>[other.num_children_];
     std::copy(other.children_.val_, 
               other.children_.val_ + other.num_children_, 
               children_.val_);
@@ -222,7 +220,7 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
   bool validate_structure(bool verbose = false) const {
     //current model node metadata.
     LinearModel<T> *model_ = &(this->model_);
-    AlexNode<T, P, Alloc>** children_ = children_.val_;
+    AlexNode<T, P, Alloc>* children_ = children_.val_;
 
     if (num_children_ == 0) {
       if (verbose) {
@@ -259,11 +257,11 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
       return false;
     }
 
-    AlexNode<T, P, Alloc>* cur_child = children_[0];
+    AlexNode<T, P, Alloc>* cur_child = children_[0].node_ptr_;
     int cur_repeats = 1;
     int i;
     for (i = 1; i < num_children_; i++) {
-      if (children_[i] == cur_child) {
+      if (children_[i].node_ptr_ == cur_child) {
         cur_repeats++;
       } else {
         if (cur_repeats != (1 << cur_child->duplication_factor_)) {
@@ -274,7 +272,7 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
                       << ", parent addr: " << this
                       << ", parent level: " << this->level_
                       << ", parent num children: " << num_children_
-                      << ", child addr: " << children_[i - cur_repeats]
+                      << ", child addr: " << children_[i - cur_repeats].node_ptr_
                       << ", child pointer indexes: [" << i - cur_repeats << ", "
                       << i << ")" << std::endl;
           }
@@ -300,7 +298,7 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
           }
           return false;
         }
-        cur_child = children_[i];
+        cur_child = children_[i].node_ptr_;
         cur_repeats = 1;
       }
     }
@@ -312,7 +310,7 @@ class AlexModelNode : public AlexNode<T, P, Alloc> {
                   << ", parent addr: " << this
                   << ", parent level: " << this->level_
                   << ", parent num children: " << num_children_
-                  << ", child addr: " << children_[i - cur_repeats]
+                  << ", child addr: " << children_[i - cur_repeats].node_ptr_
                   << ", child pointer indexes: [" << i - cur_repeats << ", "
                   << i << ")" << std::endl;
       }
@@ -374,6 +372,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   typedef AlexNode<T, P, Alloc> basic_node_type;
   typedef AlexModelNode<T, P, Alloc> model_node_type;
   typedef AlexDataNode<T, P, Compare, Alloc, allow_duplicates> self_type;
+  typedef ChildrenElem<T, P, Alloc> child_elem_type;
   typedef typename Alloc::template rebind<self_type>::other alloc_type;
   typedef typename Alloc::template rebind<P>::other payload_alloc_type;
   typedef typename Alloc::template rebind<AtomicVal<P>>::other atomic_payload_alloc_type;
@@ -2000,20 +1999,20 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
           start_bucketID + repeats;
       model_node_type *parent = resized_data_node->parent_;
       parent->children_.lock();
-      basic_node_type** parent_new_children = new (pointer_allocator().allocate(parent->num_children_))
-        basic_node_type*[parent->num_children_];
-      basic_node_type** parent_old_children = parent->children_.val_;
+      child_elem_type* parent_new_children = new child_elem_type[parent->num_children_];
+      child_elem_type* parent_old_children = parent->children_.val_;
       std::copy(parent_old_children, parent_old_children + parent->num_children_,
                 parent_new_children);
       for (int i = start_bucketID; i < end_bucketID; i++) {
-        parent_new_children[i] = resized_data_node;
+        parent_new_children[i].node_ptr_ = resized_data_node;
+        parent_new_children[i].duplication_factor_ = resized_data_node->duplication_factor_;
       }
 #if DEBUG_PRINT
           alex::coutLock.lock();
           std::cout << "t" << worker_id << " - ";
           std::cout << "alex_nodes.h resized node and updated children_" << std::endl;
           //for (int i = 0; i < parent->num_children_; i++) {
-          //  std::cout << i << " : " << parent_new_children[i] << std::endl;
+          //  std::cout << i << " : " << parent_new_children[i].node_ptr_ << std::endl;
           //}
           alex::coutLock.unlock();
 #endif
@@ -2613,4 +2612,11 @@ struct TraversalNode {
   int bucketID = -1;
 };
 
+/* For use in AlexModelNode
+ * element for children_ */
+template<class T, class P, class Alloc>
+struct ChildrenElem {
+  AlexNode<T, P, Alloc>* node_ptr_ = nullptr;
+  uint8_t duplication_factor_ = 0;
+};
 }
