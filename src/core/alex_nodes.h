@@ -1444,7 +1444,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
       this->max_key_.val_->key_arr_);
     
 #if DEBUG_PRINT
-      //std::cout << values[0].first.key_arr_ << '\n;
+      //std::cout << values[0].first.key_arr_ << '\n';
       //std::cout << values[num_keys-1].first.key_arr_ << '\n';
       //std::cout << "with max length as " << this->max_key_length_ << '\n';
       //std::cout << "min_key_(data_node) : " << this->min_key_.val_->key_arr_ << '\n';

@@ -70,12 +70,23 @@ static double merge_nodes_upwards(
       if (fanout_tree[level][2 * i].use && fanout_tree[level][2 * i + 1].use) {
         int num_node_keys = fanout_tree[level - 1][i].num_keys;
         if (num_node_keys == 0) {
+          if (fanout_tree[level][2*i].left_boundary != fanout_tree[level-1][i].left_boundary
+            ||fanout_tree[level][2*i+1].right_boundary != fanout_tree[level-1][i].right_boundary)
+          {continue;} //shouldn't happen. semantic issue.
           fanout_tree[level][2 * i].use = false;
           fanout_tree[level][2 * i + 1].use = false;
           fanout_tree[level - 1][i].use = true;
           at_least_one_merge = true;
           best_cost -= kModelSizeWeight * sizeof(AlexDataNode<T, P>) *
                        total_keys / num_keys;
+#if DEBUG_PRINT
+          //std::cout << "merging\n where first l/r boundary is " << fanout_tree[level][2 * i].left_boundary
+          //          << " and " << fanout_tree[level][2 * i].right_boundary << '\n'
+          //          << "and second l/r boundary is " << fanout_tree[level][2 * i + 1].left_boundary
+          //          << " and " << fanout_tree[level][2 * i + 1].right_boundary << '\n'
+          //          << "which will use following boundary : " << fanout_tree[level - 1][i].left_boundary
+          //          << ", " << fanout_tree[level - 1][i].right_boundary << '\n';
+#endif
           continue;
         }
         int num_left_keys = fanout_tree[level][2 * i].num_keys;
@@ -88,11 +99,22 @@ static double merge_nodes_upwards(
             (kModelSizeWeight * sizeof(AlexDataNode<T, P>) * total_keys /
              num_node_keys);
         if (merging_cost_saving >= 0) {
+          if (fanout_tree[level][2*i].left_boundary != fanout_tree[level-1][i].left_boundary
+            ||fanout_tree[level][2*i+1].right_boundary != fanout_tree[level-1][i].right_boundary)
+          {continue;} //shouldn't happen. semantic issue.
           fanout_tree[level][2 * i].use = false;
           fanout_tree[level][2 * i + 1].use = false;
           fanout_tree[level - 1][i].use = true;
           best_cost -= merging_cost_saving * num_node_keys / num_keys;
           at_least_one_merge = true;
+#if DEBUG_PRINT
+          //std::cout << "merging\n where first l/r boundary is " << fanout_tree[level][2 * i].left_boundary
+          //          << " and " << fanout_tree[level][2 * i].right_boundary << '\n'
+          //          << "and second l/r boundary is " << fanout_tree[level][2 * i + 1].left_boundary
+          //          << " and " << fanout_tree[level][2 * i + 1].right_boundary << '\n'
+          //          << "which will use following boundary : " << fanout_tree[level - 1][i].left_boundary
+          //          << ", " << fanout_tree[level - 1][i].right_boundary << '\n';
+#endif
         }
       }
     }
@@ -140,7 +162,7 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
   int left_boundary = 0;
   int right_boundary = 0;
 #if DEBUG_PRINT
-  //std::cout << "compute_level searching for boundary with fanout : " << fanout << std::endl;
+  std::cout << "compute_level searching for boundary with fanout : " << fanout << std::endl;
 #endif
   for (int i = 0; i < fanout; i++) {
     left_boundary = right_boundary;
@@ -149,31 +171,20 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
      * considering the current model. Since we can't pinpoint the specific key for strings
      * and since values are all sorted (upon research) when called, we try to find the first key
      * that is equal or larger than position i. */
-    if (typeid(T) == typeid(char)) {
-      if (i == fanout - 1) {right_boundary = num_keys;}
-      else {
-        char flag = 1;
-        for (int idx = left_boundary; idx < num_keys; idx++) {
-          double predicted_pos = newLModel.predict_double(values[idx].first);
-          if (predicted_pos >= (double) i+1) {
-            flag = 0;
-            right_boundary = idx;
-            break;
-          }
-        }
-        if (flag) {right_boundary = num_keys;}
-      }
-    }
-    else { //numeric key
-      if (i == fanout - 1) {right_boundary = num_keys;}
-      else {
-        for (int i = 0; i < num_keys; i++) {
-          if (values[i].first.key_arr_[0] >= ((i+1)-b)/a[0]) {
-            right_boundary = i; break;
-          }
+    if (i == fanout - 1) {right_boundary = num_keys;}
+    else {
+      char flag = 1;
+      for (int idx = left_boundary; idx < num_keys; idx++) {
+        double predicted_pos = newLModel.predict_double(values[idx].first);
+        if (predicted_pos >= (double) i+1) {
+          flag = 0;
+          right_boundary = idx;
+          break;
         }
       }
+      if (flag) {right_boundary = num_keys;}
     }
+    
     // Account for off-by-one errors due to floating-point precision issues.
     while (right_boundary < num_keys) {
       double arb = 0.0;
@@ -184,9 +195,20 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
       else {break;}
     }
 #if DEBUG_PRINT
-    //std::cout << "compute_level boundary searching finished for fanout " << fanout << std::endl;
-    //std::cout << "left_boundary is : " <<  left_boundary << std::endl;
-    //std::cout << "right_boundary is : " << right_boundary << std::endl;
+    //if (left_boundary == num_keys) {
+    //  std::cout << "left_boundary overflow with " << left_boundary << '\n';
+    //}
+    //else {
+    //  std::cout << "left_boundary is : " <<  left_boundary << '\n';
+    //  std::cout << "it's key is : " << values[left_boundary].first.key_arr_ << '\n'; 
+    //}
+    //if (right_boundary == num_keys) {
+    //  std::cout << "right_boundary overflow with " << right_boundary << '\n';
+    //}
+    //else {
+    //  std::cout << "just before right boundary is : " << right_boundary - 1 << '\n';
+    //  std::cout << "it's key is : " << values[right_boundary-1].first.key_arr_ << '\n';
+    //}
 #endif
     if (left_boundary == right_boundary) {
       double *slope = new double[node->max_key_length_]();
@@ -219,6 +241,9 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
          stats.num_search_iterations, stats.num_shifts, slope, model.b_,
          right_boundary - left_boundary});
   }
+#if DEBUG_PRINT
+    //std::cout << "compute_level boundary searching finished for fanout " << fanout << '\n';
+#endif
   double traversal_cost =
       kNodeLookupsWeight +
       (kModelSizeWeight * fanout *

@@ -1227,9 +1227,7 @@ EmptyNodeStart:
     }
 #if DEBUG_PRINT
     //for (int i = 0; i < num_keys; i++) {
-    //  std::cout << values[i].first.key_arr_ << " prediction "
-    //            << root_node_->model_.predict_double(values[i].first) 
-    //            << std::endl;
+    //  std::cout << "inserting " << values[i].first.key_arr_ << '\n';
     //}
     //std::cout << "left prediction result (bulk_load) " 
     //          << root_node_->model_.predict_double(values[1].first) 
@@ -1479,13 +1477,11 @@ EmptyNodeStart:
       }
       model_node->model_.b_ = tmp_model.b_; 
       
-
       model_node->num_children_ = fanout;
       model_node->children_.val_ = new child_elem_type[fanout];
 
       // Instantiate all the child nodes and recurse
       int cur = 0;
-      int idx = 0, f_idx = 0, l_idx = 0;
 #if DEBUG_PRINT
       //int cumu_repeat = 0;
 #endif
@@ -1496,9 +1492,6 @@ EmptyNodeStart:
         child_node->duplication_factor_ =
             static_cast<uint8_t>(best_fanout_tree_depth - tree_node.level);
         int repeats = 1 << child_node->duplication_factor_;
-        double left_value, right_value;
-        left_value = cur;
-        right_value = cur + repeats;
 #if DEBUG_PRINT
         //cumu_repeat += repeats;
         //std::cout << "started finding boundary..." << std::endl;
@@ -1506,84 +1499,44 @@ EmptyNodeStart:
         //std::cout << "and right_value with : " << right_value << std::endl;
         //std::cout << "so covering indexes are : " << cumu_repeat - repeats << "~" << cumu_repeat - 1 << std::endl;
 #endif
-        double left_boundary[node->max_key_length_];
-        double right_boundary[node->max_key_length_];
-        //slightly hacky
-        // It tries to find the first value larger or equal to left / right value.
-        // Then assumes those are the left/right boundary.
-        for (; idx < num_keys; idx++) {
+
+        //finds left/right boundary using tree_node.
 #if DEBUG_PRINT
-          //std::cout << values[idx].first.key_arr_ << " predicted as " << model_node->model_.predict_double(values[idx].first) << std::endl;
-#endif
-          if (model_node->model_.predict_double(values[idx].first) >= left_value) {
-            for (unsigned int i = 0; i < model_node->max_key_length_; i++) {
-              left_boundary[i] = (double) values[idx].first.key_arr_[i];
-            }
-            f_idx = idx;
-            break;
+        std::cout << "finished finding boundary..." << std::endl;
+        std::cout << "left boundary is : ";
+        if (tree_node.left_boundary == num_keys) {
+          for (unsigned int i = 0; i < node->max_key_length_; i++) {
+            std::cout << (char) values[tree_node.left_boundary - 1].first.key_arr_[i];
           }
         }
-        if (idx == num_keys) {
-          for (unsigned int i = 0; i < model_node->max_key_length_; i++) {
-            left_boundary[i] = (double) values[num_keys-1].first.key_arr_[i];
-          }
-          f_idx = num_keys - 1;
-        }
-        for (; idx < num_keys; idx++) {
-#if DEBUG_PRINT
-          //std::cout << values[idx].first.key_arr_ << " predicted as " << model_node->model_.predict_double(values[idx].first) << std::endl;
-#endif
-          if (model_node->model_.predict_double(values[idx].first) >= right_value) {
-            for (unsigned int i = 0; i < model_node->max_key_length_; i++) {
-              right_boundary[i] = (double) values[idx].first.key_arr_[i];
-            }
-            l_idx = idx;
-            break;
+        else {
+          for (unsigned int i = 0; i < node->max_key_length_; i++) {
+            std::cout << (char) values[tree_node.left_boundary].first.key_arr_[i];
           }
         }
-        if (idx == num_keys) {
-          for (unsigned int i = 0; i < model_node->max_key_length_; i++) {
-            right_boundary[i] = (double) values[num_keys-1].first.key_arr_[i];
-          }
-          l_idx = num_keys - 1;
+        std::cout << std::endl;
+        std::cout << "right boundary is : ";
+        for (unsigned int i = 0; i < node->max_key_length_; i++) {
+          std::cout << (char) values[tree_node.right_boundary - 1].first.key_arr_[i];
         }
-#if DEBUG_PRINT
-        //std::cout << "finished finding boundary..." << std::endl;
-        //if (typeid(T) != typeid(char)) {
-        //  std::cout << "left boundary is : " << std::setprecision (17) << left_boundary[0] << std::endl;
-        //  std::cout << "right boundary is : " << std::setprecision (17) << right_boundary[0] << std::endl;
-        //}
-        //else {
-        //  std::cout << "left boundary is : ";
-        //  for (unsigned int i = 0; i < node->max_key_length_; i++) {std::cout << (char) left_boundary[i];}
-        //  std::cout << std::endl;
-        //  std::cout << "right boundary is : ";
-        //  for (unsigned int i = 0; i < node->max_key_length_; i++) {std::cout << (char) right_boundary[i];}
-        //  std::cout << std::endl;
-        //}
+        std::cout << std::endl;
 #endif
 
         //obtain CDF with range [0,1]
-        if (typeid(T) == typeid(char)) {
-          int num_keys = l_idx - f_idx + 1;
-          LinearModelBuilder<T> child_model_builder(&child_node->model_);
+        int num_keys = tree_node.right_boundary - tree_node.left_boundary;
+        LinearModelBuilder<T> child_model_builder(&child_node->model_);
 #if DEBUG_PRINT
-          //printf("l_idx : %d, f_idx : %d, num_keys : %d\n", l_idx, f_idx, num_keys);
+        //printf("l_idx : %d, f_idx : %d, num_keys : %d\n", l_idx, f_idx, num_keys);
 #endif
-          if (num_keys == 1) {
-            child_model_builder.add(values[f_idx].first, 1.0);
-          }
-          else {
-            for (int i = f_idx; i < f_idx + num_keys; i++) {
-              child_model_builder.add(values[i].first, (double) (i-f_idx)/(num_keys-1));
-            }
-          }
-          child_model_builder.build();
+        if (num_keys == 1) {
+          child_model_builder.add(values[tree_node.left_boundary].first, 1.0);
         }
         else {
-          child_node->model_.a_[0] = 1.0 / (right_boundary[0] - left_boundary[0]);
-          child_node->model_.b_ = -child_node->model_.a_[0] * left_boundary[0];
+          for (int i = tree_node.right_boundary; i < tree_node.left_boundary; i++) {
+            child_model_builder.add(values[i].first, (double) (i-tree_node.left_boundary)/(num_keys-1));
+          }
         }
+        child_model_builder.build();
 
 #if DEBUG_PRINT
         //T left_key[max_key_length_];

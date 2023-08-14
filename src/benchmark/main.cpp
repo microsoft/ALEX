@@ -121,9 +121,7 @@ int main(int argc, char* argv[]) {
     values[i].second = static_cast<PAYLOAD_TYPE>(gen_payload());
     if (print_key_stats) {
       //std::cout << "will insert key : ";
-      //for (unsigned int j = 0; j < max_key_length; j++) {
-      //  std::cout << values[i].first.key_arr_[j];
-      //} 
+      //std::cout << values[i].first.key_arr_;
       //std::cout << ", with payload : " << values[i].second << std::endl;
     }
   }
