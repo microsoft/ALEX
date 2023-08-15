@@ -386,6 +386,7 @@ class LinearModelBuilder {
 
       free(A);
       free(b);
+      mkl_free_buffers();
 
 #if DEBUG_PRINT
       //for debugging

@@ -168,6 +168,7 @@ int main(int argc, char* argv[]) {
     pthread_t threads[td_num];
     fg_param_t fg_params[td_num];
     running = false;
+    ready_threads.store(0);
 
     num_actual_lookups_perth = num_lookups_per_batch / td_num;
     num_actual_inserts_perth = std::min(num_inserts_per_batch / td_num , (total_num_keys - inserted_range) / td_num);
@@ -345,27 +346,29 @@ void *run_fg(void *param) {
       alex::coutLock.unlock();
 #endif
       std::pair<bool, PAYLOAD_TYPE> payload = table->get_payload(key, thread_id);
-      if (payload.first && print_key_stats) {
-        alex::coutLock.lock();
-        std::cout << "t" << thread_id << " - ";
-        for (unsigned int k = 0; k < max_key_length; k++) {
-          std::cout << key.key_arr_[k];
+      if (print_key_stats) {
+        if (payload.first) {
+          alex::coutLock.lock();
+          std::cout << "t" << thread_id << " - ";
+          for (unsigned int k = 0; k < max_key_length; k++) {
+            std::cout << key.key_arr_[k];
+          }
+          std::cout << " payload is : " << payload.second << std::endl;
+          alex::coutLock.unlock();
         }
-        std::cout << " payload is : " << payload.second << std::endl;
-        alex::coutLock.unlock();
-      }
-      else if (strict_run) {
-        alex::coutLock.lock();
-        std::cout << "t" << thread_id << " - ";
-        std::cout << "failed finding payload. aborting." << std::endl;
-        alex::coutLock.unlock();
-        abort();
-      }
-      else if (print_key_stats) {
-        alex::coutLock.lock();
-        std::cout << "t" << thread_id << " - ";
-        std::cout << "failed finding payload" << std::endl;
-        alex::coutLock.unlock();
+        else if (strict_run) {
+          alex::coutLock.lock();
+          std::cout << "t" << thread_id << " - ";
+          std::cout << "failed finding payload. aborting." << std::endl;
+          alex::coutLock.unlock();
+          abort();
+        }
+        else {
+          alex::coutLock.lock();
+          std::cout << "t" << thread_id << " - ";
+          std::cout << "failed finding payload" << std::endl;
+          alex::coutLock.unlock();
+        }
       }
       read_cnt++;
     }

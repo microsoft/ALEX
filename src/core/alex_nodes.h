@@ -2078,6 +2078,8 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     }
 
     self_type *new_data_node = new AlexDataNode(*this);
+    this->pending_left_leaf_.update(new_data_node);
+    this->pending_right_leaf_.update(new_data_node);
   
     //needs to connect new node with other data node
     self_type *this_prev_leaf_ = prev_leaf_.read();

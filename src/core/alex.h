@@ -789,14 +789,53 @@ EmptyNodeStart:
 #if DEBUG_PRINT
                 alex::coutLock.lock();
                 std::cout << "t" << worker_id << " - ";
-                std::cout << "empty node was last node (shouldn't happen in normal situation)" << std::endl;
+                std::cout << "empty node was last node (could happen, but please verify)" << std::endl;
                 alex::coutLock.unlock();
 #endif
+
+                AlexKey<T> *new_max_key = new AlexKey<T>(max_key_length_);
+                AlexKey<T> *new_min_key = new AlexKey<T>(max_key_length_);
+                std::copy(key.key_arr_, key.key_arr_ + max_key_length_, new_max_key->key_arr_);
+                std::copy(key.key_arr_, key.key_arr_ + max_key_length_, new_min_key->key_arr_);
+                AlexKey<T> *old_max_key = cur_next->max_key_.val_;
+                AlexKey<T> *old_min_key = cur_next->min_key_.val_;
+                cur_next->min_key_.val_ = new_min_key;
+                cur_next->max_key_.val_ = new_max_key;
                 cur->min_key_.unlock();
                 cur->max_key_.unlock();
                 cur_next->min_key_.unlock();
                 cur_next->max_key_.unlock();
-                cur = cur_next;
+                rcu_barrier(worker_id);
+                delete old_max_key;
+                delete old_min_key;
+
+                //when calling rcu_barrier, structure of model node could have changed
+                //or our original leaf node could have changed to new leaf node.
+                //we should check it, and if it changed... we should do the whole search again(...)
+                prev_children = cur_children;
+                cur_children = node->children_.read();
+                if (prev_children != cur_children) {
+#if DEBUG_PRINT
+                  alex::coutLock.lock();
+                  std::cout << "t" << worker_id << " - ";
+                  std::cout << "children changed" << std::endl;
+                  alex::coutLock.unlock();
+#endif
+                  rcu_progress(worker_id);
+                  goto Initialization;
+                }
+                node_type *after_rcu_cur_next = cur_children[cur_next_bucketID].node_ptr_;
+                if (after_rcu_cur_next != cur_next) {
+#if DEBUG_PRINT
+                  alex::coutLock.lock();
+                  std::cout << "t" << worker_id << " - ";
+                  std::cout << "metadata changed" << std::endl;
+                  alex::coutLock.unlock();
+#endif
+                  rcu_progress(worker_id);
+                  goto Initialization;
+                }
+                cur = after_rcu_cur_next;
                 bucketID = cur_next_bucketID;
                 break;
               }
@@ -1978,6 +2017,12 @@ EmptyNodeStart:
     
     leaf->unused.lock();
     memory_fence();
+#if DEBUG_PRINT
+    alex::coutLock.lock();
+    std::cout << "t" << worker_id << " - in final, decided to insert at bucketID : "
+              << traversal_path.back().bucketID << std::endl;
+    alex::coutLock.unlock();
+#endif
     while (leaf->unused.val_) { 
       //this leaf is about to be substituted.
       //keep retrying going into recent leaf.
@@ -2517,8 +2562,8 @@ EmptyNodeStart:
             appending_right_bucketID < end_bucketID,
         append_mostly_left && mid_bucketID <= appending_left_bucketID &&
             appending_left_bucketID < end_bucketID);
-    old_node->pending_left_leaf_ = left_leaf;
-    old_node->pending_right_leaf_ = right_leaf;
+    old_node->pending_left_leaf_.update(left_leaf);
+    old_node->pending_right_leaf_.update(right_leaf);
     left_leaf->level_ = static_cast<short>(parent->level_ + 1);
     right_leaf->level_ = static_cast<short>(parent->level_ + 1);
     left_leaf->duplication_factor_ =
