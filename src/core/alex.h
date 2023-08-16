@@ -2074,8 +2074,6 @@ EmptyNodeStart:
         expandParam *param = new expandParam();
         param->leaf = leaf;
         param->worker_id = worker_id;
-        param->bucketID = traversal_path.back().bucketID;
-        param->this_ptr = this;
         pthread_t pthread;
 
         pthread_create(&pthread, nullptr, expand_handler, (void *)param);
@@ -2104,9 +2102,7 @@ EmptyNodeStart:
  private:
   struct expandParam {
     data_node_type *leaf;
-    uint32_t worker_id;
-    int bucketID;
-    self_type *this_ptr;
+    uint32_t worker_id;;
   };
 
   struct alexIParam {
@@ -2121,52 +2117,25 @@ EmptyNodeStart:
     expandParam *Eparam = (expandParam *)param;
     data_node_type *leaf = Eparam->leaf;
     uint32_t worker_id = Eparam->worker_id;
-    int bucketID = Eparam->bucketID;
-    self_type *this_ptr = Eparam->this_ptr;
-    model_node_type *parent = leaf->parent_;
 
-    data_node_type *resized_leaf = 
-      leaf->resize(data_node_type::kMinDensity_, false,
+    leaf->resize(data_node_type::kMinDensity_, false,
                   leaf->is_append_mostly_right(),
                   leaf->is_append_mostly_left());
-    resized_leaf->unused.lock();
-    resized_leaf->num_resizes_++;
-
-    //substitute leaf pointer in parent model node
-    int repeats = 1 << leaf->duplication_factor_;
-    int start_bucketID = bucketID - (bucketID % repeats);
-    int end_bucketID = start_bucketID + repeats;
-    parent->children_.lock();
-    child_elem_type *parent_new_children = new child_elem_type[parent->num_children_];
-    child_elem_type *parent_old_children = parent->children_.val_;
-    std::copy(parent_old_children, parent_old_children + parent->num_children_,
-              parent_new_children);
-    for (int i = start_bucketID; i < end_bucketID; i++) {
-      parent_new_children[i].node_ptr_ = resized_leaf;
-      parent_new_children[i].duplication_factor_ = resized_leaf->duplication_factor_;
-    }
 
 #if DEBUG_PRINT
     alex::coutLock.lock();
     std::cout << "t" << worker_id << "'s generated thread - ";
-    std::cout << "alex.h changed parent model's metadata since thread expanded data node\n";
-    for (int i = 0; i < parent->num_children_; i++) {
-      std::cout << i << " : " << parent_new_children[i].node_ptr_ << '\n';
-    }
-    std::cout << std::flush;
+    std::cout << "alex.h expanded data node" << std::endl;
     alex::coutLock.unlock();
 #endif
 
-    parent->children_.val_ = parent_new_children;
-    parent->children_.unlock();
-
-    //wait before destruction of old leaf and metadata
-    //leaf unlock already done in insert.
-    resized_leaf->unused.unlock();
+    //will use the original data node!
+    leaf->unused.lock();
     memory_fence();
-    rcu_barrier();
-    this_ptr->delete_node(leaf);
-    delete parent_old_children;
+    leaf->unused.val_ = 0;
+    memory_fence();
+    leaf->unused.unlock();
+    memory_fence();
     delete Eparam;
     pthread_exit(nullptr);
   }
@@ -2217,52 +2186,30 @@ EmptyNodeStart:
       alex::coutLock.unlock();
 #endif
       // expand existing data node and retrain model
-      data_node_type *resized_leaf = 
-        leaf->resize(data_node_type::kMinDensity_, true,
-                    leaf->is_append_mostly_right(),
-                    leaf->is_append_mostly_left());
-      resized_leaf->unused.lock();
+      leaf->resize(data_node_type::kMinDensity_, true,
+                   leaf->is_append_mostly_right(),
+                   leaf->is_append_mostly_left());
       fanout_tree::FTNode& tree_node = used_fanout_tree_nodes[0];
-      resized_leaf->cost_ = tree_node.cost;
-      resized_leaf->expected_avg_exp_search_iterations_ =
+      leaf->cost_ = tree_node.cost;
+      leaf->expected_avg_exp_search_iterations_ =
           tree_node.expected_avg_search_iterations;
-      resized_leaf->expected_avg_shifts_ = tree_node.expected_avg_shifts;
-      resized_leaf->reset_stats();
+      leaf->expected_avg_shifts_ = tree_node.expected_avg_shifts;
+      leaf->reset_stats();
       this_ptr->stats_.num_expand_and_retrains.increment();
 
-      //substitute leaf pointer in parent model node
-      int repeats = 1 << leaf->duplication_factor_;
-      int start_bucketID = bucketID - (bucketID % repeats);
-      int end_bucketID = start_bucketID + repeats;
-      parent->children_.lock();
-      child_elem_type *parent_new_children = new child_elem_type[parent->num_children_];
-      child_elem_type *parent_old_children = parent->children_.val_;
-      std::copy(parent_old_children, parent_old_children + parent->num_children_,
-                parent_new_children);
-      for (int i = start_bucketID; i < end_bucketID; i++) {
-        parent_new_children[i].node_ptr_ = resized_leaf;
-        parent_new_children[i].duplication_factor_ = resized_leaf->duplication_factor_;
-      }
+      leaf->unused.lock();
+      memory_fence();
+      leaf->unused.val_ = 0;
+      memory_fence();
+      leaf->unused.unlock();
+      memory_fence();
 #if DEBUG_PRINT
       alex::coutLock.lock();
       std::cout << "t" << worker_id << "'s generated thread - ";
-      std::cout << "alex.h changed parent model's metadata since thread expanded data node\n";
-      for (int i = 0; i < parent->num_children_; i++) {
-        std::cout << i << " : " << parent_new_children[i].node_ptr_ << '\n';
-      }
+      std::cout << "alex.h expanded data node" << std::endl;
       std::cout << std::flush;
       alex::coutLock.unlock();
 #endif
-      parent->children_.val_ = parent_new_children;
-      parent->children_.unlock();
-
-      //wait before destruction of old leaf and metadata
-      //leaf unlock already done in insert.
-      resized_leaf->unused.unlock();
-      memory_fence();
-      rcu_barrier();
-      this_ptr->delete_node(leaf);
-      delete parent_old_children;
     } else {
       bool reuse_model = (fail == 3);
       // either split sideways or downwards
