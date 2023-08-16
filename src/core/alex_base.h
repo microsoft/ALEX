@@ -1006,14 +1006,15 @@ void rcu_progress(const uint32_t worker_id) {
   config.rcu_status[worker_id].status++;
 }
 
-// wait for all workers
+// wait for all workers whose 'waiting' is false
 void rcu_barrier() {
   uint64_t prev_status[config.worker_n];
   for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
     prev_status[w_i] = config.rcu_status[w_i].status;
   }
   for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
-    while (config.rcu_status[w_i].status <= prev_status[w_i] && !config.exited)
+    while (config.rcu_status[w_i].status <= prev_status[w_i] && 
+           !config.rcu_status[w_i].waiting && !config.exited)
       ;
   }
 }

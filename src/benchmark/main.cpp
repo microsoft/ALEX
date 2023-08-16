@@ -9,6 +9,7 @@
 
 #include <iomanip>
 #include <string>
+#include <list>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -272,6 +273,8 @@ void *run_fg(void *param) {
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_real_distribution<> ratio_dis(0, 1);
+  uint64_t initial_insertion_index = insertion_index;
+  std::list<std::pair<uint64_t, PAYLOAD_TYPE>> pending_insert;
   alex::coutLock.lock();
   std::cout << "worker " << thread_id << " ready to start" << std::endl;
   alex::coutLock.unlock();
@@ -283,7 +286,7 @@ void *run_fg(void *param) {
   //do batch operations.
   for (uint64_t i = 0; i < num_actual_ops_perth; i++) {
     double d = ratio_dis(gen); //randomly choose which operation to do.
-    if ((!(insert_cnt >= num_actual_inserts_perth) && d <= (insertion_ratio))
+    if ((!(insertion_index - initial_insertion_index >= num_actual_inserts_perth) && d <= (insertion_ratio))
        || (read_cnt >= num_actual_lookups_perth)) { //insert
 #if DEBUG_PRINT
       alex::coutLock.lock();
@@ -292,44 +295,50 @@ void *run_fg(void *param) {
       std::cout << "worker id : " << thread_id << " inserting " << keys[insertion_index].key_arr_ << std::endl;
       alex::coutLock.unlock();
 #endif
-      while (1) {
-        std::pair<alex::Alex<KEY_TYPE, PAYLOAD_TYPE>::Iterator, bool> insert_result
-            = table->insert(keys[insertion_index], static_cast<PAYLOAD_TYPE>(gen_payload()), thread_id);
-        if (!insert_result.second) {
-          if (!insert_result.first.cur_leaf_ && !insert_result.first.cur_idx_) { 
-            //failed finding leaf
-            alex::coutLock.lock();
-            std::cout << "worker id : " << thread_id
-                      << " failed finding leaf to insert to." << std::endl;
-            alex::coutLock.unlock();
-            break;
-          }
-          else {
-            //failed because duplicates are not allowed.
+      PAYLOAD_TYPE val = static_cast<PAYLOAD_TYPE>(gen_payload());
+      std::pair<alex::Alex<KEY_TYPE, PAYLOAD_TYPE>::Iterator, bool> insert_result
+          = table->insert(keys[insertion_index], val, thread_id);
+      if (!insert_result.second) {
+        if (!insert_result.first.cur_leaf_ && !insert_result.first.cur_idx_) { 
+          //failed finding leaf
+          alex::coutLock.lock();
+          std::cout << "worker id : " << thread_id
+                    << " failed finding leaf to insert to." << std::endl;
+          alex::coutLock.unlock();
+        }
+        else if (!insert_result.first.cur_leaf_) {
+          //failed because leaf is being modified/resizing.
 #if DEBUG_PRINT
-            alex::coutLock.lock();
-            std::cout << "worker id : " << thread_id
-                      << " failed because duplicate is not allowed" << std::endl;
-            alex::coutLock.unlock();
-            break;
+          alex::coutLock.lock();
+          std::cout << "worker id : " << thread_id
+                    << " failed because node being modified." << std::endl;
+          alex::coutLock.unlock();
 #endif
-          }
+          pending_insert.push_back({insertion_index++, val});
         }
-        else { //succeeded.
-          if (print_key_stats) {
-            alex::coutLock.lock();
-            std::cout << "t" << thread_id << " - ";
-            std::cout << "inserted key : ";
-            for (unsigned int j = 0; j < max_key_length; j++) {
-              std::cout << keys[insertion_index].key_arr_[j];
-            }
-            std::cout << std::endl;
-            alex::coutLock.unlock();
-          }
-          insert_cnt++;
-          insertion_index++;
-          break;
+        else {
+          //failed because duplicates are not allowed.
+#if DEBUG_PRINT
+          alex::coutLock.lock();
+          std::cout << "worker id : " << thread_id
+                    << " failed because duplicate is not allowed" << std::endl;
+          alex::coutLock.unlock();
+#endif
         }
+      }
+      else { //succeeded.
+        if (print_key_stats) {
+          alex::coutLock.lock();
+          std::cout << "t" << thread_id << " - ";
+          std::cout << "inserted key : ";
+          for (unsigned int j = 0; j < max_key_length; j++) {
+            std::cout << keys[insertion_index].key_arr_[j];
+          }
+          std::cout << std::endl;
+          alex::coutLock.unlock();
+        }
+        ++insert_cnt;
+        ++insertion_index;
       }
     }
     else { //read
@@ -372,7 +381,60 @@ void *run_fg(void *param) {
       }
       read_cnt++;
     }
+  }
 
+#if DEBUG_PRINT
+  alex::coutLock.lock();
+  std::cout << "worker id : " << thread_id << " now retrying pending inserts " << std::endl;
+  alex::coutLock.unlock();
+#endif
+
+  while (!pending_insert.empty()) {
+    auto op_param = pending_insert.front();
+    pending_insert.pop_front();
+    std::pair<alex::Alex<KEY_TYPE, PAYLOAD_TYPE>::Iterator, bool> insert_result
+          = table->insert(keys[op_param.first], op_param.second, thread_id);
+    if (!insert_result.second) {
+      if (!insert_result.first.cur_leaf_ && !insert_result.first.cur_idx_) { 
+        //failed finding leaf
+        alex::coutLock.lock();
+        std::cout << "worker id : " << thread_id
+                  << " failed finding leaf to insert to." << std::endl;
+        alex::coutLock.unlock();
+      }
+      else if (!insert_result.first.cur_leaf_) {
+        //failed because leaf is being modified/resizing.
+#if DEBUG_PRINT
+        alex::coutLock.lock();
+        std::cout << "worker id : " << thread_id
+                  << " failed because node is being modified. Should do other op" << std::endl;
+        alex::coutLock.unlock();
+#endif
+        pending_insert.push_back(op_param);
+      }
+      else {
+        //failed because duplicates are not allowed.
+#if DEBUG_PRINT
+        alex::coutLock.lock();
+        std::cout << "worker id : " << thread_id
+                  << " failed because duplicate is not allowed" << std::endl;
+        alex::coutLock.unlock();
+#endif
+      }
+    }
+    else { //succeeded.
+      if (print_key_stats) {
+        alex::coutLock.lock();
+        std::cout << "t" << thread_id << " - ";
+        std::cout << "inserted key : ";
+        for (unsigned int j = 0; j < max_key_length; j++) {
+          std::cout << keys[op_param.first].key_arr_[j];
+        }
+        std::cout << std::endl;
+        alex::coutLock.unlock();
+      }
+      insert_cnt++;
+    }
   }
 
   delete[] lookup_keys;

@@ -1938,6 +1938,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   // 1 if no insert because of significant cost deviation.
   // 2 if no insert because of "catastrophic" cost.
   // 3 if no insert because node is at max capacity.
+  // 4 if we should expand.
   // -1 if key already exists and duplicates not allowed.
   //
   // First pair's second value in returned pair is position of inserted key, or of the
@@ -1946,8 +1947,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   //
   // second pair has original data node pointer, and maybe new data node pointer
   std::pair<std::pair<int, int>, std::pair<self_type *, self_type *>> insert(
-    const AlexKey<T>& key, const P& payload, 
-    uint32_t worker_id, std::vector<TraversalNode<T,P>> *traversal_path = nullptr) {
+    const AlexKey<T>& key, const P& payload, uint32_t worker_id) {
     // Periodically check for catastrophe
 #if DEBUG_PRINT
     //alex::coutLock.lock();
@@ -1971,100 +1971,40 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
       if (num_keys_ > max_slots_ * kMinDensity_) {
         return {{3, -1}, {this, nullptr}};
       }
-      // make new expanded node
 #if DEBUG_PRINT
       //alex::coutLock.lock();
       //std::cout << "t" << worker_id << " - ";
       //std::cout << "alex_nodes.h insert : resizing data node" << std::endl;
       //alex::coutLock.unlock();
 #endif
-      bool keep_left = is_append_mostly_right();
-      bool keep_right = is_append_mostly_left();
-      resized_data_node = resize(kMinDensity_, false, keep_left, keep_right);
-      this->unused.val_ = 1;
-      num_resizes_++;
+      //notify that it should expand.
+      return {{4, -1}, {this, nullptr}};
     }
 
     int insertion_position = -1;
-
-    if (resized_data_node) {
-      //made new expanded node, should insert at that node.
-      //also update model node's children_array.
-      resized_data_node->unused.lock();
-      int bucketID = traversal_path->back().bucketID;
-      int repeats = 1 << this->duplication_factor_;
-      int start_bucketID =
-          bucketID - (bucketID % repeats);
-      int end_bucketID = 
-          start_bucketID + repeats;
-      model_node_type *parent = resized_data_node->parent_;
-      parent->children_.lock();
-      child_elem_type* parent_new_children = new child_elem_type[parent->num_children_];
-      child_elem_type* parent_old_children = parent->children_.val_;
-      std::copy(parent_old_children, parent_old_children + parent->num_children_,
-                parent_new_children);
-      for (int i = start_bucketID; i < end_bucketID; i++) {
-        parent_new_children[i].node_ptr_ = resized_data_node;
-        parent_new_children[i].duplication_factor_ = resized_data_node->duplication_factor_;
-      }
 #if DEBUG_PRINT
-          alex::coutLock.lock();
-          std::cout << "t" << worker_id << " - ";
-          std::cout << "alex_nodes.h resized node and updated children_" << std::endl;
-          //for (int i = 0; i < parent->num_children_; i++) {
-          //  std::cout << i << " : " << parent_new_children[i].node_ptr_ << std::endl;
-          //}
-          alex::coutLock.unlock();
+    alex::coutLock.lock();
+    std::cout << "t" << worker_id << " - ";
+    std::cout << "alex_nodes.h insert : resizing didn't happened and inserting." << std::endl;
+    alex::coutLock.unlock();
 #endif
-      parent->children_.val_ = parent_new_children;
-      parent->children_.unlock();
-      parent->old_childrens_lock.lock();
-      parent->old_childrens_.insert({worker_id, parent_old_children});
-      parent->old_childrens_lock.unlock();
-
-      std::pair<int, int> positions = resized_data_node->find_insert_position(key);
-      int upper_bound_pos = positions.second;
-      if (!(allow_duplicates) && upper_bound_pos > 0 &&
-          resized_data_node->key_equal(resized_data_node->key_slots_[upper_bound_pos - 1], key)) {
-        return {{-1, upper_bound_pos - 1}, {this, resized_data_node}};
-      }
-      insertion_position = positions.first;
-      if (insertion_position < resized_data_node->data_capacity_ &&
-          !resized_data_node->check_exists(insertion_position)) {
-        resized_data_node->insert_element_at(key, payload, insertion_position, 1);
-      } else {
-        insertion_position =
-            resized_data_node->insert_using_shifts(key, payload, insertion_position);
-      }
-      // Update stats
-      resized_data_node->num_keys_++;
-      resized_data_node->num_inserts_++;
+    std::pair<int, int> positions = find_insert_position(key);
+    int upper_bound_pos = positions.second;
+    if (!allow_duplicates && upper_bound_pos > 0 &&
+        key_equal(ALEX_DATA_NODE_KEY_AT(upper_bound_pos - 1), key)) {
+      return {{-1, upper_bound_pos - 1}, {this, nullptr}};
     }
-    else {//should insert at current node.
-#if DEBUG_PRINT
-      alex::coutLock.lock();
-      std::cout << "t" << worker_id << " - ";
-      std::cout << "alex_nodes.h insert : resizing didn't happened and inserting." << std::endl;
-      alex::coutLock.unlock();
-#endif
-      std::pair<int, int> positions = find_insert_position(key);
-      int upper_bound_pos = positions.second;
-      if (!allow_duplicates && upper_bound_pos > 0 &&
-          key_equal(ALEX_DATA_NODE_KEY_AT(upper_bound_pos - 1), key)) {
-        return {{-1, upper_bound_pos - 1}, {this, nullptr}};
-      }
-      insertion_position = positions.first;
-      if (insertion_position < data_capacity_ &&
-          !check_exists(insertion_position)) {
-        insert_element_at(key, payload, insertion_position, 1);
-      } else {
-        insertion_position =
-            insert_using_shifts(key, payload, insertion_position);
-      }
-      // Update stats
-      num_keys_++;
-      num_inserts_++;
+    insertion_position = positions.first;
+    if (insertion_position < data_capacity_ &&
+        !check_exists(insertion_position)) {
+      insert_element_at(key, payload, insertion_position, 1);
+    } else {
+      insertion_position =
+          insert_using_shifts(key, payload, insertion_position);
     }
+    // Update stats
+    num_keys_++;
+    num_inserts_++;
     
     return {{0, insertion_position}, {this, resized_data_node}};
   }
