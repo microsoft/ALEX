@@ -403,6 +403,7 @@ int find_best_fanout_existing_node(AlexDataNode<T, P>* node, int total_keys,
     int right_boundary = 0;
     for (int i = 0; i < fanout; i++) {
       left_boundary = right_boundary;
+      typename AlexDataNode<T, P>::const_iterator_type it(node, left_boundary);
       if (i == fanout - 1) {right_boundary = node->data_capacity_;}
       else {
         if (typeid(char) != typeid(T)) { /* numeric key */
@@ -414,18 +415,10 @@ int find_best_fanout_existing_node(AlexDataNode<T, P>* node, int total_keys,
           /* we iterate through the key array to find the smallest key resulting to i + 1*/
           char flag = 1;
           AlexKey<T> tmpkey = AlexKey<T>(node->max_key_length_);
-          for (int key_arr_idx = left_boundary; key_arr_idx < node->data_capacity_; key_arr_idx++) {
-#if ALEX_DATA_NODE_SEP_ARRAYS
-            tmpkey = node->key_slots_[key_arr_idx];
-#else
-            tmpkey = node->data_slots_[key_arr_idx].first;
-#endif
-            if (node->key_equal(tmpkey, node->kEndSentinel_)) {
-              continue;
-            }
-            else if (node->model_.predict(tmpkey) >= i+1) {
+          for (; !it.is_end(); it++) {
+            if (node->model_.predict(it.key()) >= i+1) {
               flag = 0;
-              right_boundary = key_arr_idx;
+              right_boundary = it.cur_idx_;
               break;
             }
           }
@@ -441,7 +434,7 @@ int find_best_fanout_existing_node(AlexDataNode<T, P>* node, int total_keys,
       }
       int num_actual_keys = 0;
       LinearModel<T> model(node->max_key_length_);
-      typename AlexDataNode<T, P>::const_iterator_type it(node, left_boundary);
+      it = typename AlexDataNode<T, P>::const_iterator_type(node, left_boundary);
       LinearModelBuilder<T> builder(&model);
       for (int j = 0; it.cur_idx_ < right_boundary && !it.is_end(); it++, j++) {
         builder.add(it.key(), j);
