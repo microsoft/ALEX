@@ -1015,8 +1015,9 @@ void rcu_barrier() {
     prev_status[w_i] = config.rcu_status[w_i].status;
   }
   for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
-    while (config.rcu_status[w_i].status <= prev_status[w_i] && 
-           !config.rcu_status[w_i].waiting && !config.exited)
+    while (!config.rcu_status[w_i].waiting
+           && config.rcu_status[w_i].status <= prev_status[w_i]
+           && !config.exited)
       ;
   }
 }
@@ -1037,8 +1038,9 @@ void rcu_barrier(const uint32_t worker_id) {
   }
   for (size_t w_i = 0; w_i < config.worker_n; w_i++) {
     // skipped workers that is wating for barrier (include myself)
-    while (config.rcu_status[w_i].status <= prev_status[w_i] &&
-           !config.rcu_status[w_i].waiting && !config.exited)
+    while ( !config.rcu_status[w_i].waiting &&
+            config.rcu_status[w_i].status <= prev_status[w_i] &&
+            !config.exited)
       ;
   }
   config.rcu_status[worker_id].waiting = false;  // restore my state

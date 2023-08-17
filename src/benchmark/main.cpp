@@ -311,7 +311,7 @@ void *run_fg(void *param) {
 #if DEBUG_PRINT
           alex::coutLock.lock();
           std::cout << "worker id : " << thread_id
-                    << " failed because node being modified." << std::endl;
+                    << " failed because node being modified. Should do other op" << std::endl;
           alex::coutLock.unlock();
 #endif
           pending_insert.push_back({insertion_index++, val});
@@ -414,7 +414,7 @@ void *run_fg(void *param) {
 #if DEBUG_PRINT
         alex::coutLock.lock();
         std::cout << "worker id : " << thread_id
-                  << " failed because node is being modified. Should do other op" << std::endl;
+                  << " failed because node being modified. re-insertion post-poned" << std::endl;
         alex::coutLock.unlock();
 #endif
         pending_insert.push_back(op_param);
@@ -447,6 +447,13 @@ void *run_fg(void *param) {
   delete[] lookup_keys;
 
   alex::config.rcu_status[thread_id].waiting = true;
+
+#if DEBUG_PRINT
+  alex::coutLock.lock();
+  std::cout << "worker id : " << thread_id
+            << " finished" << std::endl;
+  alex::coutLock.unlock();
+#endif
 
   pthread_exit(nullptr);
 }

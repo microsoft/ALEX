@@ -2074,6 +2074,12 @@ EmptyNodeStart:
     data_node_type *leaf = Eparam->leaf;
     uint32_t worker_id = Eparam->worker_id;
 
+#if DEBUG_PRINT
+    alex::coutLock.lock();
+    std::cout << "t" << worker_id << " - failed and made a thread to modify node" << std::endl;
+    alex::coutLock.unlock();
+#endif
+
     leaf->resize(data_node_type::kMinDensity_, false,
                   leaf->is_append_mostly_right(),
                   leaf->is_append_mostly_left());
@@ -2116,10 +2122,10 @@ EmptyNodeStart:
     this_ptr->stats_.num_expand_and_scales.add(leaf->num_resizes_);
 
 #if DEBUG_PRINT
-        alex::coutLock.lock();
-        std::cout << "t" << worker_id << "'s generated thread - ";
-        std::cout << "bucketID : " << bucketID << std::endl;
-        alex::coutLock.unlock();
+    alex::coutLock.lock();
+    std::cout << "t" << worker_id << "'s generated thread - ";
+    std::cout << "bucketID : " << bucketID << std::endl;
+    alex::coutLock.unlock();
 #endif
 
     std::vector<fanout_tree::FTNode> used_fanout_tree_nodes;
@@ -2129,10 +2135,18 @@ EmptyNodeStart:
           leaf, this_ptr->stats_.num_keys.read(), used_fanout_tree_nodes, 2, worker_id);
               
     int best_fanout = 1 << fanout_tree_depth;
+    auto cur_time = std::chrono::high_resolution_clock::now();
     this_ptr->stats_.cost_computation_time.add(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::high_resolution_clock::now() - start_time)
-            .count());
+        std::chrono::duration_cast<std::chrono::nanoseconds>(cur_time - start_time).count());
+
+#if DEBUG_PRINT
+    alex::coutLock.lock();
+    std::cout << "t" << worker_id << "'s generated thread - ";
+    std::cout << "best fanout computation took "
+              << std::chrono::duration_cast<std::chrono::nanoseconds>(cur_time - start_time).count()
+              << "ns" << std::endl;
+    alex::coutLock.unlock();
+#endif
 
     if (fanout_tree_depth == 0) {
 #if DEBUG_PRINT
@@ -2161,8 +2175,10 @@ EmptyNodeStart:
       memory_fence();
 #if DEBUG_PRINT
       alex::coutLock.lock();
-      std::cout << "t" << worker_id << "'s generated thread - ";
-      std::cout << "alex.h expanded data node" << std::endl;
+      std::cout << "t" << worker_id << "'s generated thread - "
+                << "alex.h expanded data node\nexpansion took : "
+                << std::chrono::duration_cast<std::chrono::nanoseconds>(
+                   std::chrono::high_resolution_clock::now() - cur_time).count() << "ns\n";
       std::cout << std::flush;
       alex::coutLock.unlock();
 #endif
@@ -2195,6 +2211,15 @@ EmptyNodeStart:
         split_sideways(parent, bucketID, fanout_tree_depth, used_fanout_tree_nodes,
                        reuse_model, worker_id, this_ptr);
       }
+#if DEBUG_PRINT
+      alex::coutLock.lock();
+      std::cout << "t" << worker_id << "'s generated thread - "
+                << "alex.h split sideways/downwards took : "
+                << std::chrono::duration_cast<std::chrono::nanoseconds>(
+                   std::chrono::high_resolution_clock::now() - cur_time).count() << "ns\n";
+      std::cout << std::flush;
+      alex::coutLock.unlock();
+#endif
     }
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = end_time - start_time;
