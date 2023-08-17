@@ -639,8 +639,8 @@ Initialization:
             std::cout << "metadata changed, restarting insertion." << std::endl;
             alex::coutLock.unlock();
 #endif
-            goto Initialization;
             rcu_progress(worker_id);
+            goto Initialization;
           }
           else { //continue with same metadata.
             cur = cur_children[bucketID].node_ptr_; 
@@ -712,21 +712,10 @@ Initialization:
               cur->max_key_.unlock();
               rcu_barrier(worker_id);
               delete old_max_key;
-              //when calling rcu_barrier, structure of model node could have changed
-              //or our original leaf node could have changed to new leaf node.
+              //when calling rcu_barrier our original leaf node could have changed to new leaf node.
               //we should check it, and if it changed... we should do the whole search again(...)
               prev_children = cur_children;
               cur_children = node->children_.read();
-              if (prev_children != cur_children) {
-#if DEBUG_PRINT
-              alex::coutLock.lock();
-              std::cout << "t" << worker_id << " - ";
-              std::cout << "children changed" << std::endl;
-              alex::coutLock.unlock();
-#endif
-                rcu_progress(worker_id);
-                goto Initialization;
-              }
               node_type *after_rcu_cur_next = cur_children[cur_bucketID].node_ptr_;
               if (after_rcu_cur_next != cur) {
 #if DEBUG_PRINT
@@ -809,21 +798,10 @@ EmptyNodeStart:
                 delete old_max_key;
                 delete old_min_key;
 
-                //when calling rcu_barrier, structure of model node could have changed
-                //or our original leaf node could have changed to new leaf node.
+                //when calling rcu_barrier our original leaf node could have changed to new leaf node.
                 //we should check it, and if it changed... we should do the whole search again(...)
                 prev_children = cur_children;
                 cur_children = node->children_.read();
-                if (prev_children != cur_children) {
-#if DEBUG_PRINT
-                  alex::coutLock.lock();
-                  std::cout << "t" << worker_id << " - ";
-                  std::cout << "children changed" << std::endl;
-                  alex::coutLock.unlock();
-#endif
-                  rcu_progress(worker_id);
-                  goto Initialization;
-                }
                 node_type *after_rcu_cur_next = cur_children[cur_next_bucketID].node_ptr_;
                 if (after_rcu_cur_next != cur_next) {
 #if DEBUG_PRINT
@@ -910,21 +888,10 @@ EmptyNodeStart:
                 rcu_barrier(worker_id);
                 delete old_max_key;
                 delete old_min_key;
-                //when calling rcu_barrier, structure of model node could have changed
-                //or our original leaf node could have changed to new leaf node.
+                //when calling rcu_barrier, our original leaf node could have changed to new leaf node.
                 //we should check it, and if it changed... we should do the whole search again(...)
                 prev_children = cur_children;
                 cur_children = node->children_.read();
-                if (prev_children != cur_children) {
-#if DEBUG_PRINT
-                  alex::coutLock.lock();
-                  std::cout << "t" << worker_id << " - ";
-                  std::cout << "children changed" << std::endl;
-                  alex::coutLock.unlock();
-#endif
-                  rcu_progress(worker_id);
-                  goto Initialization;
-                }
                 node_type *after_rcu_cur_next = cur_children[cur_next_bucketID].node_ptr_;
                 if (after_rcu_cur_next != cur_next) {
 #if DEBUG_PRINT
@@ -999,21 +966,10 @@ EmptyNodeStart:
               cur_next->max_key_.unlock();
               rcu_barrier(worker_id);
               delete old_max_key;
-              //when calling rcu_barrier, structure of model node could have changed
-              //or our original leaf node could have changed to new leaf node.
+              //when calling rcu_barrier, our original leaf node could have changed to new leaf node.
               //we should check it, and if it changed... we should do the whole search again(...)
               prev_children = cur_children;
               cur_children = node->children_.read();
-              if (prev_children != cur_children) {
-#if DEBUG_PRINT
-                alex::coutLock.lock();
-                std::cout << "t" << worker_id << " - ";
-                std::cout << "metadata changed" << std::endl;
-                alex::coutLock.unlock();
-#endif
-                rcu_progress(worker_id);
-                goto Initialization;
-              }
               node_type *after_rcu_cur = cur_children[cur_bucketID].node_ptr_;
               if (after_rcu_cur != cur) {
 #if DEBUG_PRINT
@@ -2227,7 +2183,7 @@ EmptyNodeStart:
         std::cout << "failed and decided to split downwards" << std::endl;
         alex::coutLock.unlock();
 #endif
-        parent = split_downwards(parent, bucketID, fanout_tree_depth, used_fanout_tree_nodes,
+        split_downwards(parent, bucketID, fanout_tree_depth, used_fanout_tree_nodes,
                                  reuse_model, worker_id, this_ptr);
       } else {
 #if DEBUG_PRINT
@@ -2258,7 +2214,7 @@ EmptyNodeStart:
   // the pointers of the parent.
   // If no fanout tree is provided, then splits downward in two. Returns the
   // newly created model node.
-  static model_node_type* split_downwards(
+  static void split_downwards(
       model_node_type* parent, int bucketID, int fanout_tree_depth,
       std::vector<fanout_tree::FTNode>& used_fanout_tree_nodes,
       bool reuse_model, uint32_t worker_id, self_type *this_ptr) {
@@ -2389,8 +2345,6 @@ EmptyNodeStart:
     this_ptr->delete_node(leaf);
     delete parent_old_children;
     delete switched_children;
-
-    return new_node;
   }
 
   // Splits data node sideways in the manner determined by the fanout tree.

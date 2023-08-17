@@ -392,6 +392,13 @@ void *run_fg(void *param) {
   while (!pending_insert.empty()) {
     auto op_param = pending_insert.front();
     pending_insert.pop_front();
+#if DEBUG_PRINT
+    alex::coutLock.lock();
+    std::cout << '\n';
+    //std::cout << "current insertion_index is : " << insertion_index << std::endl;
+    std::cout << "worker id : " << thread_id << " re-inserting " << keys[op_param.first].key_arr_ << std::endl;
+    alex::coutLock.unlock();
+#endif
     std::pair<alex::Alex<KEY_TYPE, PAYLOAD_TYPE>::Iterator, bool> insert_result
           = table->insert(keys[op_param.first], op_param.second, thread_id);
     if (!insert_result.second) {

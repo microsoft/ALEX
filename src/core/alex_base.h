@@ -119,9 +119,11 @@ class AlexKey {
 
   AlexKey<T>& operator=(const AlexKey<T>& other) {
     if (this != &other) {
-      delete[] key_arr_;
+      if ((key_arr_ == nullptr) || (max_key_length_ != other.max_key_length_)) {
+        delete[] key_arr_;
+        key_arr_ = new T[other.max_key_length_];
+      }
       max_key_length_ = other.max_key_length_;
-      key_arr_ = new T[other.max_key_length_];
       std::copy(other.key_arr_, other.key_arr_ + other.max_key_length_, key_arr_);
     }
     return *this;
