@@ -425,12 +425,12 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
   int bitmap_size_ = 0;  // number of int64_t in bitmap
 
   // Variables related to resizing (expansions and contractions)
-  static constexpr double kMaxDensity_ = 0.8;  // density after contracting,
+  static constexpr double kMaxDensity_ = 0.9;  // density after contracting,
                                                // also determines the expansion
                                                // threshold
   static constexpr double kInitDensity_ =
-      0.7;  // density of data nodes after bulk loading
-  static constexpr double kMinDensity_ = 0.6;  // density after expanding, also
+      0.2;  // density of data nodes after bulk loading
+  static constexpr double kMinDensity_ = 0.2;  // density after expanding, also
                                                // determines the contraction
                                                // threshold
   double expansion_threshold_ = 1;  // expand after m_num_keys is >= this number
@@ -1967,12 +1967,12 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
     self_type *resized_data_node = nullptr;
     // Check if node is full (based on expansion_threshold)
     if (num_keys_ >= expansion_threshold_) {
-      if (significant_cost_deviation()) {
-        return {{1, -1}, {this, nullptr}};
-      }
-      if (catastrophic_cost()) {
-        return {{2, -1}, {this, nullptr}};
-      }
+      //if (significant_cost_deviation()) {
+      //  return {{1, -1}, {this, nullptr}};
+      //}
+      //if (catastrophic_cost()) {
+      //  return {{2, -1}, {this, nullptr}};
+      //}
       if (num_keys_ > max_slots_ * kMinDensity_) {
         return {{3, -1}, {this, nullptr}};
       }
