@@ -41,7 +41,8 @@ double insertion_ratio = 0.0;
 std::string lookup_distribution;
 uint64_t max_key_length = 1;
 bool print_key_stats = false;
-bool strict_run = false;
+bool strict_read = false;
+bool strict_write = false;
 uint64_t total_num_keys = 1;
 uint32_t td_num = 1;
 uint64_t num_actual_ops_perth;
@@ -81,7 +82,8 @@ int main(int argc, char* argv[]) {
   max_key_length = (unsigned int) stoul(get_with_default(flags, "max_key_length", "1"));
   bool print_batch_stats = get_boolean_flag(flags, "print_batch_stats");
   print_key_stats = get_boolean_flag(flags, "print_key_stats");
-  strict_run = get_boolean_flag(flags, "strict_run");
+  strict_read = get_boolean_flag(flags, "strict_read");
+  strict_write = get_boolean_flag(flags, "strict_write");
 
   // Allocation for key containers.
   keys = new alex::AlexKey<KEY_TYPE>[total_num_keys];
@@ -304,7 +306,14 @@ void *run_fg(void *param) {
           alex::coutLock.lock();
           std::cout << "worker id : " << thread_id
                     << " failed finding leaf to insert to." << std::endl;
+          if (strict_write) {
+            std::cout << "aborting" << std::endl;
+            abort();
+            alex::coutLock.unlock();
+          }
           alex::coutLock.unlock();
+          ++insert_cnt;
+          ++insertion_index;
         }
         else if (!insert_result.first.cur_leaf_) {
           //failed because leaf is being modified/resizing.
@@ -318,12 +327,11 @@ void *run_fg(void *param) {
         }
         else {
           //failed because duplicates are not allowed.
-#if DEBUG_PRINT
           alex::coutLock.lock();
           std::cout << "worker id : " << thread_id
-                    << " failed because duplicate is not allowed" << std::endl;
+                    << " failed because duplicate is not allowed. aborting" << std::endl;
           alex::coutLock.unlock();
-#endif
+          abort();
         }
       }
       else { //succeeded.
@@ -365,17 +373,15 @@ void *run_fg(void *param) {
           std::cout << " payload is : " << payload.second << std::endl;
           alex::coutLock.unlock();
         }
-        else if (strict_run) {
-          alex::coutLock.lock();
-          std::cout << "t" << thread_id << " - ";
-          std::cout << "failed finding payload. aborting." << std::endl;
-          alex::coutLock.unlock();
-          abort();
-        }
         else {
           alex::coutLock.lock();
           std::cout << "t" << thread_id << " - ";
-          std::cout << "failed finding payload" << std::endl;
+          std::cout << "failed finding payload." << std::endl;
+          if (strict_read) {
+            std::cout << "aborting" << std::endl;
+            alex::coutLock.unlock();
+            abort();
+          }
           alex::coutLock.unlock();
         }
       }
