@@ -57,15 +57,17 @@ uint64_t num_actual_inserts_perth;
  * --total_num_keys         total number of keys in the keys file
  * --batch_size             number of operations (lookup or insert) per batch for all threads
  * --thread_num             number of threads
+ * 
  * Optional flags:
  * --insert_frac            fraction of operations that are inserts (instead of
  * lookups)
  * --lookup_distribution    lookup keys distribution (options: uniform or zipf)
  * --time_limit             time limit, in minutes
- * --max_key_length         length of key for string type keys.
+ * --max_key_length         length of key for string type keys
  * --print_batch_stats      whether to output stats for each batch
  * --print_key_stats        key related stat print
- * --strict_run             abort when failed finding payload
+ * --strict_read            abort when failed finding payload
+ * --strict_insert          abort when failed finding leaf node to insert key
  */
 int main(int argc, char* argv[]) {
   auto flags = parse_flags(argc, argv);
