@@ -508,17 +508,18 @@ Initialization:
       memory_fence();
       int cur_duplication_factor = 1 << cur_children[bucketID].duplication_factor_;
       memory_fence();
+      bucketID = bucketID - (bucketID % cur_duplication_factor);
 
 #if DEBUG_PRINT
-        //alex::coutLock.lock();
-        //std::cout << "t" << worker_id << " - ";
-        //std::cout << "current bucket : " << bucketID << std::endl;
+        alex::coutLock.lock();
+        std::cout << "t" << worker_id << " - ";
+        std::cout << "initial bucket : " << bucketID << std::endl;
         //std::cout << "current key max length : " << key.max_key_length_ << std::endl;
         //std::cout << "lb max length : " << cur->min_key_.val_->max_key_length_ << std::endl;
         //std::cout << "ub max length : " << cur->max_key_.val_->max_key_length_ << std::endl;
         //std::cout << "min_key : " << cur->min_key_.read() << std::endl;
         //std::cout << "max_key : " << cur->max_key_.read() << std::endl;
-        //alex::coutLock.unlock();
+        alex::coutLock.unlock();
 #endif
 
       AlexKey<T> min_tmp_key(istats_.key_domain_min_, max_key_length_);
@@ -535,10 +536,9 @@ Initialization:
         while (smaller_than_min || larger_than_max) {
           if (smaller_than_min && larger_than_max) {
             //empty node. move according to direction.
-            //could start at empty node, in this case, move left (since larger key is not possible)
-            //SHOULD FIND OUT FAST SEARCHING USING NUMBER OF DUPLICATE POINTER
+            //could start at empty node, in this case, move left unless we're at the left end at start.
             was_walking_in_empty = 1;
-            if (dir == 1) {
+            if (dir == 1 || (dir == 0 && bucketID == 0)) {
               bucketID = bucketID - (bucketID % cur_duplication_factor) + cur_duplication_factor;
               if (bucketID > num_children-1) {return nullptr;} //out of bound
               dir = 1;
@@ -625,7 +625,7 @@ Initialization:
           //alex::coutLock.unlock();
 #endif
           bucketID = bucketID - (bucketID % cur_duplication_factor);
-          if (bucketID == 0) {return nullptr;}
+          if (bucketID == 0) {break;} //leftest node. we start from here.
           bucketID -= 1;
           rcu_progress(worker_id);
           prev_children = cur_children;
@@ -2077,6 +2077,7 @@ EmptyNodeStart:
 #if DEBUG_PRINT
     alex::coutLock.lock();
     std::cout << "t" << worker_id << " - failed and made a thread to modify node" << std::endl;
+    std::cout << "parent is : " << leaf->parent_ << std::endl;
     alex::coutLock.unlock();
 #endif
 
@@ -2086,7 +2087,7 @@ EmptyNodeStart:
 
 #if DEBUG_PRINT
     alex::coutLock.lock();
-    std::cout << "t" << worker_id << "'s generated thread - ";
+    std::cout << "t" << worker_id << "'s generated thread for parent " << leaf->parent_ << " - ";
     std::cout << "alex.h expanded data node" << std::endl;
     alex::coutLock.unlock();
 #endif
@@ -2123,7 +2124,7 @@ EmptyNodeStart:
 
 #if DEBUG_PRINT
     alex::coutLock.lock();
-    std::cout << "t" << worker_id << "'s generated thread - ";
+    std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
     std::cout << "bucketID : " << bucketID << std::endl;
     alex::coutLock.unlock();
 #endif
@@ -2141,7 +2142,7 @@ EmptyNodeStart:
 
 #if DEBUG_PRINT
     alex::coutLock.lock();
-    std::cout << "t" << worker_id << "'s generated thread - ";
+    std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
     std::cout << "best fanout computation took "
               << std::chrono::duration_cast<std::chrono::nanoseconds>(cur_time - start_time).count()
               << "ns" << std::endl;
@@ -2151,7 +2152,7 @@ EmptyNodeStart:
     if (fanout_tree_depth == 0) {
 #if DEBUG_PRINT
       alex::coutLock.lock();
-      std::cout << "t" << worker_id << "'s generated thread - ";
+      std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
       std::cout << "failed and decided to expand" << std::endl;
       alex::coutLock.unlock();
 #endif
@@ -2175,7 +2176,7 @@ EmptyNodeStart:
       memory_fence();
 #if DEBUG_PRINT
       alex::coutLock.lock();
-      std::cout << "t" << worker_id << "'s generated thread - "
+      std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - "
                 << "alex.h expanded data node\nexpansion took : "
                 << std::chrono::duration_cast<std::chrono::nanoseconds>(
                    std::chrono::high_resolution_clock::now() - cur_time).count() << "ns\n";
@@ -2195,7 +2196,7 @@ EmptyNodeStart:
       if (should_split_downwards) {
 #if DEBUG_PRINT
         alex::coutLock.lock();
-        std::cout << "t" << worker_id << "'s generated thread - ";
+        std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
         std::cout << "failed and decided to split downwards" << std::endl;
         alex::coutLock.unlock();
 #endif
@@ -2204,7 +2205,7 @@ EmptyNodeStart:
       } else {
 #if DEBUG_PRINT
         alex::coutLock.lock();
-        std::cout << "t" << worker_id << "'s generated thread - ";
+        std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
         std::cout << "failed and decided to split sideways" << std::endl;
         alex::coutLock.unlock();
 #endif
@@ -2213,7 +2214,7 @@ EmptyNodeStart:
       }
 #if DEBUG_PRINT
       alex::coutLock.lock();
-      std::cout << "t" << worker_id << "'s generated thread - "
+      std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - "
                 << "alex.h split sideways/downwards took : "
                 << std::chrono::duration_cast<std::chrono::nanoseconds>(
                    std::chrono::high_resolution_clock::now() - cur_time).count() << "ns\n";
@@ -2245,7 +2246,7 @@ EmptyNodeStart:
       bool reuse_model, uint32_t worker_id, self_type *this_ptr) {
 #if DEBUG_PRINT
     alex::coutLock.lock();
-    std::cout << "t" << worker_id << "'s generated thread - ";
+    std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
     std::cout << "...bucketID : " << bucketID << std::endl;
     alex::coutLock.unlock();
 #endif
@@ -2253,7 +2254,7 @@ EmptyNodeStart:
     auto leaf = static_cast<data_node_type*> (parent_children_[bucketID].node_ptr_);
 #if DEBUG_PRINT
     alex::coutLock.lock();
-    std::cout << "t" << worker_id << "'s generated thread - ";
+    std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
     std::cout << "and leaf is : " << leaf << std::endl;
     alex::coutLock.unlock();
 #endif
@@ -2332,7 +2333,7 @@ EmptyNodeStart:
     }
 #if DEBUG_PRINT
     alex::coutLock.lock();
-    std::cout << "t" << worker_id << "'s generated thread - ";
+    std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
     std::cout << "split_downwards parent children_\n";
     for (int i = 0; i < parent->num_children_; i++) {
       std::cout << i << " : " << parent_new_children[i].node_ptr_ << '\n';
@@ -2343,7 +2344,7 @@ EmptyNodeStart:
     parent->children_.val_ = parent_new_children;
 #if DEBUG_PRINT
     alex::coutLock.lock();
-    std::cout << "t" << worker_id << "'s generated thread - ";
+    std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
     std::cout << "min_key_(model_node) : " << new_node->min_key_.val_->key_arr_ << '\n';
     std::cout << "max_key_(model_node) : " << new_node->max_key_.val_->key_arr_ << '\n';
     for (int i = 0; i < fanout; i++) {
@@ -2359,7 +2360,8 @@ EmptyNodeStart:
     if (parent == this_ptr->superroot_) {
 #if DEBUG_PRINT
       alex::coutLock.lock();
-      std::cout << "t" << worker_id << "'s generated thread - root node splitted downwards" << std::endl;
+      std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - "
+                << "root node splitted downwards" << std::endl;
       alex::coutLock.unlock();
 #endif
       this_ptr->root_node_ = new_node;
@@ -2431,7 +2433,7 @@ EmptyNodeStart:
                                  self_type *this_ptr, int start_bucketID = 0) {
 #if DEBUG_PRINT
     //alex::coutLock.lock();
-    //std::cout << "t" << worker_id << "'s generated thread - ";
+    //std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
     //std::cout << "called create_two_new_dn" << std::endl;
     //alex::coutLock.unlock();
 #endif
@@ -2506,7 +2508,7 @@ EmptyNodeStart:
     }
 #if DEBUG_PRINT
       alex::coutLock.lock();
-      std::cout << "t" << worker_id << "'s generated thread - ";
+      std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
       std::cout << "two new data node made with left min/max as "
                 << left_leaf->min_key_.val_->key_arr_
                 << " " << left_leaf->max_key_.val_->key_arr_
@@ -2521,7 +2523,7 @@ EmptyNodeStart:
     this_ptr->link_data_nodes(old_node, left_leaf, right_leaf);
 #if DEBUG_PRINT
     //alex::coutLock.lock();
-    //std::cout << "t" << worker_id << "'s generated thread - ";
+    //std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
     //std::cout << "finished create_two_new_dn" << std::endl;
     //alex::coutLock.unlock();
 #endif
@@ -2542,7 +2544,7 @@ EmptyNodeStart:
       int start_bucketID = 0, int extra_duplication_factor = 0) {
 #if DEBUG_PRINT
     //alex::coutLock.lock();
-    //std::cout << "t" << worker_id << "'s generated thread - ";
+    //std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
     //std::cout << "called create_new_dn" << std::endl;
     //std::cout << "old node is " << old_node << std::endl;
     //alex::coutLock.unlock();
@@ -2560,7 +2562,7 @@ EmptyNodeStart:
     int cur = start_bucketID;  // first bucket with same child
 #if DEBUG_PRINT
     alex::coutLock.lock();
-    std::cout << "t" << worker_id << "'s generated thread - ";
+    std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
     std::cout << "starting bucket is" << start_bucketID << std::endl;
     alex::coutLock.unlock();
 #endif
@@ -2568,7 +2570,7 @@ EmptyNodeStart:
         old_node->prev_leaf_.read();  // used for linking the new data nodes
 #if DEBUG_PRINT
     alex::coutLock.lock();
-    std::cout << "t" << worker_id << "'s generated thread - ";
+    std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
     std::cout << "initial prev_leaf is : " << prev_leaf << std::endl;
     alex::coutLock.unlock();
 #endif
@@ -2612,7 +2614,7 @@ EmptyNodeStart:
           keep_left, keep_right);
 #if DEBUG_PRINT
       alex::coutLock.lock();
-      std::cout << "t" << worker_id << "'s generated thread - ";
+      std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
       std::cout << "child_node pointer : " << child_node << std::endl;
       alex::coutLock.unlock();
 #endif
@@ -2627,7 +2629,7 @@ EmptyNodeStart:
         old_node->pending_left_leaf_.update(child_node);
 #if DEBUG_PRINT
         //alex::coutLock.lock();
-        //std::cout << "t" << worker_id << "'s generated thread - ";
+        //std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
         //std::cout << "updated pll with " << child_node << std::endl;
         //alex::coutLock.unlock();
 #endif
@@ -2640,7 +2642,7 @@ EmptyNodeStart:
           else {
 #if DEBUG_PRINT
             alex::coutLock.lock();
-            std::cout << "t" << worker_id << "'s generated thread - ";
+            std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
             std::cout << "child_node's prev_leaf_ is " << prev_leaf << std::endl;
             alex::coutLock.unlock();
 #endif
@@ -2656,7 +2658,7 @@ EmptyNodeStart:
       else {
 #if DEBUG_PRINT
         alex::coutLock.lock();
-        std::cout << "t" << worker_id << "'s generated thread - ";
+        std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
         std::cout << "child_node's prev_leaf_ is " << prev_leaf << std::endl;
         alex::coutLock.unlock();
 #endif
@@ -2674,7 +2676,7 @@ EmptyNodeStart:
       prev_leaf = child_node;
 #if DEBUG_PRINT
       alex::coutLock.lock();
-      std::cout << "t" << worker_id << "'s generated thread - ";
+      std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
       std::cout << "new data node made with min_key as "
                 << child_node->min_key_.val_->key_arr_
                 << " and max_key as "
@@ -2685,7 +2687,7 @@ EmptyNodeStart:
     }
 #if DEBUG_PRINT
       alex::coutLock.lock();
-      std::cout << "t" << worker_id << "'s generated thread - ";
+      std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
       std::cout << "cndn children_\n";
       for (int i = 0 ; i < parent->num_children_; i++) {
         std::cout << i << " : " << parent_new_children[i].node_ptr_ << '\n';
@@ -2700,7 +2702,7 @@ EmptyNodeStart:
     old_node->pending_right_leaf_.update(prev_leaf);
 #if DEBUG_PRINT
     //alex::coutLock.lock();
-    //std::cout << "t" << worker_id << "'s generated thread - ";
+    //std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
     //std::cout << "updated prl with " << prev_leaf << std::endl;
     //alex::coutLock.unlock();
 #endif
@@ -2721,7 +2723,7 @@ EmptyNodeStart:
     }
 #if DEBUG_PRINT
     alex::coutLock.lock();
-    std::cout << "t" << worker_id << "'s generated thread - ";
+    std::cout << "t" << worker_id << "'s generated thread for parent " << parent << " - ";
     std::cout << "finished create_new_dn" << std::endl;
     alex::coutLock.unlock();
 #endif
