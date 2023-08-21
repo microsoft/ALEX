@@ -59,8 +59,7 @@ uint64_t num_actual_inserts_perth;
  * --thread_num             number of threads
  * 
  * Optional flags:
- * --insert_frac            fraction of operations that are inserts (instead of
- * lookups)
+ * --insert_frac            fraction of operations that are inserts (instead of lookups)
  * --lookup_distribution    lookup keys distribution (options: uniform or zipf)
  * --time_limit             time limit, in minutes
  * --max_key_length         length of key for string type keys
