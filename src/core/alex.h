@@ -10,7 +10,6 @@
  * - Alex()
  * - void bulk_load(V values[], int num_keys)
  * - void insert(T key, P payload)
- * - Iterator find(T key)  // for exact match
  * - Iterator begin()
  * - Iterator end()
  * - Iterator lower_bound(T key)
@@ -1658,40 +1657,6 @@ EmptyNodeStart:
 
   /*** Lookup ***/
 
- public:
-  // Looks for an exact match of the key
-  // If the key does not exist, returns an end iterator
-  // If there are multiple keys with the same value, returns an iterator to the
-  // right-most key
-  // If you instead want an iterator to the left-most key with the input value,
-  // use lower_bound()
-  // WARNING : iterator may cause error if other threads are also operating on ALEX
-  // NOTE : the user should adequately call rcu_progress with thread_id for proper progress
-  //        or use it when no other thread is working on ALEX.
-  typename self_type::Iterator find(const AlexKey<T>& key) {
-    stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key, 0);
-    if (leaf == nullptr) {return end();} //error when finding key.
-    int idx = leaf->find_key(key);
-    if (idx < 0) {
-      return end();
-    } else {
-      return Iterator(leaf, idx);
-    }
-  }
-
-  typename self_type::ConstIterator find(const AlexKey<T>& key) const {
-    stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key, 0);
-    if (leaf == nullptr) {return cend();} //error when finding key.
-    int idx = leaf->find_key(key);
-    if (idx < 0) {
-      return cend();
-    } else {
-      return ConstIterator(leaf, idx);
-    }
-  }
-
   size_t count(const AlexKey<T>& key) {
     ConstIterator it = lower_bound(key);
     size_t num_equal = 0;
@@ -1759,7 +1724,7 @@ EmptyNodeStart:
 
   // Returns whether payload search was successful, and the payload itself if it was successful.
   // This avoids the overhead of creating an iterator
-
+public:
   std::pair<bool, P> get_payload(const AlexKey<T>& key, int32_t worker_id) {
     stats_.num_lookups.increment();
     data_node_type* leaf = get_leaf(key, worker_id, 0);
@@ -1809,53 +1774,6 @@ EmptyNodeStart:
       leaf = leaf->prev_leaf_.val_;
       if (leaf->num_keys_ > 0) {
         return Iterator(leaf, leaf->last_pos());
-      }
-    }
-  }
-
-  // Directly returns a pointer to the payload found through
-  // find_last_no_greater_than(key)
-  // This avoids the overhead of creating an iterator
-  // returns nullptr on error.
-  std::pair<bool, P> get_payload_last_no_greater_than(const AlexKey<T>& key, uint32_t worker_id) {
-    stats_.num_lookups++;
-    data_node_type* leaf = get_leaf(key, 0);
-    if (leaf == nullptr) {
-      rcu_progress(worker_id);
-      return nullptr;
-    }
-
-    //wait until all wirtes are finished and mark it.
-    while (true) {
-      if (leaf->key_array_rw_lock.increment_rd()) {break;}
-    }
-    const int idx = leaf->upper_bound(key) - 1;
-    if (idx >= 0) {
-      P rval = leaf->get_payload(idx);
-      leaf->key_array_rw_lock.decrement_rd();
-      rcu_progress(worker_id);
-      return {true, rval};
-    }
-
-    // Edge case: Need to check previous data node(s)
-    while (true) {
-      data_node_type *prev_leaf = leaf->prev_leaf_.read();
-      if (prev_leaf == nullptr) {
-        P rval = leaf->get_payload(leaf->first_pos());
-        leaf->key_array_rw_lock.decrement_rd();
-        rcu_progress(worker_id);
-        return {true, rval};
-      }
-      leaf->key_array_rw_lock.decrement_rd();
-      leaf = prev_leaf;
-      if (leaf->num_keys_ > 0) {
-        while (true) {
-          if (leaf->key_array_rw_lock.increment_rd()) {break;}
-        }
-        P rval = leaf->get_payload(leaf->last_pos());
-        leaf->key_array_rw_lock.decrement_rd();
-        rcu_progress(worker_id);
-        return {true, rval};
       }
     }
   }

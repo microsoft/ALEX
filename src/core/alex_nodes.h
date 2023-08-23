@@ -407,7 +407,7 @@ class AlexDataNode : public AlexNode<T, P, Alloc> {
 #endif
 
   AtomicVal<P> unused = AtomicVal<P>(0); // whether data node exists in alex or is about to be removed.
-  struct RW_lock key_array_rw_lock = RW_lock();
+  RW_lock key_array_rw_lock = RW_lock();
 
   /* Below are unused attributes */
   //unsigned int max_key_length_ = 1; // maximum length of each key 

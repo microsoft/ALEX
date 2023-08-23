@@ -32,6 +32,7 @@ struct FGParam {
 //for multithreading synchronization
 std::atomic<bool> running(false);
 std::atomic<size_t> ready_threads(0);
+std::atomic<uint64_t> failed_cnt(0);
 
 //common read-only data used for each threads
 alex::AlexKey<KEY_TYPE> *keys = nullptr;
@@ -173,6 +174,7 @@ int main(int argc, char* argv[]) {
     fg_param_t fg_params[td_num];
     running = false;
     ready_threads.store(0);
+    failed_cnt = 0;
 
     num_actual_lookups_perth = num_lookups_per_batch / td_num;
     num_actual_inserts_perth = std::min(num_inserts_per_batch / td_num , (total_num_keys - inserted_range) / td_num);
@@ -222,7 +224,8 @@ int main(int argc, char* argv[]) {
                 << num_batch_operations / batch_time * 1e9 << " ops/sec"
                 << "\n\tcumulative throughput:\t"
                 << cumulative_operations / cumulative_time * 1e9 << " ops/sec"
-                << "\ninserted range is " << inserted_range << std::endl;
+                << "\ninserted range is " << inserted_range 
+                << "\nfailed cnt is " << failed_cnt << std::endl;
     }
 
     // Check for workload end conditions
@@ -329,6 +332,7 @@ void *run_fg(void *param) {
           alex::coutLock.unlock();
 #endif
           pending_insert.push_back({insertion_index++, val, std::get<2>(insert_result)});
+          ++failed_cnt;
         }
         else {
           //failed because duplicates are not allowed.
@@ -435,6 +439,7 @@ void *run_fg(void *param) {
                   << " failed because node being modified. re-insertion post-poned" << std::endl;
         alex::coutLock.unlock();
 #endif
+        ++failed_cnt;
         pending_insert.push_back(op_param);
       }
       else {
