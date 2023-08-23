@@ -277,7 +277,9 @@ void *run_fg(void *param) {
   std::mt19937 gen(rd());
   std::uniform_real_distribution<> ratio_dis(0, 1);
   uint64_t initial_insertion_index = insertion_index;
-  std::list<std::pair<uint64_t, PAYLOAD_TYPE>> pending_insert;
+  std::list<std::tuple<uint64_t, 
+                       PAYLOAD_TYPE, 
+                       alex::Alex<KEY_TYPE, PAYLOAD_TYPE>::model_node_type *>> pending_insert;
   alex::coutLock.lock();
   std::cout << "worker " << thread_id << " ready to start" << std::endl;
   alex::coutLock.unlock();
@@ -299,10 +301,12 @@ void *run_fg(void *param) {
       alex::coutLock.unlock();
 #endif
       PAYLOAD_TYPE val = static_cast<PAYLOAD_TYPE>(gen_payload());
-      std::pair<alex::Alex<KEY_TYPE, PAYLOAD_TYPE>::Iterator, bool> insert_result
+      std::tuple<alex::Alex<KEY_TYPE, PAYLOAD_TYPE>::Iterator, 
+                 bool, 
+                 alex::Alex<KEY_TYPE, PAYLOAD_TYPE>::model_node_type *> insert_result
           = table->insert(keys[insertion_index], val, thread_id);
-      if (!insert_result.second) {
-        if (!insert_result.first.cur_leaf_ && !insert_result.first.cur_idx_) { 
+      if (!std::get<1>(insert_result)) {
+        if (!std::get<0>(insert_result).cur_leaf_ && !std::get<0>(insert_result).cur_idx_) { 
           //failed finding leaf
           alex::coutLock.lock();
           std::cout << "worker id : " << thread_id
@@ -316,7 +320,7 @@ void *run_fg(void *param) {
           ++insert_cnt;
           ++insertion_index;
         }
-        else if (!insert_result.first.cur_leaf_) {
+        else if (!std::get<0>(insert_result).cur_leaf_) {
           //failed because leaf is being modified/resizing.
 #if DEBUG_PRINT
           alex::coutLock.lock();
@@ -324,7 +328,7 @@ void *run_fg(void *param) {
                     << " failed because node being modified. Should do other op" << std::endl;
           alex::coutLock.unlock();
 #endif
-          pending_insert.push_back({insertion_index++, val});
+          pending_insert.push_back({insertion_index++, val, std::get<2>(insert_result)});
         }
         else {
           //failed because duplicates are not allowed.
@@ -406,10 +410,12 @@ void *run_fg(void *param) {
     std::cout << "worker id : " << thread_id << " re-inserting " << keys[op_param.first].key_arr_ << std::endl;
     alex::coutLock.unlock();
 #endif
-    std::pair<alex::Alex<KEY_TYPE, PAYLOAD_TYPE>::Iterator, bool> insert_result
-          = table->insert(keys[op_param.first], op_param.second, thread_id);
-    if (!insert_result.second) {
-      if (!insert_result.first.cur_leaf_ && !insert_result.first.cur_idx_) { 
+    std::tuple<alex::Alex<KEY_TYPE, PAYLOAD_TYPE>::Iterator, 
+               bool,
+               alex::Alex<KEY_TYPE, PAYLOAD_TYPE>::model_node_type *> insert_result
+          = table->insert_from_parent(keys[std::get<0>(op_param)], std::get<1>(op_param), std::get<2>(op_param), thread_id);
+    if (!std::get<1>(insert_result)) {
+      if (!std::get<0>(insert_result).cur_leaf_ && !std::get<0>(insert_result).cur_idx_) { 
         //failed finding leaf
         alex::coutLock.lock();
           std::cout << "worker id : " << thread_id
@@ -421,7 +427,7 @@ void *run_fg(void *param) {
           }
           alex::coutLock.unlock();
       }
-      else if (!insert_result.first.cur_leaf_) {
+      else if (!std::get<0>(insert_result).cur_leaf_) {
         //failed because leaf is being modified/resizing.
 #if DEBUG_PRINT
         alex::coutLock.lock();
@@ -447,7 +453,7 @@ void *run_fg(void *param) {
         std::cout << "t" << thread_id << " - ";
         std::cout << "inserted key : ";
         for (unsigned int j = 0; j < max_key_length; j++) {
-          std::cout << keys[op_param.first].key_arr_[j];
+          std::cout << keys[std::get<0>(op_param)].key_arr_[j];
         }
         std::cout << std::endl;
         alex::coutLock.unlock();

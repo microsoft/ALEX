@@ -1942,6 +1942,10 @@ EmptyNodeStart:
     }
   }
 
+  std::tuple<Iterator, bool, model_node_type *> insert(const AlexKey<T>& key, const P& payload, uint32_t worker_id) {
+    return insert_from_parent(key, payload, superroot_, worker_id);
+  }
+
   // This will NOT do an update of an existing key.
   // To perform an update or read-modify-write, do a lookup and modify the
   // payload's value.
@@ -1951,7 +1955,8 @@ EmptyNodeStart:
   // found.
   // If it failed finding a leaf, it returns iterator with null leaf with 0 index.
   // If we need to retry later, it returns iterator with null leaf with 1 index
-  std::pair<Iterator, bool> insert(const AlexKey<T>& key, const P& payload, uint32_t worker_id) {
+  std::tuple<Iterator, bool, model_node_type *> insert_from_parent(const AlexKey<T>& key, const P& payload, 
+                                               model_node_type *last_parent, uint32_t worker_id) {
     // in string ALEX, keys should not fall outside the key domain
     char larger_key = 0;
     char smaller_key = 0;
@@ -1966,14 +1971,15 @@ EmptyNodeStart:
     }
 
     std::vector<TraversalNode<T, P>> traversal_path;
-    data_node_type* leaf = get_leaf(key, worker_id, 1, &traversal_path);
+    data_node_type* leaf = get_leaf_from_parent(key, worker_id, last_parent, 1, &traversal_path);
     if (leaf == nullptr) {
       //failed finding leaf, shouldn't happen in normal cases.
       rcu_progress(worker_id);
-      return {Iterator(nullptr, 0), false};
+      return {Iterator(nullptr, 0), false, nullptr};
     } 
     
     leaf->unused.lock();
+    model_node_type *parent = leaf->parent_;
     memory_fence();
 #if DEBUG_PRINT
     alex::coutLock.lock();
@@ -1987,7 +1993,7 @@ EmptyNodeStart:
       leaf->unused.unlock();
       memory_fence();
       rcu_progress(worker_id);
-      return {Iterator(nullptr, 1), false};
+      return {Iterator(nullptr, 1), false, parent};
     }
 
     // Nonzero fail flag means that the insert did not happen
@@ -2003,7 +2009,7 @@ EmptyNodeStart:
       leaf->unused.unlock();
       memory_fence();
       rcu_progress(worker_id);
-      return {Iterator(leaf, insert_pos), false};
+      return {Iterator(leaf, insert_pos), false, nullptr};
     }
     else if (!fail) {//succeded in first try without expansion.
 #if DEBUG_PRINT
@@ -2017,7 +2023,7 @@ EmptyNodeStart:
       stats_.num_inserts.increment();
       stats_.num_keys.increment();
       rcu_progress(worker_id);
-      return {Iterator(leaf, insert_pos), true}; //iterator could be invalid.
+      return {Iterator(leaf, insert_pos), true, nullptr}; //iterator could be invalid.
     }
     else {
       //need to modify
@@ -2051,7 +2057,7 @@ EmptyNodeStart:
 
       //original thread returns and retry later. (need to rcu_progress)
       rcu_progress(worker_id);
-      return {Iterator(nullptr, 1), false};
+      return {Iterator(nullptr, 1), false, parent};
     }
   }
 
