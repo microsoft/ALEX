@@ -229,7 +229,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Check for workload end conditions
-    if (inserted_range >= total_num_keys) {
+    if (insert_frac != 0 && inserted_range >= total_num_keys) {
       // End if we have inserted all keys in a workload with inserts
       break;
     }
@@ -411,7 +411,7 @@ void *run_fg(void *param) {
     alex::coutLock.lock();
     std::cout << '\n';
     //std::cout << "current insertion_index is : " << insertion_index << std::endl;
-    std::cout << "worker id : " << thread_id << " re-inserting " << keys[op_param.first].key_arr_ << std::endl;
+    std::cout << "worker id : " << thread_id << " re-inserting " << keys[std::get<0>(op_param)].key_arr_ << std::endl;
     alex::coutLock.unlock();
 #endif
     std::tuple<alex::Alex<KEY_TYPE, PAYLOAD_TYPE>::Iterator, 
