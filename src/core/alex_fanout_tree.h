@@ -188,9 +188,10 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
     // Account for off-by-one errors due to floating-point precision issues.
     while (right_boundary < num_keys) {
       double arb = 0.0;
-      for (unsigned int i = 0; i < newLModel.max_key_length_; i++) {
-        arb += a[0] * values[right_boundary].first.key_arr_[0] + b;
+      for (unsigned int idx = 0; idx < newLModel.max_key_length_; idx++) {
+        arb += a[idx] * values[right_boundary].first.key_arr_[idx];
       }
+      arb += b;
       if (static_cast<int>(arb) <= i) {right_boundary++;}
       else {break;}
     }
@@ -210,6 +211,11 @@ double compute_level(const std::pair<AlexKey<T>, P> values[], int num_keys,
     //  std::cout << "it's key is : " << values[right_boundary-1].first.key_arr_ << '\n';
     //}
 #endif
+
+    if (i == 0 && right_boundary == num_keys) {
+      //std::cout << "problem in alex_fanout_tree" << std::endl;
+    }
+
     if (left_boundary == right_boundary) {
       double *slope = new double[node->max_key_length_]();
       used_fanout_tree_nodes.push_back(

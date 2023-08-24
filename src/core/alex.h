@@ -1430,12 +1430,11 @@ EmptyNodeStart:
         // slightly hacky: we assume this means that the node is relatively
         // uniform but we need to split in
         // order to satisfy the max node size, so we compute the fanout that
-        // would satisfy that condition
-        // in expectation
+        // would satisfy that condition in expectation
+        //std::cout << "hitted hacky case in bulk_load" << std::endl;
         best_fanout_tree_depth =
-            static_cast<int>(std::log2(static_cast<double>(num_keys) /
-                                       derived_params_.max_data_node_slots)) +
-            1;
+            std::max(static_cast<int>(std::log2(static_cast<double>(num_keys) /
+                                       derived_params_.max_data_node_slots)) + 1, 1);
         //clear pointers used in fanout_tree (O(N)), and then empty used_fanout_tree_nodes.
         for (fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {
           delete[] tree_node.a;
@@ -1446,11 +1445,30 @@ EmptyNodeStart:
 #if DEBUG_PRINT
         std::cout << "computing level for depth" << std::endl;
 #endif
-        fanout_tree::compute_level<T, P>(
+        while (true) {
+          fanout_tree::compute_level<T, P>(
             values, num_keys, node, total_keys, used_fanout_tree_nodes,
             best_fanout_tree_depth, max_data_node_keys,
             params_.expected_insert_frac, params_.approximate_model_computation,
             params_.approximate_cost_computation);
+          
+          if (used_fanout_tree_nodes.front().right_boundary == num_keys) {
+            //std::cout << "retry" << '\n';
+            for (fanout_tree::FTNode& tree_node : used_fanout_tree_nodes) {
+              delete[] tree_node.a;
+            }
+            used_fanout_tree_nodes.clear();
+            best_fanout_tree_depth <<= 1;
+            if (best_fanout_tree_depth > derived_params_.max_fanout) {
+              std::cout << values[0].first.key_arr_ << '\n';
+              std::cout << values[num_keys - 1].first.key_arr_ << '\n';
+              std::cout << "bad case in bulk_load_node. unsolvable" << std::endl;
+              abort();
+            }
+          }
+          else break;
+          
+        }
 #if DEBUG_PRINT
         std::cout << "finished level computing" << std::endl;
 #endif
