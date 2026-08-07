@@ -49,19 +49,19 @@ class ScrambledZipfianGenerator {
     return sum;
   }
 
-  // FNV hash from https://create.stephan-brumme.com/fnv-hash/
-  static const uint32_t PRIME = 0x01000193;  //   16777619
-  static const uint32_t SEED = 0x811C9DC5;   // 2166136261
-  /// hash a single byte
-  inline uint32_t fnv1a(unsigned char oneByte, uint32_t hash = SEED) {
-    return (oneByte ^ hash) * PRIME;
+  // 64-bit FNV-1a hash, consistent with YCSB's scrambled Zipfian generator.
+static constexpr uint64_t FNV_OFFSET_BASIS_64 = 0xcbf29ce484222325ULL;
+static constexpr uint64_t FNV_PRIME_64 = 0x100000001b3ULL;
+
+inline uint64_t fnv1a(uint64_t value) {
+  uint64_t hash = FNV_OFFSET_BASIS_64;
+
+  for (int i = 0; i < 8; ++i) {
+    hash ^= static_cast<uint8_t>(value & 0xff);
+    hash *= FNV_PRIME_64;
+    value >>= 8;
   }
-  /// hash a 32 bit integer (four bytes)
-  inline uint32_t fnv1a(int fourBytes, uint32_t hash = SEED) {
-    const unsigned char* ptr = (const unsigned char*)&fourBytes;
-    hash = fnv1a(*ptr++, hash);
-    hash = fnv1a(*ptr++, hash);
-    hash = fnv1a(*ptr++, hash);
-    return fnv1a(*ptr, hash);
-  }
+
+  return hash;
+}
 };
