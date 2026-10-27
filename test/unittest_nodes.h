@@ -3,9 +3,21 @@
 
 #include "doctest.h"
 
+#include <initializer_list>
+
 #include "alex_nodes.h"
 
 using namespace alex;
+
+// Data nodes free their arrays with std::allocator, so tests that build a
+// node by hand must allocate the arrays the same way (not with new[]).
+template <class T>
+T* node_array(size_t n, std::initializer_list<T> values = {}) {
+  T* array = std::allocator<T>().allocate(n);
+  std::fill(array, array + n, T());
+  std::copy(values.begin(), values.end(), array);
+  return array;
+}
 
 TEST_SUITE("DataNode") {
 
@@ -136,14 +148,15 @@ TEST_CASE("TestClosestGap") {
   auto node = new AlexDataNode<int, int>();
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
-  node->key_slots_ = new int[8]{1, 1, 2, 3, 4, 5, 6, 6};
-  node->payload_slots_ = new int[8]();
+  node->key_slots_ = node_array<int>(8, {1, 1, 2, 3, 4, 5, 6, 6});
+  node->payload_slots_ = node_array<int>(8);
 #else
   node->data_slots_ = new std::pair<int, int>[8]{
       {1, 0}, {1, 0}, {2, 0}, {3, 0}, {4, 0}, {5, 0}, {6, 0}, {6, 0}};
 #endif
   node->data_capacity_ = 8;
-  node->bitmap_ = new uint64_t[1]();
+  node->bitmap_ = node_array<uint64_t>(1);
+  node->bitmap_size_ = 1;
   for (int i : {1, 2, 3, 4, 5, 7}) {
     node->bitmap_[0] |= (1ULL << i);
   }
@@ -160,8 +173,8 @@ TEST_CASE("TestClosestGap") {
   // Test with 5 bitmap blocks
   node = new AlexDataNode<int, int>();
 #if ALEX_DATA_NODE_SEP_ARRAYS
-  node->key_slots_ = new int[320];
-  node->payload_slots_ = new int[320]();
+  node->key_slots_ = node_array<int>(320);
+  node->payload_slots_ = node_array<int>(320);
   for (int i = 0; i < 50; i++) {
     node->key_slots_[i] = 50;
   }
@@ -185,7 +198,8 @@ TEST_CASE("TestClosestGap") {
   }
 #endif
   node->data_capacity_ = 320;
-  node->bitmap_ = new uint64_t[5]();
+  node->bitmap_ = node_array<uint64_t>(5);
+  node->bitmap_size_ = 5;
   for (int i = 50; i < 300; i++) {
     size_t bitmap_pos = i >> 6;
     size_t bit_pos = i - (bitmap_pos << 6);
@@ -203,14 +217,15 @@ TEST_CASE("TestInsertUsingShifts") {
   AlexDataNode<int, int> node;
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
-  node.key_slots_ = new int[8]{1, 1, 2, 3, 5, 6, 7, 7};
-  node.payload_slots_ = new int[8]();
+  node.key_slots_ = node_array<int>(8, {1, 1, 2, 3, 5, 6, 7, 7});
+  node.payload_slots_ = node_array<int>(8);
 #else
   node.data_slots_ = new std::pair<int, int>[8]{{1, 0}, {1, 0}, {2, 0}, {3, 0},
                                                 {5, 0}, {6, 0}, {7, 0}, {7, 0}};
 #endif
   node.data_capacity_ = 8;
-  node.bitmap_ = new uint64_t[1]();
+  node.bitmap_ = node_array<uint64_t>(1);
+  node.bitmap_size_ = 1;
   for (int i : {1, 2, 3, 4, 5, 7}) {
     node.bitmap_[0] |= (1ULL << i);
   }
@@ -226,14 +241,15 @@ TEST_CASE("TestCheckExists") {
   AlexDataNode<int, int> node;
 
 #if ALEX_DATA_NODE_SEP_ARRAYS
-  node.key_slots_ = new int[8]{1, 1, 2, 3, 4, 5, 6, 6};
-  node.payload_slots_ = new int[8]();
+  node.key_slots_ = node_array<int>(8, {1, 1, 2, 3, 4, 5, 6, 6});
+  node.payload_slots_ = node_array<int>(8);
 #else
   node.data_slots = new std::pair<int, int>[8]{{1, 0}, {1, 0}, {2, 0}, {3, 0},
                                                {4, 0}, {5, 0}, {6, 0}, {6, 0}};
 #endif
   node.data_capacity_ = 8;
-  node.bitmap_ = new uint64_t[1]();
+  node.bitmap_ = node_array<uint64_t>(1);
+  node.bitmap_size_ = 1;
   bool exists[] = {false, true, true, true, true, true, false, true};
   for (int i = 0; i < 8; i++) {
     if (exists[i]) {
@@ -244,6 +260,32 @@ TEST_CASE("TestCheckExists") {
   for (int i = 0; i < 8; i++) {
     CHECK_EQ(exists[i], node.check_exists(i));
   }
+}
+
+#if ALEX_DATA_NODE_SEP_ARRAYS
+TEST_CASE("TestNextFilledPositionAtCapacity") {
+  // find_lower() and find_upper() may start the search at data_capacity_. With
+  // a capacity that is a multiple of 64, the bitmap has no word at that index.
+  AlexDataNode<int, int> node;
+  node.key_slots_ = node_array<int>(64);
+  node.payload_slots_ = node_array<int>(64);
+  node.data_capacity_ = 64;
+  node.bitmap_ = node_array<uint64_t>(1);
+  node.bitmap_size_ = 1;
+  node.bitmap_[0] = 1ULL << 63;
+
+  CHECK_EQ(63, node.get_next_filled_position(0, false));
+  CHECK_EQ(64, node.get_next_filled_position(63, true));
+  CHECK_EQ(64, node.get_next_filled_position(64, false));
+}
+#endif
+
+TEST_CASE("TestExtractRightmostOne") {
+  CHECK_EQ(0b100ULL, extract_rightmost_one(0b10100100ULL));
+  CHECK_EQ(1ULL, extract_rightmost_one(~0ULL));
+  CHECK_EQ(0ULL, extract_rightmost_one(0ULL));
+  // Only the top bit set: negating this word as int64_t would overflow.
+  CHECK_EQ(1ULL << 63, extract_rightmost_one(1ULL << 63));
 }
 
 TEST_CASE("TestExpansion") {

@@ -167,7 +167,8 @@ struct AlexCompare {
 // Extract the rightmost 1 in the binary representation.
 // e.g. extract_rightmost_one(010100100) = 000000100
 inline uint64_t extract_rightmost_one(uint64_t value) {
-  return value & -static_cast<int64_t>(value);
+  // Negate as unsigned: negating INT64_MIN as int64_t overflows.
+  return value & (~value + 1);
 }
 
 // Remove the rightmost 1 in the binary representation.

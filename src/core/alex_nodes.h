@@ -1521,6 +1521,11 @@ class AlexDataNode : public AlexNode<T, P> {
         return data_capacity_;
       }
     }
+    // find_lower() and find_upper() may pass pos == data_capacity_. When the
+    // capacity is a multiple of 64, reading the bitmap there is out of bounds.
+    if (pos >= data_capacity_) {
+      return data_capacity_;
+    }
 
     int curBitmapIdx = pos >> 6;
     uint64_t curBitmapData = bitmap_[curBitmapIdx];

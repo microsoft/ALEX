@@ -623,11 +623,14 @@ class Alex {
     if (node == nullptr) {
       return;
     } else if (node->is_leaf_) {
-      data_node_allocator().destroy(static_cast<data_node_type*>(node));
-      data_node_allocator().deallocate(static_cast<data_node_type*>(node), 1);
+      // Cast before destroying: downcasting a destroyed object is undefined.
+      auto data_node = static_cast<data_node_type*>(node);
+      data_node_allocator().destroy(data_node);
+      data_node_allocator().deallocate(data_node, 1);
     } else {
-      model_node_allocator().destroy(static_cast<model_node_type*>(node));
-      model_node_allocator().deallocate(static_cast<model_node_type*>(node), 1);
+      auto model_node = static_cast<model_node_type*>(node);
+      model_node_allocator().destroy(model_node);
+      model_node_allocator().deallocate(model_node, 1);
     }
   }
 
@@ -1177,13 +1180,15 @@ class Alex {
         } else if (experimental_params_.splitting_policy_method == 1) {
           // decide between no split (i.e., expand and retrain) or splitting in
           // 2
-          fanout_tree_depth = fanout_tree::find_best_fanout_existing_node<T, P>(
-              parent, bucketID, stats_.num_keys, used_fanout_tree_nodes, 2);
+          fanout_tree_depth =
+              fanout_tree::find_best_fanout_existing_node<T, P, data_node_type>(
+                  parent, bucketID, stats_.num_keys, used_fanout_tree_nodes, 2);
         } else if (experimental_params_.splitting_policy_method == 2) {
           // use full fanout tree to decide fanout
-          fanout_tree_depth = fanout_tree::find_best_fanout_existing_node<T, P>(
-              parent, bucketID, stats_.num_keys, used_fanout_tree_nodes,
-              derived_params_.max_fanout);
+          fanout_tree_depth =
+              fanout_tree::find_best_fanout_existing_node<T, P, data_node_type>(
+                  parent, bucketID, stats_.num_keys, used_fanout_tree_nodes,
+                  derived_params_.max_fanout);
         }
         int best_fanout = 1 << fanout_tree_depth;
         stats_.cost_computation_time +=

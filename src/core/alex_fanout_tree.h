@@ -343,14 +343,17 @@ std::pair<int, double> find_best_fanout_top_down(
 // This mirrors the logic of finding the best fanout "bottom-up" when bulk
 // loading.
 // Returns the depth of the best fanout tree.
-template <class T, class P>
+// DataNode must be the data node type that the Alex instance uses. Casting a
+// node to AlexDataNode<T, P> when Alex was instantiated with other template
+// arguments (e.g. allow_duplicates = false) is undefined behavior.
+template <class T, class P, class DataNode = AlexDataNode<T, P>>
 int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
                                    int bucketID, int total_keys,
                                    std::vector<FTNode>& used_fanout_tree_nodes,
                                    int max_fanout) {
   // Repeatedly add levels to the fanout tree until the overall cost of each
   // level starts to increase
-  auto node = static_cast<AlexDataNode<T, P>*>(parent->children_[bucketID]);
+  auto node = static_cast<DataNode*>(parent->children_[bucketID]);
   int num_keys = node->num_keys_;
   int best_level = 0;
   double best_cost = std::numeric_limits<double>::max();
@@ -395,7 +398,7 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
       }
       int num_actual_keys = 0;
       LinearModel<T> model;
-      typename AlexDataNode<T, P>::const_iterator_type it(node, left_boundary);
+      typename DataNode::const_iterator_type it(node, left_boundary);
       LinearModelBuilder<T> builder(&model);
       for (int j = 0; it.cur_idx_ < right_boundary && !it.is_end(); it++, j++) {
         builder.add(it.key(), j);
@@ -406,9 +409,9 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
       double empirical_insert_frac = node->frac_inserts();
       DataNodeStats stats;
       double node_cost =
-          AlexDataNode<T, P>::compute_expected_cost_from_existing(
+          DataNode::compute_expected_cost_from_existing(
               node, left_boundary, right_boundary,
-              AlexDataNode<T, P>::kInitDensity_, empirical_insert_frac, &model,
+              DataNode::kInitDensity_, empirical_insert_frac, &model,
               &stats);
 
       cost += node_cost * num_actual_keys / num_keys;
@@ -422,7 +425,7 @@ int find_best_fanout_existing_node(const AlexModelNode<T, P>* parent,
     double traversal_cost =
         kNodeLookupsWeight +
         (kModelSizeWeight * fanout *
-         (sizeof(AlexDataNode<T, P>) + sizeof(void*)) * total_keys / num_keys);
+         (sizeof(DataNode) + sizeof(void*)) * total_keys / num_keys);
     cost += traversal_cost;
     fanout_costs.push_back(cost);
     // stop after expanding fanout increases cost twice in a row

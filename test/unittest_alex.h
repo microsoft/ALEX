@@ -9,6 +9,29 @@ using namespace alex;
 
 TEST_SUITE("Alex") {
 
+TEST_CASE("TestInsertWithoutDuplicates") {
+  // Random-order inserts make nodes split through
+  // find_best_fanout_existing_node(), which must use this instance's data node
+  // type rather than AlexDataNode<T, P> with default arguments.
+  Alex<int, int, AlexCompare, std::allocator<std::pair<int, int>>, false> index;
+  std::vector<int> keys;
+  for (int i = 0; i < 50000; i++) {
+    keys.push_back(i * 3);
+  }
+  std::mt19937 rng(42);
+  std::shuffle(keys.begin(), keys.end(), rng);
+  for (int key : keys) {
+    CHECK(index.insert(key, key).second);
+  }
+  CHECK_FALSE(index.insert(keys[0], 0).second);  // duplicates are refused
+  CHECK_EQ(index.size(), 50000);
+  for (int i = 0; i < 50000; i++) {
+    auto it = index.find(i * 3);
+    REQUIRE(it != index.end());
+    CHECK_EQ(it.payload(), i * 3);
+  }
+}
+
 TEST_CASE("TestBulkLoad") {
   Alex<int, int> index;
 
