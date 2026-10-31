@@ -425,8 +425,11 @@ class Alex {
         // So we don't need to use std::round or std::lround.
         int bucketID_prediction_rounded =
             static_cast<int>(bucketID_prediction + 0.5);
+        // The rounding error of a*key+b scales with the size of the terms being added
+        // (|a*key| + |b|), not with the result. See issue #40.
         double tolerance =
-            10 * std::numeric_limits<double>::epsilon() * bucketID_prediction;
+            10 * std::numeric_limits<double>::epsilon() *
+            (std::abs(node->model_.a_ * static_cast<double>(key)) + std::abs(node->model_.b_));
         // https://stackoverflow.com/questions/17333/what-is-the-most-effective-way-for-float-and-double-comparison
         if (std::abs(bucketID_prediction - bucketID_prediction_rounded) <=
             tolerance) {
